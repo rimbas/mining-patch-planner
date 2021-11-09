@@ -454,20 +454,21 @@ function algorithm.on_player_selected_area(event)
 
 	rendering.clear("mining-patch-planner")
 
+	local minimum_span = mc.w * 2 + 1
 	if #filtered_entities == 0 then return end
 	if global.players[event.player_index].layout_choice == "horizontal" then
-		if coords.h < 7 or coords.w < 3 then
-			player.print("This trivial case shall be left as an exercise for the reader")
+		if coords.h < minimum_span or coords.w < mc.w then
+			player.print("Span is too small to create a layout")
 			return
 		end
 	else
-		if coords.h < 3 or coords.w < 7 then
-			player.print("This trivial case shall be left as an exercise for the reader")
+		if coords.h < mc.w or coords.w < minimum_span then
+			player.print("Span is too small to create a layout")
 			return
 		end
 	end
 	if coords.h > 200 or coords.w > 200 then
-		player.print("This excessive case shall be left as an exercise for the reader")
+		player.print("Span is too big to create a layout")
 		return
 	end
 
