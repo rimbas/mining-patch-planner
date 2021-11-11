@@ -12,8 +12,10 @@ local min, max = math.min, math.max
 ---@field layout_choice string
 ---@field horizontal_direction string
 ---@field vertical_direction string
+---@field direction string
 ---@field belt_choice string
 ---@field miner_choice string
+---@field lamp boolean
 local grid_mt = {}
 grid_mt.__index = grid_mt
 
@@ -22,6 +24,11 @@ local direction_map = {
 	right = defines.direction.east,
 	up = defines.direction.north,
 	down = defines.direction.south,
+}
+
+local resource_categories = {
+	["basic-solid"] = true,
+	["hard-resource"] = true,
 }
 
 ---@class Coords
@@ -69,6 +76,8 @@ end
 ---@field near integer Bounds radius of the miner
 ---@field far integer Reach radius of the miner
 ---@field cbox BoundingBox Miner bounding box
+---@field miner_name string Miner name
+---@field resource_categories table<string, boolean> Resource categories miner can mine
 
 ---Convolves a resource patch reach using characteristics of a miner
 ---@param x integer coordinate of the resource patch
@@ -150,18 +159,24 @@ local function get_miner_characteristics(player)
 		cbox=cbox,
 		near_w = near_w, near_h = near_h,
 		near = near_w, far = far,
+		miner_name = miner_name,
+		resource_categories = miner.resource_categories,
 	}
 end
 
 ---Filters resource entity list and returns patch coordinates and size
 ---@param entities LuaEntity[]
 ---@return Coords, LuaEntity[]
+---@return table<string, string> @key:resource name; value:resource category
 local function process_entities(entities)
 	local filtered = {}
+	local found_resources = {} -- resource.name: resource_category
 	local x1, y1 = math.huge, math.huge
 	local x2, y2 = -math.huge, -math.huge
 	for _, entity in pairs(entities) do
-		if entity.prototype["resource_category"] == "basic-solid" then
+		local category = entity.prototype["resource_category"]
+		if resource_categories[category] then
+			found_resources[entity.name] = category
 			filtered[#filtered+1] = entity
 			local x, y = entity.position.x, entity.position.y
 			if x < x1 then x1 = x end
@@ -176,7 +191,7 @@ local function process_entities(entities)
 		ix2 = ceil(x2), iy2 = ceil(y2),
 	}
 	coords.w, coords.h = coords.ix2 - coords.ix1, coords.iy2 - coords.iy1
-	return coords, filtered
+	return coords, filtered, found_resources
 end
 
 ---Initializes grid structure
@@ -189,7 +204,7 @@ local function initialize_grid(coords, miner_characteristics, event)
 		miner_characteristics=miner_characteristics,
 		near=miner_characteristics.near, miner_characteristics.far,
 		data={},
-		event=event
+		event=event,
 	}
 	local mw, mh = miner_characteristics.w, miner_characteristics.h
 
@@ -210,11 +225,14 @@ local function initialize_grid(coords, miner_characteristics, event)
 		end
 	end
 
-	grid.layout_choice = global.players[grid.event.player_index].layout_choice
-	grid.horizontal_direction = global.players[grid.event.player_index].horizontal_direction
-	grid.vertical_direction = global.players[grid.event.player_index].vertical_direction
-	grid.belt_choice = global.players[grid.event.player_index].belt_choice
-	grid.miner_choice = global.players[grid.event.player_index].miner_choice
+	local ply_global = global.players[grid.event.player_index]
+	grid.layout_choice = ply_global.layout_choice
+	grid.horizontal_direction = ply_global.horizontal_direction
+	grid.vertical_direction = ply_global.vertical_direction
+	grid.belt_choice = ply_global.belt_choice
+	grid.miner_choice = ply_global.miner_choice
+	grid.lamp = ply_global.lamp
+	grid.direction = ply_global[ply_global.layout_choice.."_direction"]
 
 	--[[ debug visualisation - bounding box
 	rendering.draw_rectangle{
@@ -450,9 +468,19 @@ function algorithm.on_player_selected_area(event)
 	local surface = event.surface
 	local mc = get_miner_characteristics(player)
 
-	local coords, filtered_entities = process_entities(event.entities)
+	local coords, filtered_entities, found_resources = process_entities(event.entities)
 
-	rendering.clear("mining-patch-planner")
+	for k, v in pairs(found_resources) do
+		if not mc.resource_categories[v] then
+			local miner_name = game.entity_prototypes[mc.miner_name].localised_name
+			local resource_name = game.entity_prototypes[k].localised_name
+			--player.print(("Can't build on this resource patch with selected miner \"%s\" because it can't mine resource \"%s\""):format())
+			player.print{"", {"mpp.msg_miner_err_1"}, " \"", miner_name, "\" ", {"mpp.msg_miner_err_2"}, " \"", resource_name, "\""}
+			return
+		end
+	end
+
+	--rendering.clear("mining-patch-planner")
 
 	local minimum_span = mc.w * 2 + 1
 	if #filtered_entities == 0 then return end
@@ -734,6 +762,9 @@ function algorithm.on_player_selected_area(event)
 		end
 	end
 
+	--- Power poles
+	local power_poles = {}
+	local power_poles_all = {}
 	do
 		-- Hardcoding medium electric poles
 		local wire_reach = 9
@@ -786,14 +817,11 @@ function algorithm.on_player_selected_area(event)
 					player=event.player_index,
 					force=player.force,
 					position={x, y},
-					direction=belt_direction(),
 					inner_name="medium-electric-pole",
 				}
 			end
 		end
 
-		local power_poles = {}
-		local power_poles_all = {}
 		local power_pole_ty = 1
 		for iy=pole_start_y, coords.h + mc.far, step_y do
 			local row = {}
@@ -803,12 +831,14 @@ function algorithm.on_player_selected_area(event)
 				local power_pole = {
 					x = pole_x+ix, y = pole_y+iy,
 					tx = power_pole_tx, ty = power_pole_ty,
+					built=false,
 				}
 				power_pole.ix, power_pole.iy = ceil(power_pole.x-coords.x1)+1, ceil(power_pole.y-coords.y1)+1
 				row[ix] = power_pole
 				power_poles_all[#power_poles_all+1] = power_pole
 
 				if get_covered_miners(power_pole) then
+					power_pole.built = true
 					place_powerpole_ghost(power_pole)
 				end
 
@@ -828,6 +858,47 @@ function algorithm.on_player_selected_area(event)
 			power_pole_ty = power_pole_ty + 1
 		end
 
+	end
+
+	--lamps
+	if grid.lamp then
+		local off_lx, off_ly
+		if grid.direction == "left" then
+			off_lx, off_ly = -1, 0
+		elseif grid.direction == "right" then
+			off_lx, off_ly = 1, 0
+		else
+			off_lx, off_ly = 0, 1
+		end
+
+		local function place_lamp_ghost(pole, off_x, off_y)
+			local x, y = pole.x+off_x, pole.y+off_y
+			local tile = grid:get_tile(pole.ix+off_x, pole.iy+off_y)
+			if tile then tile.built_on = true end
+
+			local can_place = surface.can_place_entity{
+				name="small-lamp",
+				force=player.force,
+				position={x, y},
+				build_check_type=defines.build_check_type.script_ghost,
+				forced=true,
+			}
+			if can_place then
+				surface.create_entity{
+					name="entity-ghost",
+					player=event.player_index,
+					force=player.force,
+					position={x, y},
+					inner_name="small-lamp",
+				}
+			end
+		end
+
+		for _, pole in ipairs(power_poles_all) do
+			if pole.built then
+				place_lamp_ghost(pole, off_lx, off_ly)
+			end
+		end
 	end
 
 	for _, water_tile in pairs(water_tiles) do

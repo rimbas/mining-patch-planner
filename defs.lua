@@ -1,3 +1,6 @@
+---@meta
+---@diagnostic disable
+
 ---@class EventDataPlayerSelectedArea : EventData
 ---@field item string
 ---@field player_index uint
