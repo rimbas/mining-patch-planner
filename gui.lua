@@ -44,16 +44,16 @@ function gui.build_interface(player)
 
 	local settings_layout_label = settings_frame.add{type="label", name="mpp_layout_label", style="subheader_caption_label", caption={"mpp.settings_layout_label"}}
 	local radiobutton_dir_up = settings_frame.add{
-		type="radiobutton", name="mpp_radiobutton_up", caption={"mpp.settings_radio_up"}, state=ply_global.layout_choice == "vertical" and ply_global.vertical_direction == "up", tags={layout="vertical", direction="up"}
+		type="radiobutton", name="mpp_radiobutton_up", caption={"mpp.settings_radio_up"}, state=ply_global.layout_choice == "vertical" and ply_global.vertical_direction == "up", tags={action="mpp_direction", layout="vertical", direction="up"}
 	}
 	local radiobutton_dir_right = settings_frame.add{
-		type="radiobutton", name="mpp_radiobutton_right", caption={"mpp.settings_radio_right"}, state=ply_global.layout_choice == "horizontal" and ply_global.horizontal_direction == "right", tags={layout="horizontal", direction="right"}
+		type="radiobutton", name="mpp_radiobutton_right", caption={"mpp.settings_radio_right"}, state=ply_global.layout_choice == "horizontal" and ply_global.horizontal_direction == "right", tags={action="mpp_direction", layout="horizontal", direction="right"}
 	}
 	local radiobutton_dir_down = settings_frame.add{
-		type="radiobutton", name="mpp_radiobutton_down", caption={"mpp.settings_radio_down"}, state=ply_global.layout_choice == "vertical" and ply_global.vertical_direction == "down", tags={layout="vertical", direction="down"}
+		type="radiobutton", name="mpp_radiobutton_down", caption={"mpp.settings_radio_down"}, state=ply_global.layout_choice == "vertical" and ply_global.vertical_direction == "down", tags={action="mpp_direction", layout="vertical", direction="down"}
 	}
 	local radiobutton_dir_left = settings_frame.add{
-		type="radiobutton", name="mpp_radiobutton_left", caption={"mpp.settings_radio_left"}, state=ply_global.layout_choice == "horizontal" and ply_global.horizontal_direction == "left", tags={layout="horizontal", direction="left"}
+		type="radiobutton", name="mpp_radiobutton_left", caption={"mpp.settings_radio_left"}, state=ply_global.layout_choice == "horizontal" and ply_global.horizontal_direction == "left", tags={action="mpp_direction", layout="horizontal", direction="left"}
 	}
 	ply_global.gui.layout_radio_dir = {
 		[radiobutton_dir_right.name] = radiobutton_dir_right,
@@ -81,9 +81,8 @@ end
 
 ---@param event EventDataGuiCheckedStateChanged
 function gui.on_gui_checked_state_changed(event)
-	local player = game.get_player(event.player_index)
 	local ply_global = global.players[event.player_index]
-	if ply_global.gui.layout_radio_dir[event.element.name] then
+	if event.element.tags.action == "mpp_direction" then
 		ply_global.layout_choice = event.element.tags.layout
 		ply_global[event.element.tags.layout.."_direction"] = event.element.tags.direction
 		for key, ele in pairs(ply_global.gui.layout_radio_dir) do
