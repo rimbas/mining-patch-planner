@@ -11,7 +11,7 @@ local function build_belt_table(player)
 	for _, belt in pairs(belts) do
 		local button_style = ply_global.belt_choice == belt.name and "yellow_slot_button" or "recipe_slot_button"
 		ply_global.gui.belt_table.add{
-			type="sprite-button", sprite=("item/"..belt.name), style=button_style, tags={action="mpp_belt_choice", belt=belt.name},
+			type="sprite-button", sprite=("entity/"..belt.name), style=button_style, tags={action="mpp_belt_choice", belt=belt.name},
 			tooltip={"entity-name."..belt.name},
 		}
 	end
@@ -27,7 +27,7 @@ local function build_miner_table(player)
 		if miner.resource_categories["basic-solid"] and miner.electric_energy_source_prototype and w % 2 == 1 then
 			local button_style = ply_global.miner_choice == miner.name and "yellow_slot_button" or "recipe_slot_button"
 			ply_global.gui.miner_table.add{
-				type="sprite-button", sprite=("item/"..miner.name), style=button_style, tags={action="mpp_miner_choice", miner=miner.name},
+				type="sprite-button", sprite=("entity/"..miner.name), style=button_style, tags={action="mpp_miner_choice", miner=miner.name},
 				tooltip={"entity-name."..miner.name},
 			}
 		end

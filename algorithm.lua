@@ -248,16 +248,6 @@ local function initialize_grid(coords, miner_characteristics, event)
 		filled=false, width=4, color={0, 0.5, 1, 1},
 		players={event.player_index},
 	}
-
-	rendering.draw_circle{
-		surface = event.surface,
-		filled = false,
-		color = {1, 0, 0, 1},
-		width = 5,
-		target = {coords.ix1, coords.iy1},
-		radius = 0.5,
-		players={event.player_index},
-	}
 	--]]
 
 	return setmetatable(grid, grid_mt)
@@ -480,7 +470,7 @@ function algorithm.on_player_selected_area(event)
 		end
 	end
 
-	--rendering.clear("mining-patch-planner")
+	-- rendering.clear("mining-patch-planner")
 
 	local minimum_span = mc.w * 2 + 1
 	if #filtered_entities == 0 then return end
@@ -504,9 +494,10 @@ function algorithm.on_player_selected_area(event)
 	process_grid(grid, filtered_entities)
 
 	-- This is just bruteforcing, right?
+	local ext_behind, ext_forward = -mc.near, mc.far - mc.near
 	local attempts = {}
-	for sy = -mc.near, mc.near do
-		for sx = -mc.near, mc.near do
+	for sy = ext_behind, ext_forward do
+		for sx = ext_behind, ext_forward do
 			if grid.layout_choice == "horizontal" then
 				attempts[#attempts+1] = {x=sx, y=sy, layout_choice="horizontal"}
 			elseif grid.layout_choice == "vertical" then
@@ -514,6 +505,47 @@ function algorithm.on_player_selected_area(event)
 			end
 		end
 	end
+
+	--[[ debug visualisation - search extent
+	do
+		rendering.draw_line{
+			surface = event.surface,
+			filled = false,
+			color = {1, 0, 0, 0.25},
+			width = 3,
+			from = {coords.ix1 + ext_behind, coords.iy1},
+			to = {coords.ix1 + ext_behind, coords.iy1 + 1},
+			players = {event.player_index},
+		}
+		rendering.draw_line{
+			surface = event.surface,
+			filled = false,
+			color = {1, 0, 0, 0.25},
+			width = 3,
+			from = {coords.ix1 + ext_forward + 1, coords.iy1},
+			to = {coords.ix1 + ext_forward + 1, coords.iy1 + 1},
+			players = {event.player_index},
+		}
+		rendering.draw_line{
+			surface = event.surface,
+			filled = false,
+			color = {1, 0, 0, 0.25},
+			width = 3,
+			from = {coords.ix1, coords.iy1 + ext_behind},
+			to = {coords.ix1 + 1, coords.iy1 + ext_behind},
+			players = {event.player_index},
+		}
+		rendering.draw_line{
+			surface = event.surface,
+			filled = false,
+			color = {1, 0, 0, 0.25},
+			width = 3,
+			from = {coords.ix1, coords.iy1 + ext_forward + 1},
+			to = {coords.ix1 + 1, coords.iy1 + ext_forward + 1},
+			players = {event.player_index},
+		}
+	end
+	--]]
 
 	local best_attempt = attempts[1]
 	local best_miners, best_postponed, best_heuristic, best_heuristic2 = calculate_attempt(grid, best_attempt)

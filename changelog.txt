@@ -1,0 +1,25 @@
+---------------------------------------------------------------------------------------------------
+Version: 1.0.3
+Date: 2021-11-30
+  Optimizations:
+    - Improved placement logic of miners with large radius
+  Bugfixes:
+    - Fixed GUI crash in icon logic for mod entities
+---------------------------------------------------------------------------------------------------
+Version: 1.0.2
+Date: 2021-11-12
+  Bugfixes:
+    - Fixed GUI checkbox crash
+---------------------------------------------------------------------------------------------------
+Version: 1.0.1
+Date: 2021-11-11
+  Features:
+    - Lamp placement
+  Bugfixes:
+    - Fixed GUI being created on start
+    - Space Exploration Iridium compatibility
+---------------------------------------------------------------------------------------------------
+Version: 1.0.0
+Date: 2021-11-09
+  Features:
+    - Initial release
