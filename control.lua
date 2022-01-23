@@ -8,8 +8,7 @@ script.on_init(function()
 	global.tasks = {}
 
 	for _, player in pairs(game.players) do
-		conf.initialize_global(player)
-		--gui.build_interface(player)
+		conf.initialize_global(player.index)
 	end
 end)
 

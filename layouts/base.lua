@@ -5,6 +5,7 @@ local min, max = math.min, math.max
 local layout = {}
 
 layout.name = "Base"
+layout.translation = {"mpp.settings_layout_choice_base"}
 
 layout.restrictions = {}
 layout.restrictions.miner_near_radius = {1, 10e3}
@@ -30,7 +31,9 @@ end
 
 ---@class MinerStruct
 ---@field name string
----@field size number Physical miner width
+---@field size number Physical miner size
+---@field w number Miner collision width
+---@field h number Miner collision height
 ---@field far number Far radius
 ---@field near number Close radius
 ---@field resource_categories table<string, boolean>
@@ -46,6 +49,7 @@ function layout:initialize(state)
 		local cbox = miner_proto.collision_box
 		local cbox_tl, cbox_br = cbox.left_top, cbox.right_bottom
 		local cw, ch = cbox_br.x - cbox_tl.x, cbox_br.y - cbox_tl.y
+		miner.w, miner.h = ceil(cw), ceil(ch)
 		miner.size = ceil(cw)
 		miner.near =  floor(miner.size * 0.5)
 		miner.resource_categories = miner_proto.resource_categories

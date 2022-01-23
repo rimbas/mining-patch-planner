@@ -9,8 +9,14 @@ local algorithm = {}
 ---@type table<string, Layout>
 local layouts = {}
 algorithm.layouts = layouts
-local function require_layout(layout) layouts[layout] = require("layouts."..layout) end
+local function require_layout(layout) 
+	layouts[layout] = require("layouts."..layout)
+	layouts[#layouts+1] = layouts[layout]
+end
 require_layout("simple")
+require_layout("compact")
+require_layout("sparse")
+--require_layout("logistics")
 
 ---@class State
 ---@field delegate string
@@ -109,9 +115,6 @@ function algorithm.on_player_selected_area(event)
 	else
 		return nil, error
 	end
-
 end
-
-
 
 return algorithm

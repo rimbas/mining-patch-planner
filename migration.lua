@@ -33,9 +33,8 @@ add_migration{"1.1", function(mod_changes)
 			end
 			player.gui.left["mpp_settings_frame"].destroy()
 		end
-		conf.initialize_global(player)
+		conf.initialize_global(player.index)
 	end
-	game.print("Migrated to 1.1.0")
 end}
 
 ---@param mod_changes ModChangeData

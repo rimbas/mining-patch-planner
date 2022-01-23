@@ -13,8 +13,12 @@ local layout = table.deepcopy(base)
 ---@field attempts any
 ---@field attempt_index number
 ---@field best_attempt PlacementAttempt
+---@field resource_tiles GridTile
+---@field longest_belt number For pole alignment information
+---@field power_poles_all table
 
-layout.name = "Simple"
+layout.name = "simple"
+layout.translation = {"mpp.settings_layout_choice_simple"}
 
 layout.restrictions = {}
 layout.restrictions.miner_near_radius = {1, 10e3}
@@ -34,28 +38,26 @@ function layout:on_load(state)
 	end
 end
 
--- "t" prefix next to coordinates means transposed coordinate
 local coord_convert = {}
 coord_convert.west = function(x, y, w, h) return x, y end
 coord_convert.east = function(x, y, w, h) return w-x+1, h-y+1 end
-coord_convert.north = function(x, y, w, h) return h-y+1, x end
-coord_convert.south = function(x, y, w, h) return y, w-x+1 end
+coord_convert.south = function(x, y, w, h) return h-y+1, x end
+coord_convert.north = function(x, y, w, h) return y, w-x+1 end
 
 -- Validate the selection
 ---@param self Layout
 ---@param state State
 function layout:validate(state)
 	local c = state.coords
-
-	if (state.direction_choice == "west" or state.direction_choice == "east") then
-		if c.h < 7 then
-			return nil, {"mpp.msg_miner_err_1_w", 7}
-		end
-	else
-		if c.w < 7 then
-			return nil, {"mpp.msg_miner_err_1_h", 7}
-		end
-	end
+	-- if (state.direction_choice == "west" or state.direction_choice == "east") then
+	-- 	if c.h < 7 then
+	-- 		return nil, {"mpp.msg_miner_err_1_w", 7}
+	-- 	end
+	-- else
+	-- 	if c.w < 7 then
+	-- 		return nil, {"mpp.msg_miner_err_1_h", 7}
+	-- 	end
+	-- end
 	return true
 end
 
@@ -112,9 +114,10 @@ function layout:start(state)
 		end
 	end
 
+	--[[ debug rendering - bounds ]]
 	rendering.draw_rectangle{
 		surface=state.surface,
-		left_top={state.coords.ix1, state.coords.iy1}, 
+		left_top={state.coords.ix1, state.coords.iy1},
 		right_bottom={state.coords.ix1 + c.tw, state.coords.iy1 + c.th},
 		filled=false, width=4, color={0, 0, 1, 1},
 		players={state.player},
@@ -127,6 +130,7 @@ function layout:start(state)
 		filled=false, width=4, color={0, 0.5, 1, 1},
 		players={state.player},
 	}
+	--]]
 
 	state.grid = setmetatable(grid, grid_mt)
 	state.delegate = "process_grid"
@@ -182,6 +186,8 @@ end
 ---@field line number lane index
 
 ---@class PlacementAttempt
+---@field sx number x shift
+---@field sy number y shift
 ---@field miners MinerPlacement[]
 ---@field postponed MinerPlacement[]
 ---@field neighbor_sum number
@@ -245,6 +251,7 @@ local function placement_attempt(state, shift_x, shift_y)
 		miner_index = miner_index + 1
 	end
 	return {
+		sx=shift_x, sy=shift_y,
 		miners=miners,
 		postponed=postponed,
 		neighbor_sum=neighbor_sum,
@@ -272,17 +279,17 @@ local fmt_str = "Attempt #%i (%i,%i) - miners:%i (%i), sum %i, density %.3f, sco
 ---@param self Layout
 ---@param state SimpleState
 function layout:init_first_pass(state)
-	local attempts = {{0, 0}}
+	local m = state.miner
+	local attempts = {{-m.near, -m.near}}
 	state.attempts = attempts
 	state.best_attempt_index = 1
 	state.attempt_index = 2 -- first attempt is used up
-	local m = state.miner
 	--local ext_behind, ext_forward = -m.far, m.far - m.near
 	local ext_behind, ext_forward = -m.far, m.far-m.near
 	
 	for sy = ext_behind, ext_forward do
 		for sx = ext_behind, ext_forward do
-			if not (sx == 0 and sy == 0) then
+			if not (sx == -m.near and sy == -m.near) then
 				attempts[#attempts+1] = {sx, sy}
 			end
 		end
@@ -295,7 +302,6 @@ function layout:init_first_pass(state)
 	--game.print(fmt_str:format(1, attempts[1][1], attempts[1][2], #current_attempt.miners, #current_attempt.postponed, current_attempt.neighbor_sum, current_attempt.density, state.best_attempt_score))
 
 	state.delegate = "first_pass"
-	--state.delegate = "second_pass"
 end
 
 
@@ -375,7 +381,27 @@ function layout:second_pass(state)
 	end
 	--]]
 
-	state.delegate = "miner_placement"
+	state.delegate = "simple_deconstruct"
+end
+
+---@param self Layout
+---@param state SimpleState
+function layout:simple_deconstruct(state)
+	local c = state.coords
+	local m = state.miner
+	local player = state.player
+	local surface = state.surface
+
+	surface.deconstruct_area{
+		force=player.force,
+		player=player.index,
+		area={
+			left_top={c.x1-m.size, c.y1-m.size},
+			right_bottom={c.x2+m.size, c.y2+m.far}
+		},
+	}
+
+	state.delegate = "place_miners"
 end
 
 local miner_direction = {west="south",east="north",north="west",south="east"}
@@ -389,14 +415,14 @@ coord_revert.south = coord_convert.north
 
 ---@param self Layout
 ---@param state SimpleState
-function layout:miner_placement(state)
+function layout:place_miners(state)
 	local c = state.coords
+	local g = state.grid
 	local surface = state.surface
 	for _, miner in ipairs(state.best_attempt.miners) do
 		local center = miner.center
-		local x, y = center.x, center.y
-		local tx, ty = coord_revert[state.direction_choice](x, y, c.tw, c.th)
-		x, y = tx, ty
+		local tile = g:get_tile(center.x, center.y)
+		local x, y = coord_revert[state.direction_choice](center.x, center.y, c.tw, c.th)
 		-- local can_place = surface.can_place_entity{
 		-- 	name=state.miner.name,
 		-- 	force = state.player.force,
@@ -405,7 +431,7 @@ function layout:miner_placement(state)
 		-- 	build_check_type = 
 		-- }
 
-		--[[ debug visualisation - miner placement ]]
+		--[[ debug visualisation - miner placement
 		local off = state.miner.size / 2
 		rendering.draw_rectangle{
 			surface = state.surface,
@@ -418,39 +444,254 @@ function layout:miner_placement(state)
 		}
 		--]]
 
-		-- surface.create_entity{
-		-- 	name="entity-ghost",
-		-- 	player=state.player,
-		-- 	force = state.player.force,
-		-- 	position = {c.x1 + tx, c.y1 + ty},
-		-- 	inner_name = state.miner_choice,
-		-- }
+		local flip_lane = miner.line % 2 ~= 1
+		local direction = miner_direction[state.direction_choice]
+		if flip_lane then direction = opposite[direction] end
+
+		surface.create_entity{
+			name="entity-ghost",
+			player=state.player,
+			force = state.player.force,
+			position = {c.gx + x, c.gy + y},
+			direction = defines.direction[direction],
+			inner_name = state.miner_choice,
+		}
 	end
 
-	for _, miner in ipairs(state.best_attempt.postponed) do
-		local center = miner.center
-		local x, y = center.x, center.y
-		local tx, ty = coord_revert[state.direction_choice](x, y, c.tw, c.th)
-		x, y = tx, ty
+	-- for _, miner in ipairs(state.best_attempt.postponed) do
+	-- 	local center = miner.center
+	-- 	local x, y = center.x, center.y
+	-- 	local tx, ty = coord_revert[state.direction_choice](x, y, c.tw, c.th)
+	-- 	x, y = tx, ty
 
-		local off = state.miner.size / 2 - 0.1
-		rendering.draw_rectangle{
-			surface = state.surface,
-			filled = false,
-			color = {1, 0, 0},
-			width = 3,
-			--target = {c.x1 + x, c.y1 + y},
-			left_top = {c.gx+x-off, c.gy + y - off},
-			right_bottom = {c.gx+x+off, c.gy + y + off},
-		}
+	-- 	local off = state.miner.size / 2 - 0.1
+	-- 	rendering.draw_rectangle{
+	-- 		surface = state.surface,
+	-- 		filled = false,
+	-- 		color = {1, 0, 0},
+	-- 		width = 3,
+	-- 		--target = {c.x1 + x, c.y1 + y},
+	-- 		left_top = {c.gx+x-off, c.gy + y - off},
+	-- 		right_bottom = {c.gx+x+off, c.gy + y + off},
+	-- 	}
 
+	-- end
+
+	state.delegate = "placement_belts"
+end
+
+---@param self Layout
+---@param state SimpleState
+function layout:placement_belts(state)
+	local c = state.coords
+	local m = state.miner
+	local g = state.grid
+	local surface = state.surface
+	local attempt = state.best_attempt
+
+	---@type table<number, MinerPlacement[]>
+	local miner_lanes = {}
+	local miner_lane_number = 0 -- highest index of a lane, because using # won't do the job if a lane is missing
+
+	for _, miner in ipairs(attempt.miners) do
+		local index = miner.line
+		miner_lane_number = max(miner_lane_number, index)
+		if not miner_lanes[index] then miner_lanes[index] = {} end
+		local line = miner_lanes[index]
+		line[#line+1] = miner
+	end
+
+	for _, lane in ipairs(miner_lanes) do
+		table.sort(lane, function(a, b) return a.center.x < b.center.x end)
+	end
+
+	---@param lane MinerPlacement[]
+	local function get_lane_length(lane) if lane then return lane[#lane].center.x end return 0 end
+
+	local belts = {}
+	state.belts = belts
+	local longest_belt = 0
+	for i = 1, miner_lane_number, 2 do
+		local lane1 = miner_lanes[i]
+		local lane2 = miner_lanes[i+1]
+
+		local y = attempt.sy + (m.size + 1) * i
+
+		local belt = {x1=attempt.sx + 1, x2=attempt.sx + 1, y=y, built=false}
+		belts[#belts+1] = belt
+		
+		if lane1 or lane2 then
+			local x1 = attempt.sx + 1
+			local x2 = max(get_lane_length(lane1), get_lane_length(lane2)) + m.near
+			longest_belt = max(longest_belt, x2 - x1 + 1)
+			belt.x1, belt.x2, belt.built = x1, x2, true
+
+			for x = x1, x2 do
+				g:get_tile(x, y).built_on = "belt"
+				local tx, ty = coord_revert[state.direction_choice](x, y, c.tw, c.th)
+				surface.create_entity{
+					name="entity-ghost",
+					player=state.player,
+					force=state.player.force,
+					position={c.gx + tx, c.gy + ty},
+					direction=defines.direction[state.direction_choice],
+					inner_name=state.belt_choice,
+				}
+			end
+		end
+	end
+	state.longest_belt = longest_belt
+
+	--local center = miner.center
+	--local x, y = coord_revert[state.direction_choice](center.x, center.y, c.tw, c.th)
+
+	state.delegate = "placement_poles"
+end
+
+---@param self Layout
+---@param state SimpleState
+function layout:placement_poles(state)
+	local c = state.coords
+	local m = state.miner
+	local g = state.grid
+	local surface = state.surface
+	local attempt = state.best_attempt
+
+	local placeholder_pole = state.pole_choice == "none" and "medium-electric-pole" or state.pole_choice
+	local pole_proto = game.entity_prototypes[placeholder_pole]
+	local supply_area = pole_proto.supply_area_distance
+	local supply_radius = floor(supply_area)
+	local wire_reach = pole_proto.max_wire_distance
+
+	local function get_covered_miners(ix, iy)
+		for sy = -supply_radius, supply_radius do
+			for sx = -supply_radius, supply_radius do
+				local tile = g:get_tile(ix+sx, iy+sy)
+				if tile and tile.built_on == "miner" then
+					return true
+				end
+			end
+		end
+	end
+
+	local power_poles_all = {}
+	state.power_poles_all = power_poles_all
+
+	local pole_start, pole_step
+	if supply_area < 3 or wire_reach < 9 then
+		pole_start = 3
+		pole_step = 6
+	else
+		pole_start = (floor(state.longest_belt / 3) % 3 == 0 and 3 or 0) + 2
+		pole_step = 9
+	end
+	state.pole_step = pole_step
+
+	local ix, iy = 1, 1
+	for y = attempt.sy, c.th + m.size, m.size * 2 + 2 do
+		for x = attempt.sx + pole_start, c.tw + m.near, pole_step do
+			local built = false
+			if get_covered_miners(x, y) then
+				if state.pole_choice ~= "none" then
+					g:get_tile(x, y).built_on = "pole"
+					built = true
+					local tx, ty = coord_revert[state.direction_choice](x, y, c.tw, c.th)
+					surface.create_entity{
+						name="entity-ghost",
+						player=state.player,
+						force=state.player.force,
+						position={c.gx + tx, c.gy + ty},
+						inner_name=state.pole_choice,
+					}
+				end
+			end
+			power_poles_all[#power_poles_all+1] = {x=x, y=y, ix=ix, iy=iy, built=built}
+			ix = ix + 1
+		end
+		iy = iy + 1
+	end
+
+	state.delegate = "placement_lamp"
+end
+
+---@param self Layout
+---@param state SimpleState
+function layout:placement_lamp(state)
+	if not state.lamp_choice or state.lamp_choice == "none" then
+		state.delegate = "placement_landfill"
+		return
+	end
+
+	local c = state.coords
+	local grid = state.grid
+	local surface = state.surface
+
+	local sx, sy = -1, 0
+	if state.pole_choice == "none" then sx = 0 end
+
+	for _, pole in ipairs(state.power_poles_all) do
+		local x, y = pole.x, pole.y
+		local ix, iy = pole.ix, pole.iy
+		local tile = grid:get_tile(x+sx, y+sy)
+		if tile and pole.built then
+			tile.built_on = "lamp"
+			local tx, ty = coord_revert[state.direction_choice](x + sx, y + sy, c.tw, c.th)
+			surface.create_entity{
+				name="entity-ghost",
+				player=state.player,
+				force=state.player.force,
+				position={c.gx + tx, c.gy + ty},
+				inner_name="small-lamp",
+			}
+		end
+	end
+
+	state.delegate = "placement_landfill"
+end
+
+---@param self Layout
+---@param state SimpleState
+function layout:placement_landfill(state)
+	local c = state.coords
+	local m = state.miner
+	local grid = state.grid
+	local surface = state.surface
+
+	local conv = coord_convert[state.direction_choice]
+	local gx, gy = state.coords.ix1 - 1, state.coords.iy1 - 1
+
+	local resource_tiles = {}
+	state.resource_tiles = resource_tiles
+
+	local water_tiles = surface.find_tiles_filtered{
+		area={
+			left_top={c.x1-m.w-1, c.y1-m.h-1},
+			right_bottom={c.x2+m.w+1, c.y2+m.h+1}
+		},
+		collision_mask="water-tile"
+	}
+
+	for _, water in ipairs(water_tiles) do
+		local x, y = water.position.x, water.position.y
+		x, y = conv(x-gx, y-gy, c.w, c.h)
+		local tile = grid:get_tile(x, y)
+
+		if tile and tile.built_on then
+			surface.create_entity{
+				name="tile-ghost",
+				player=state.player,
+				force=state.player.force,
+				position=water.position,
+				inner_name="landfill",
+			}
+		end
 	end
 
 	state.delegate = "finish"
 end
 
 ---@param self Layout
----@param state State
+---@param state SimpleState
 function layout:finish(state)
 	state.finished = true
 end

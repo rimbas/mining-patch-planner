@@ -4,16 +4,22 @@ local layouts = algorithm.layouts
 
 local gui = {}
 
+--[[
+	tag explanations:
+	mpp_action - a choice between several settings for a "*_choice"
+	mpp_toggle - a toggle for a boolean "*_choice"
+]]
+
 ---Creates a setting section (label + table)
 ---Can be hidden
 ---@param player_data PlayerData
 ---@param root any
 ---@param name any
----@return any
+---@return LuaGuiElement, LuaGuiElement
 local function create_setting_section(player_data, root, name)
 	local section = root.add{type="flow", direction="vertical"}
 	player_data.gui.section[name] = section
-	section.add{type="label", name="mpp_layout_label", style="subheader_caption_label", caption={"mpp.settings_"..name.."_label"}}
+	section.add{type="label", style="subheader_caption_label", caption={"mpp.settings_"..name.."_label"}}
 	local table_root = section.add{
 		type="table",
 		direction="horizontal",
@@ -21,7 +27,7 @@ local function create_setting_section(player_data, root, name)
 		column_count=6,
 	}
 	player_data.gui.tables[name] = table_root
-	return table_root
+	return table_root, section
 end
 
 local function style_helper_selection(check)
@@ -29,19 +35,25 @@ local function style_helper_selection(check)
 	return "recipe_slot_button"
 end
 
+local function style_helper_advanced_toggle(check)
+	return check and "mpp_selected_frame_action_button" or "frame_action_button"
+end
+
 ---@param player_data any global player GUI reference object
 ---@param root LuaGuiElement
-local function create_setting_selector(player_data, root, action, values)
+local function create_setting_selector(player_data, root, action_type, action, values)
 	local action_class = {}
 	player_data.gui.selections[action] = action_class
 	root.clear()
 	local selected = player_data[action.."_choice"]
 	for _, value in ipairs(values) do
+		local toggle_value = action_type == "mpp_toggle" and player_data[value.value.."_choice"]
+		local style_check = value.value == selected or toggle_value
 		local button = root.add{
 			type="sprite-button",
-			style=style_helper_selection(value.value == selected),
+			style=style_helper_selection(style_check),
 			sprite=value.icon,
-			tags={mpp_action=action, value=value.value, default=value.default},
+			tags={[action_type]=action, value=value.value, default=value.default},
 			tooltip=value.tooltip,
 		}
 		action_class[value.value] = button
@@ -63,12 +75,34 @@ function gui.create_interface(player)
 		style="frame_action_button",
 		sprite="mpp_advanced_settings",
 		tooltip={"mpp.advanced_settings"},
-		tags={action="mpp_advanced_settings"}
+		tags={mpp_advanced_settings=true},
 	}
+
+	do -- layout selection
+		local table_root, section = create_setting_section(player_data, frame, "layout")
+
+		local choices = {}
+		local index = 0
+		for i, layout in ipairs(layouts) do
+			if player_data.layout_choice == layout.name then 
+				index = i
+			end
+			choices[#choices+1] = layout.translation
+		end
+
+		local drop_down = table_root.add{
+			type="drop-down",
+			items=choices,
+			selected_index=index,
+			tags={mpp_drop_down="layout", default=1},
+		}
+
+		section.visible = player_data.advanced
+	end
 
 	do -- Direction selection
 		local table_root = create_setting_section(player_data, frame, "direction")
-		create_setting_selector(player_data, table_root, "direction", {
+		create_setting_selector(player_data, table_root, "mpp_action", "direction", {
 			{value="north", icon="mpp_direction_north"},
 			{value="south", icon="mpp_direction_south"},
 			{value="west", icon="mpp_direction_west"},
@@ -86,6 +120,10 @@ function gui.create_interface(player)
 
 	do -- Electric pole selection
 		create_setting_section(player_data, frame, "pole")
+	end
+
+	do -- Misc selection
+		create_setting_section(player_data, frame, "misc")
 	end
 
 end
@@ -108,7 +146,7 @@ local function update_drill_selection(player_data)
 	end
 	table.sort(values, function(a, b) return a.sort[1] < b.sort[1] and a.sort[2] < b.sort[2] end)
 	local table_root = player_data.gui.tables["miner"]
-	create_setting_selector(player_data, table_root, "miner", values)
+	create_setting_selector(player_data, table_root, "mpp_action", "miner", values)
 end
 
 ---@param player_data PlayerData
@@ -125,7 +163,7 @@ local function update_belt_selection(player_data)
 	end
 	table.sort(values, function(a, b) return a.sort < b.sort end)
 	local table_root = player_data.gui.tables["belt"]
-	create_setting_selector(player_data, table_root, "belt", values)
+	create_setting_selector(player_data, table_root, "mpp_action", "belt", values)
 end
 
 ---@param player_data PlayerData
@@ -150,7 +188,19 @@ local function update_pole_selection(player_data)
 		end
 	end
 	local table_root = player_data.gui.tables["pole"]
-	create_setting_selector(player_data, table_root, "pole", values)
+	create_setting_selector(player_data, table_root, "mpp_action", "pole", values)
+end
+
+---@param player_data PlayerData
+local function update_misc_selection(player_data)
+	local values = {}
+	values[1] = {
+		value="lamp",
+		tooltip={"mpp.choice_lamp"},
+		icon=("entity/small-lamp"),
+	}
+	local table_root = player_data.gui.tables["misc"]
+	create_setting_selector(player_data, table_root, "mpp_toggle", "misc", values)
 end
 
 ---@param player LuaPlayer
@@ -166,6 +216,7 @@ function gui.show_interface(player)
 	update_drill_selection(player_data)
 	update_belt_selection(player_data)
 	update_pole_selection(player_data)
+	update_misc_selection(player_data)
 end
 
 ---@param player LuaPlayer
@@ -178,34 +229,57 @@ function gui.hide_interface(player)
 end
 
 ---@param event EventDataGuiClick
-function gui.on_gui_click(event)
-	if not event.element.tags["mpp_action"] then return end
-	---@type PlayerData
-	local player_data = global.players[event.player_index]
+local function on_gui_click(event)
+	if event.element.tags["mpp_advanced_settings"] then
+		---@type PlayerData
+		local player_data = global.players[event.player_index]
 
-	local action = event.element.tags["mpp_action"]
-	local value = event.element.tags["value"]
-	local last_value = player_data[action.."_choice"]
+		local last_value = player_data.advanced
+		local value = not last_value
+		player_data.advanced = value
 
-	---@type LuaGuiElement
-	player_data.gui.selections[action][last_value].style = style_helper_selection(false)
-	event.element.style = style_helper_selection(true)
-	player_data[action.."_choice"] = value
+		local layout_section = player_data.gui.section["layout"]
+
+		layout_section.visible = value
+
+		player_data.gui["advanced_settings"].style = style_helper_advanced_toggle(value)
+	elseif event.element.tags["mpp_action"] then
+		---@type PlayerData
+		local player_data = global.players[event.player_index]
+
+		local action = event.element.tags["mpp_action"]
+		local value = event.element.tags["value"]
+		local last_value = player_data[action.."_choice"]
+
+		---@type LuaGuiElement
+		player_data.gui.selections[action][last_value].style = style_helper_selection(false)
+		event.element.style = style_helper_selection(true)
+		player_data[action.."_choice"] = value
+	elseif event.element.tags["mpp_toggle"] then
+		---@type PlayerData
+		local player_data = global.players[event.player_index]
+
+		local action = event.element.tags["mpp_toggle"]
+		local value = event.element.tags["value"]
+		local last_value = player_data[value.."_choice"]
+		player_data[value.."_choice"] = not last_value
+		event.element.style = style_helper_selection(not last_value)
+	end
 end
-
----@param event EventDataGuiCheckedStateChanged
-function gui.on_gui_checked_state_changed(event)
-	if not event.element.tags["mpp_action"] then return end
-	---@type PlayerData
-	local player_data = global.players[event.player_index]
-	
-	local action = event.element.tags["mpp_action"]
-	local value = event.element.tags["value"]
-	local last_value = player_data[action.."_choice"]
-end
-
-
-script.on_event(defines.events.on_gui_click, gui.on_gui_click)
+script.on_event(defines.events.on_gui_click, on_gui_click)
 --script.on_event(defines.events.on_gui_checked_state_changed, gui.on_gui_checked_state_changed)
+
+---@param event EventDataGuiSelectionStateChanged
+local function on_gui_selection_state_changed(event)
+	if event.element.tags["mpp_drop_down"] then
+		---@type PlayerData
+		local player_data = global.players[event.player_index]
+
+		local action = event.element.tags["mpp_drop_down"]
+		local value = layouts[event.element.selected_index].name
+		player_data.layout_choice = value
+	end
+end
+script.on_event(defines.events.on_gui_selection_state_changed, on_gui_selection_state_changed)
 
 return gui

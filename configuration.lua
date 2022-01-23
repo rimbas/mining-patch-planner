@@ -2,6 +2,7 @@ local util = require("util")
 local conf = {}
 
 ---@class PlayerData
+---@field advanced boolean
 ---@field layout_choice string
 ---@field direction_choice string
 ---@field belt_choice string
@@ -15,7 +16,6 @@ local conf = {}
 ---@field tables table<string, LuaGuiElement>
 ---@field selections table<string, LuaGuiElement>
 --@field section.miner LuaGuiElement Root Miner section element
-
 
 conf.default_config = {
 	advanced = false,

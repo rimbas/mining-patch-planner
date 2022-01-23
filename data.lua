@@ -68,10 +68,10 @@ data:extend{
 	},
 	{
 		type = "sprite",
-		name = "mpp_advanced_settings_32x",
-		filename = graphics.."advanced-settings-32x.png",
-		size = 32,
-		mipmap_count = 2,
+		name = "mpp_advanced_settings_black",
+		filename = graphics.."advanced-settings-black.png",
+		size = 64,
+		mipmap_count = 3,
 		flags = { "icon" },
 	},
 	{
@@ -114,4 +114,24 @@ data:extend{
 		mipmap_count = 3,
 		flags = { "icon" },
 	},
+}
+
+local default_style = data.raw["gui-style"].default
+
+--- taken from flib
+default_style.mpp_selected_frame_action_button = {
+	type = "button_style",
+	parent = "frame_action_button",
+	default_graphical_set = {
+		base = {position = {225, 17}, corner_size = 8},
+		shadow = {position = {440, 24}, corner_size = 8, draw_type = "outer"},
+	},
+	hovered_graphical_set = {
+		base = {position = {369, 17}, corner_size = 8},
+		shadow = {position = {440, 24}, corner_size = 8, draw_type = "outer"},
+	},
+	clicked_graphical_set = {
+		base = {position = {352, 17}, corner_size = 8},
+		shadow = {position = {440, 24}, corner_size = 8, draw_type = "outer"},
+	}
 }

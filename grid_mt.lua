@@ -43,7 +43,7 @@ grid_mt.__index = grid_mt
 ---@field gx double actual coordinate in surface
 ---@field gy double actual coordinate in surface
 ---@field consumed integer How many miners are consuming this tile
----@field built_on boolean Is tile occupied by a building entity
+---@field built_on boolean|string Is tile occupied by a building entity
 
 ---@class Miner
 ---@field tile GridTile
@@ -82,7 +82,7 @@ function grid_mt:convolve(x, y)
 	end
 end
 
----Marks tiles as consumed by a miner
+---Marks tiles as consumed and built on by a miner
 ---@param cx integer
 ---@param cy integer
 function grid_mt:consume(cx, cy)
@@ -96,7 +96,7 @@ function grid_mt:consume(cx, cy)
 			if tile then
 				tile.consumed = tile.consumed + 1
 				if -near <= x and x <= near and -near <= y and y <= near then
-					tile.built_on = true
+					tile.built_on = "miner"
 				end
 			end
 		end

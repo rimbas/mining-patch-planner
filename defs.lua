@@ -23,14 +23,9 @@
 ---@field control boolean
 ---@field shift boolean
 
----@class MinerCharacteristics
----@field w integer Tile width
----@field h integer Tile height
----@field near integer Bounds radius of the miner
----@field far integer Reach radius of the miner
----@field cbox BoundingBox Miner bounding box
----@field miner_name string Miner name
----@field resource_categories table<string, boolean> Resource categories miner can mine
+---@class EventDataGuiSelectionStateChanged : EventData
+---@field player_index uint
+---@field element LuaGuiElement
 
 ---@class PoleCharacteristics
 ---@field width number The entity width
