@@ -32,6 +32,7 @@ require_layout("sparse")
 ---@field pole_choice string
 ---@field belt_choice string Belt name
 ---@field lamp_choice boolean Lamp placement
+---@field coverage_choice boolean
 ---@field coords Coords
 ---@field grid Grid
 ---@field miner MinerStruct
@@ -58,6 +59,7 @@ local function create_state(event)
 	state.belt_choice = player_data.belt_choice
 	state.pole_choice = player_data.pole_choice
 	state.lamp_choice = player_data.lamp_choice
+	state.coverage_choice = player_data.coverage_choice
 
 	return state
 end
@@ -107,6 +109,11 @@ function algorithm.on_player_selected_area(event)
 	state.coords = coords
 	state.resources = filtered
 	state.found_resources = found_resources
+
+	if #filtered == 0 then
+		return nil, {"mpp.msg_miner_err_0"}
+	end
+
 	
 	local validation_result, error = layout:validate(state)
 	if validation_result then

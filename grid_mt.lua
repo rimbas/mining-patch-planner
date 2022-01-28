@@ -82,22 +82,43 @@ function grid_mt:convolve(x, y)
 	end
 end
 
----Marks tiles as consumed and built on by a miner
+---Marks tiles as consumed by a miner
 ---@param cx integer
 ---@param cy integer
 function grid_mt:consume(cx, cy)
 	local mc = self.miner
-	local w, h, near, far = mc.size, mc.size, mc.near, mc.far
+	local far = mc.far
 	for y = -far, far do
 		local row = self[cy+y]
 		if row == nil then goto continue_row end
 		for x = -far, far do
 			local tile = row[cx+x]
+			if tile and tile.contains_resource then
+				tile.consumed = true
+			end
+		end
+		::continue_row::
+	end
+end
+
+---Marks tiles as consumed by a miner
+---@param tiles GridTile[]
+function grid_mt:clear_consumed(tiles)
+	for _, tile in ipairs(tiles) do
+		tile.consumed = false
+	end
+end
+
+
+function grid_mt:build_miner(cx, cy)
+	local near = self.miner.near
+	for y = -near, near do
+		local row = self[cy+y]
+		if row == nil then goto continue_row end
+		for x = -near, near do
+			local tile = row[cx+x]
 			if tile then
-				tile.consumed = tile.consumed + 1
-				if -near <= x and x <= near and -near <= y and y <= near then
-					tile.built_on = "miner"
-				end
+				tile.built_on = "miner"
 			end
 		end
 		::continue_row::

@@ -9,13 +9,15 @@ local conf = {}
 ---@field miner_choice string
 ---@field pole_choice string
 ---@field lamp_choice boolean
+---@field coverage_choice boolean
 ---@field gui PlayerGui
 
 ---@class PlayerGui
 ---@field section table<string, LuaGuiElement>
 ---@field tables table<string, LuaGuiElement>
 ---@field selections table<string, LuaGuiElement>
---@field section.miner LuaGuiElement Root Miner section element
+---@field advanced_settings LuaGuiElement
+---@field layout_dropdown LuaGuiElement
 
 conf.default_config = {
 	advanced = false,
@@ -25,6 +27,7 @@ conf.default_config = {
 	miner_choice = "electric-mining-drill",
 	pole_choice = "medium-electric-pole",
 	lamp_choice = false,
+	coverage_choice = false,
 
 	gui = {
 		section = {},

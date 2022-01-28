@@ -30,13 +30,20 @@ local function task_runner(event)
 end
 
 script.on_event(defines.events.on_player_selected_area, function(event)
-
 	if #event.entities == 0 then return nil end
 
 	local player = game.get_player(event.player_index)
+
+	for _, task in ipairs(global.tasks) do
+		if task.player == player then
+			return
+		end
+	end
+
+
 	local state, error = algorithm.on_player_selected_area(event)
 
-	rendering.clear("mining-patch-planner")
+	--rendering.clear("mining-patch-planner")
 
 	if state then
 		table.insert(global.tasks, state)

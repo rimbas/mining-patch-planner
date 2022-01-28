@@ -114,6 +114,14 @@ data:extend{
 		mipmap_count = 3,
 		flags = { "icon" },
 	},
+	{
+		type = "sprite",
+		name = "mpp_miner_coverage",
+		filename = graphics.."miner_coverage.png",
+		size = 64,
+		mipmap_count = 2,
+		flags = { "icon" },
+	},
 }
 
 local default_style = data.raw["gui-style"].default

@@ -1,4 +1,5 @@
 local algorithm = require("algorithm")
+local mpp_util = require("mpp_util")
 
 local layouts = algorithm.layouts
 
@@ -90,13 +91,13 @@ function gui.create_interface(player)
 			choices[#choices+1] = layout.translation
 		end
 
-		local drop_down = table_root.add{
+		player_gui.layout_dropdown = table_root.add{
 			type="drop-down",
 			items=choices,
 			selected_index=index,
 			tags={mpp_drop_down="layout", default=1},
 		}
-
+		
 		section.visible = player_data.advanced
 	end
 
@@ -125,25 +126,42 @@ function gui.create_interface(player)
 	do -- Misc selection
 		create_setting_section(player_data, frame, "misc")
 	end
-
 end
 
 ---@param player_data PlayerData
 local function update_drill_selection(player_data)
+	local layout = layouts[player_data.layout_choice]
+	local restrictions = layout.restrictions
+	local near_radius_min, near_radius_max = restrictions.miner_near_radius[1], restrictions.miner_near_radius[2]
+	local far_radius_min, far_radius_max = restrictions.miner_far_radius[1], restrictions.miner_far_radius[2]
+
 	local values = {}
+	local existing_choice_is_valid = false
 	local miners = game.get_filtered_entity_prototypes{{filter="type", type="mining-drill"}}
-	for _, miner in pairs(miners) do
-		local cbox_tl, cbox_br = miner.collision_box.left_top, miner.collision_box.right_bottom
-		local w, h = math.ceil(cbox_br.x - cbox_tl.x), math.ceil(cbox_br.y - cbox_tl.y) -- Algorithm doesn't support even size miners
-		if miner.resource_categories["basic-solid"] and miner.electric_energy_source_prototype and w % 2 == 1 then
-			values[#values+1] = {
-				value=miner.name,
-				tooltip={"entity-name."..miner.name},
-				icon=("entity/"..miner.name),
-				sort={miner.mining_drill_radius, miner.mining_speed},
-			}
-		end
+	for _, miner_proto in pairs(miners) do
+		local miner = mpp_util.miner_struct(miner_proto)
+		
+		if miner.size % 2 == 0 then goto skip_miner end -- Algorithm doesn't support even size miners
+		if not miner.resource_categories["basic-solid"] then goto skip_miner end
+		if not miner_proto.electric_energy_source_prototype then goto skip_miner end
+		if miner.near < near_radius_min or near_radius_max < miner.near then goto skip_miner end
+		if miner.far < far_radius_min or far_radius_max < miner.far then goto skip_miner end
+
+		values[#values+1] = {
+			value=miner.name,
+			tooltip={"entity-name."..miner.name},
+			icon=("entity/"..miner.name),
+			sort={miner_proto.mining_drill_radius, miner_proto.mining_speed},
+		}
+		if miner.name == player_data.miner_choice then existing_choice_is_valid = true end
+
+		::skip_miner::
 	end
+	
+	if not existing_choice_is_valid then
+		player_data.miner_choice = layout.defaults.miner
+	end
+
 	table.sort(values, function(a, b) return a.sort[1] < b.sort[1] and a.sort[2] < b.sort[2] end)
 	local table_root = player_data.gui.tables["miner"]
 	create_setting_selector(player_data, table_root, "mpp_action", "miner", values)
@@ -161,6 +179,7 @@ local function update_belt_selection(player_data)
 			sort=belt.belt_speed,
 		}
 	end
+	
 	table.sort(values, function(a, b) return a.sort < b.sort end)
 	local table_root = player_data.gui.tables["belt"]
 	create_setting_selector(player_data, table_root, "mpp_action", "belt", values)
@@ -168,6 +187,11 @@ end
 
 ---@param player_data PlayerData
 local function update_pole_selection(player_data)
+	local layout = layouts[player_data.layout_choice]
+	local restrictions = layout.restrictions
+	local pole_width_min, pole_width_max = restrictions.pole_width[1], restrictions.pole_width[2]
+	local pole_supply_min, pole_supply_max = restrictions.pole_supply_area[1], restrictions.pole_supply_area[2]
+	
 	local values = {}
 	values[1] = {
 		value="none",
@@ -175,32 +199,60 @@ local function update_pole_selection(player_data)
 		icon="mpp_no_entity",
 	}
 
+	local existing_choice_is_valid = false
 	local poles = game.get_filtered_entity_prototypes{{filter="type", type="electric-pole"}}
 	for _, pole in pairs(poles) do
 		local cbox = pole.collision_box
 		local size = math.ceil(cbox.right_bottom.x - cbox.left_top.x)
-		if size <= 1 then
-			values[#values+1] = {
-				value=pole.name,
-				tooltip={"entity-name."..pole.name},
-				icon=("entity/"..pole.name),
-			}
-		end
+		local supply_area = pole.supply_area_distance
+		if size < pole_width_min or pole_width_max < size then goto skip_pole end
+		if supply_area < pole_supply_min or pole_supply_max < supply_area then goto skip_pole end
+
+		values[#values+1] = {
+			value=pole.name,
+			tooltip={"entity-name."..pole.name},
+			icon=("entity/"..pole.name),
+		}
+		if pole.name == player_data.pole_choice then existing_choice_is_valid = true end
+
+		::skip_pole::
 	end
+
+	if not existing_choice_is_valid then
+		player_data.pole_choice = layout.defaults.pole
+	end
+
 	local table_root = player_data.gui.tables["pole"]
 	create_setting_selector(player_data, table_root, "mpp_action", "pole", values)
 end
 
 ---@param player_data PlayerData
 local function update_misc_selection(player_data)
+	local layout = layouts[player_data.layout_choice]
 	local values = {}
-	values[1] = {
+	values[#values+1] = {
 		value="lamp",
 		tooltip={"mpp.choice_lamp"},
 		icon=("entity/small-lamp"),
 	}
+
+	if player_data.advanced and layout.restrictions.coverage_tuning then
+		values[#values+1] = {
+			value="coverage",
+			tooltip={"mpp.choice_coverage"},
+			icon=("mpp_miner_coverage"),
+		}
+	end
+	
 	local table_root = player_data.gui.tables["misc"]
 	create_setting_selector(player_data, table_root, "mpp_toggle", "misc", values)
+end
+
+local function update_selections(player_data)
+	update_drill_selection(player_data)
+	update_belt_selection(player_data)
+	update_pole_selection(player_data)
+	update_misc_selection(player_data)
 end
 
 ---@param player LuaPlayer
@@ -213,10 +265,7 @@ function gui.show_interface(player)
 	else
 		gui.create_interface(player)
 	end
-	update_drill_selection(player_data)
-	update_belt_selection(player_data)
-	update_pole_selection(player_data)
-	update_misc_selection(player_data)
+	update_selections(player_data)
 end
 
 ---@param player LuaPlayer
@@ -241,6 +290,11 @@ local function on_gui_click(event)
 		local layout_section = player_data.gui.section["layout"]
 
 		layout_section.visible = value
+
+		player_data.gui.layout_dropdown.selected_index = 1
+		player_data.layout_choice = "simple"
+		player_data.coverage_choice = false
+		update_selections(player_data)
 
 		player_data.gui["advanced_settings"].style = style_helper_advanced_toggle(value)
 	elseif event.element.tags["mpp_action"] then
@@ -278,6 +332,7 @@ local function on_gui_selection_state_changed(event)
 		local action = event.element.tags["mpp_drop_down"]
 		local value = layouts[event.element.selected_index].name
 		player_data.layout_choice = value
+		update_selections(player_data)
 	end
 end
 script.on_event(defines.events.on_gui_selection_state_changed, on_gui_selection_state_changed)

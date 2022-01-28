@@ -1,9 +1,12 @@
 local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
 
-local util = require("util")
 local base = require("layouts.base")
 local grid_mt = require("grid_mt")
+local mpp_util = require("mpp_util")
+local coord_convert, coord_revert = mpp_util.coord_convert, mpp_util.coord_revert
+local miner_direction, opposite = mpp_util.miner_direction, mpp_util.opposite
+local mpp_revert = mpp_util.revert
 
 ---@class SimpleLayout : Layout
 local layout = table.deepcopy(base)
@@ -16,6 +19,7 @@ local layout = table.deepcopy(base)
 ---@field resource_tiles GridTile
 ---@field longest_belt number For pole alignment information
 ---@field power_poles_all table
+---@field pole_step number
 
 layout.name = "simple"
 layout.translation = {"mpp.settings_layout_choice_simple"}
@@ -26,27 +30,22 @@ layout.restrictions.miner_far_radius = {2, 10e3}
 layout.restrictions.pole_omittable = true
 layout.restrictions.pole_width = {1, 1}
 layout.restrictions.pole_length = {7.5, 10e3}
-layout.restrictions.pole_supply_area = {5, 10e3}
+layout.restrictions.pole_supply_area = {2.5, 10e3}
 layout.restrictions.lamp = true
+layout.restrictions.coverage_tuning = true
 
 ---Called from script.on_load
----@param self Layout
----@param state State
+---@param self SimpleLayout
+---@param state SimpleState
 function layout:on_load(state)
 	if state.grid then
 		setmetatable(state.grid, grid_mt)
 	end
 end
 
-local coord_convert = {}
-coord_convert.west = function(x, y, w, h) return x, y end
-coord_convert.east = function(x, y, w, h) return w-x+1, h-y+1 end
-coord_convert.south = function(x, y, w, h) return h-y+1, x end
-coord_convert.north = function(x, y, w, h) return y, w-x+1 end
-
 -- Validate the selection
----@param self Layout
----@param state State
+---@param self SimpleLayout
+---@param state SimpleState
 function layout:validate(state)
 	local c = state.coords
 	-- if (state.direction_choice == "west" or state.direction_choice == "east") then
@@ -61,8 +60,8 @@ function layout:validate(state)
 	return true
 end
 
----@param self Layout
----@param state State
+---@param self SimpleLayout
+---@param state SimpleState
 function layout:start(state)
 	local grid = {}
 	local miner = state.miner
@@ -114,7 +113,7 @@ function layout:start(state)
 		end
 	end
 
-	--[[ debug rendering - bounds ]]
+	--[[ debug rendering - bounds
 	rendering.draw_rectangle{
 		surface=state.surface,
 		left_top={state.coords.ix1, state.coords.iy1},
@@ -136,19 +135,25 @@ function layout:start(state)
 	state.delegate = "process_grid"
 end
 
----@param self Layout
----@param state State
+---@param self SimpleLayout
+---@param state SimpleState
 function layout:process_grid(state)
 	local grid = state.grid
+	local DIR = state.direction_choice
 	local c = state.coords
 	local conv = coord_convert[state.direction_choice]
 	local gx, gy = state.coords.gx, state.coords.gy
 	local resources = state.resources
 
-	local resource_tiles = {}
-	state.resource_tiles = resource_tiles
+	state.resource_tiles = state.resource_tiles or {}
+	local resource_tiles = state.resource_tiles
 
-	for _, ent in ipairs(resources) do
+	local convolve_size = state.miner.full_size ^ 2
+	local budget, cost = 20000, 0
+
+	local i = state.resource_iter or 1
+	while i <= #resources and cost < budget do
+		local ent = resources[i]
 		local x, y = ent.position.x, ent.position.y
 		local tx, ty = conv(x-gx, y-gy, c.w, c.h)
 		local tile = grid:get_tile(tx, ty)
@@ -156,7 +161,20 @@ function layout:process_grid(state)
 		tile.amount = ent.amount
 		grid:convolve(tx, ty)
 		resource_tiles[#resource_tiles+1] = tile
+		cost = cost + convolve_size
+		i = i + 1
 	end
+	state.resource_iter = i
+
+	-- for _, ent in ipairs(resources) do
+	-- 	local x, y = ent.position.x, ent.position.y
+	-- 	local tx, ty = conv(x-gx, y-gy, c.w, c.h)
+	-- 	local tile = grid:get_tile(tx, ty)
+	-- 	tile.contains_resource = true
+	-- 	tile.amount = ent.amount
+	-- 	grid:convolve(tx, ty)
+	-- 	resource_tiles[#resource_tiles+1] = tile
+	-- end
 
 	--[[ debug visualisation - resource and coord
 	for _, ent in ipairs(resource_tiles) do
@@ -176,14 +194,16 @@ function layout:process_grid(state)
 			alignment = "center",
 		}
 	end --]]
-	
-	state.delegate = "init_first_pass"
+	if state.resource_iter >= #state.resources then
+		state.delegate = "init_first_pass"
+	end
 end
 
 ---@class MinerPlacement
 ---@field tile GridTile
 ---@field center GridTile
 ---@field line number lane index
+---@field column number column index
 
 ---@class PlacementAttempt
 ---@field sx number x shift
@@ -193,28 +213,30 @@ end
 ---@field neighbor_sum number
 ---@field far_neighbor_sum number
 ---@field density number
+---@field unconsumed_count number
+---@field real_density number
 
----comment
 ---@param miner MinerStruct
 local function miner_heuristic(miner, variant)
-	local near, far, size = miner.near, miner.far, miner.size
+	local near, far, size, fullsize = miner.near, miner.far, miner.size, miner.full_size
+	local leech = (far - near) * fullsize
 
-	local neighbor_cap = floor((size ^ 2) / far)
-	local far_neighbor_cap = floor((far * 2 + 1) ^ 2 / far)
-
-	if variant == "importance" then
+	if variant == "coverage" then
+		local neighbor_cap = floor((size ^ 2) / 2)
 		---@param center GridTile
 		return function(center)
-			if center.neighbor_count > neighbor_cap or (center.far_neighbor_count > far_neighbor_cap and center.neighbor_count > size) then
+			if center.neighbor_count >= neighbor_cap then return true end
+			if center.far_neighbor_count >= leech and center.neighbor_count >= (size * near) then return true end
+		end
+	else
+		local neighbor_cap = ceil((size ^ 2) / 2)
+		---@param center GridTile
+		return function(center)
+			if center.neighbor_count > neighbor_cap then return true end
+			--if center.far_neighbor_count > leech then return true end
+			if center.far_neighbor_count > leech and center.neighbor_count > (size * near) then
 				return true
 			end
-		end
-	end
-	
-	---@param center GridTile
-	return function(center)
-		if center.neighbor_count > neighbor_cap or (center.far_neighbor_count > far_neighbor_cap and center.neighbor_count > size) then
-			return true
 		end
 	end
 end
@@ -222,16 +244,24 @@ end
 ---@param state SimpleState
 ---@return PlacementAttempt
 local function placement_attempt(state, shift_x, shift_y)
+	local c = state.coords
 	local grid = state.grid
-	local size, near, far = state.miner.size, state.miner.near, state.miner.far
+	local size, near, far, fullsize = state.miner.size, state.miner.near, state.miner.far, state.miner.full_size
 	local neighbor_sum = 0
 	local far_neighbor_sum = 0
 	local miners, postponed = {}, {}
 	local miner_index = 1
+	local real_density = 0
 
-	local heuristic = miner_heuristic(state.miner)
+	local heuristic
+	if state.coverage_choice then
+		heuristic = miner_heuristic(state.miner, "coverage")
+	else
+		heuristic = miner_heuristic(state.miner)
+	end
 
 	for y = 1 + shift_y, state.coords.th + size, size + 1 do
+		local column_index = 1
 		for x = 1 + shift_x, state.coords.tw, size do
 			local tile = grid:get_tile(x, y)
 			local center = grid:get_tile(x+near, y+near)
@@ -239,44 +269,96 @@ local function placement_attempt(state, shift_x, shift_y)
 				tile = tile,
 				line = miner_index,
 				center = center,
+				column=column_index,
 			}
 			if heuristic(center) then
 				miners[#miners+1] = miner
 				neighbor_sum = neighbor_sum + center.neighbor_count
 				far_neighbor_sum = far_neighbor_sum + center.far_neighbor_count
+				real_density = real_density + center.far_neighbor_count / (fullsize ^ 2)
 			elseif center.far_neighbor_count > 0 then
 				postponed[#postponed+1] = miner
 			end
+			column_index = column_index + 1
 		end
 		miner_index = miner_index + 1
 	end
+
+	-- second pass
+	for _, miner in ipairs(miners) do
+		grid:consume(miner.center.x, miner.center.y)
+	end
+
+	for _, miner in ipairs(postponed) do
+		local center = miner.center
+		miner.unconsumed = grid:get_unconsumed(center.x, center.y)
+	end
+
+	table.sort(postponed, function(a, b)
+		if a.unconsumed == b.unconsumed then
+			return a.center.far_neighbor_count > b.center.far_neighbor_count
+		end
+		return a.unconsumed > b.unconsumed
+	end)
+
+	for _, miner in ipairs(postponed) do
+		local center = miner.center
+		local unconsumed_count = grid:get_unconsumed(center.x, center.y)
+		if unconsumed_count > 0 then
+			neighbor_sum = neighbor_sum + center.neighbor_count
+			far_neighbor_sum = far_neighbor_sum + center.far_neighbor_count
+			real_density = real_density + center.far_neighbor_count / (fullsize ^ 2)
+			grid:consume(center.x, center.y)
+			miners[#miners+1] = miner
+			miner.postponed = true
+		end
+	end
+	local unconsumed_sum = 0
+	for _, tile in ipairs(state.resource_tiles) do
+		if not tile.consumed then unconsumed_sum = unconsumed_sum + 1 end
+	end
+	
+	grid:clear_consumed(state.resource_tiles)
+
 	return {
 		sx=shift_x, sy=shift_y,
 		miners=miners,
-		postponed=postponed,
+		--postponed=postponed,
+		postponed={},
 		neighbor_sum=neighbor_sum,
 		far_neighbor_sum=far_neighbor_sum,
-		density=neighbor_sum / (#miners > 0 and #miners or #postponed),
-		far_density=far_neighbor_sum / (#miners > 0 and #miners or #postponed),
+		density=neighbor_sum / #miners,
+		real_density=real_density,
+		far_density=far_neighbor_sum / #miners,
+		unconsumed_count=unconsumed_sum,
 	}
 end
 
-
-local attempt_score_heuristic
+---@param attempt PlacementAttempt
+---@param miner MinerStruct
+local function attempt_heuristic_economic(attempt, miner)
+	local miner_count = #attempt.miners
+	local real_density = attempt.real_density
+	local density_score = attempt.density
+	local neighbor_score = attempt.neighbor_sum / (miner.size ^ 2) / 7
+	local far_neighbor_score = attempt.far_neighbor_sum / (miner.full_size ^ 2) / 7
+	return miner_count - real_density
+end
 
 ---@param attempt PlacementAttempt
 ---@param miner MinerStruct
-attempt_score_heuristic = function(attempt, miner)
+local function attempt_heuristic_coverage(attempt, miner)
+	local miner_count = #attempt.miners
+	local real_density = attempt.real_density
 	local density_score = attempt.density
-	local miner_score = #attempt.miners  + #attempt.postponed * 3
-	local neighbor_score = attempt.neighbor_sum / (miner.size * miner.size) / 7
-	local far_neighbor_score = attempt.far_neighbor_sum / ((miner.far * 2 + 1) ^ 2) / 2
-	return miner_score - density_score - neighbor_score - far_neighbor_score
+	local neighbor_score = attempt.neighbor_sum / (miner.size ^ 2)
+	local far_neighbor_score = attempt.far_neighbor_sum / (miner.full_size ^ 2)
+	return real_density - miner_count
 end
 
-local fmt_str = "Attempt #%i (%i,%i) - miners:%i (%i), sum %i, density %.3f, score %.3f"
+local fmt_str = "Attempt #%i (%i,%i) - miners:%i, density %.3f, score %.3f"
 
----@param self Layout
+---@param self SimpleLayout
 ---@param state SimpleState
 function layout:init_first_pass(state)
 	local m = state.miner
@@ -287,51 +369,54 @@ function layout:init_first_pass(state)
 	--local ext_behind, ext_forward = -m.far, m.far - m.near
 	local ext_behind, ext_forward = -m.far, m.far-m.near
 	
-	for sy = ext_behind, ext_forward do
-		for sx = ext_behind, ext_forward do
+	--for sy = ext_behind, ext_forward do
+	--	for sx = ext_behind, ext_forward do
+	for sy = ext_forward, ext_behind, -1 do
+		for sx = ext_forward, ext_behind, -1 do
 			if not (sx == -m.near and sy == -m.near) then
 				attempts[#attempts+1] = {sx, sy}
 			end
 		end
 	end
 
-	state.best_attempt = placement_attempt(state, attempts[1][1], attempts[1][2])
-	state.best_attempt_score = attempt_score_heuristic(state.best_attempt, state.miner)
+	local attempt_heuristic = state.coverage_choice and attempt_heuristic_coverage or attempt_heuristic_economic
 
-	local current_attempt = state.best_attempt
-	--game.print(fmt_str:format(1, attempts[1][1], attempts[1][2], #current_attempt.miners, #current_attempt.postponed, current_attempt.neighbor_sum, current_attempt.density, state.best_attempt_score))
+	state.best_attempt = placement_attempt(state, attempts[1][1], attempts[1][2])
+	state.best_attempt_score = attempt_heuristic(state.best_attempt, state.miner)
+
+	--game.print(fmt_str:format(1, state.best_attempt.sx, state.best_attempt.sy, #state.best_attempt.miners, state.best_attempt.real_density, state.best_attempt_score))
 
 	state.delegate = "first_pass"
 end
 
-
 ---Bruteforce the best solution
----@param self Layout
+---@param self SimpleLayout
 ---@param state SimpleState
 function layout:first_pass(state)
 	local attempt_state = state.attempts[state.attempt_index]
 	local best_attempt = state.best_attempt
 	---@type PlacementAttempt
 	local current_attempt = placement_attempt(state, attempt_state[1], attempt_state[2])
-	local current_attempt_score = attempt_score_heuristic(current_attempt, state.miner)
+	local attempt_heuristic = state.coverage_choice and attempt_heuristic_coverage or attempt_heuristic_economic
+	local current_attempt_score = attempt_heuristic(current_attempt, state.miner)
 
-	--game.print(fmt_str:format(state.attempt_index, attempt_state[1], attempt_state[2], #current_attempt.miners, #current_attempt.postponed, current_attempt.neighbor_sum, current_attempt.density, current_attempt_score))
+	--game.print(fmt_str:format(state.attempt_index, attempt_state[1], attempt_state[2], #current_attempt.miners, current_attempt.real_density, current_attempt_score))
 
-	if current_attempt_score < state.best_attempt_score  then
+	if current_attempt.unconsumed_count == 0 and current_attempt_score < state.best_attempt_score  then
 		state.best_attempt_index = state.attempt_index
 		state.best_attempt = current_attempt
 		state.best_attempt_score = current_attempt_score
 	end
 
 	if state.attempt_index >= #state.attempts then
-		--game.print(("Chose attempt #%i"):format(state.best_attempt_index))
-		state.delegate = "second_pass"
+		--game.print(("Chose attempt #%i, %i miners"):format(state.best_attempt_index, #state.best_attempt.miners))
+		state.delegate = "simple_deconstruct"
 	else
 		state.attempt_index = state.attempt_index + 1
 	end
 end
 
----@param self Layout
+---@param self SimpleLayout
 ---@param state SimpleState
 function layout:second_pass(state)
 	local grid = state.grid
@@ -364,8 +449,8 @@ function layout:second_pass(state)
 		end
 	end
 
-	--[[ debug visualisation - unconsumed tiles ]]
-	local grid, c = state.grid, state.coords
+	--[[ debug visualisation - unconsumed tiles
+	local c = state.coords
 	for k, tile in pairs(state.resource_tiles) do
 		if tile.consumed == 0 then
 			rendering.draw_circle{
@@ -384,7 +469,7 @@ function layout:second_pass(state)
 	state.delegate = "simple_deconstruct"
 end
 
----@param self Layout
+---@param self SimpleLayout
 ---@param state SimpleState
 function layout:simple_deconstruct(state)
 	local c = state.coords
@@ -404,16 +489,7 @@ function layout:simple_deconstruct(state)
 	state.delegate = "place_miners"
 end
 
-local miner_direction = {west="south",east="north",north="west",south="east"}
-local opposite = {west="east",east="west",north="south",south="north"}
-
-local coord_revert = {}
-coord_revert.west = coord_convert.west
-coord_revert.east = coord_convert.east
-coord_revert.north = coord_convert.south
-coord_revert.south = coord_convert.north
-
----@param self Layout
+---@param self SimpleLayout
 ---@param state SimpleState
 function layout:place_miners(state)
 	local c = state.coords
@@ -421,6 +497,7 @@ function layout:place_miners(state)
 	local surface = state.surface
 	for _, miner in ipairs(state.best_attempt.miners) do
 		local center = miner.center
+		g:build_miner(center.x, center.y)
 		local tile = g:get_tile(center.x, center.y)
 		local x, y = coord_revert[state.direction_choice](center.x, center.y, c.tw, c.th)
 		-- local can_place = surface.can_place_entity{
@@ -436,7 +513,7 @@ function layout:place_miners(state)
 		rendering.draw_rectangle{
 			surface = state.surface,
 			filled = false,
-			color = {0, 1, 1},
+			color = miner.postponed and {1, 0, 0} or {0, 1, 0},
 			width = 3,
 			--target = {c.x1 + x, c.y1 + y},
 			left_top = {c.gx+x-off, c.gy + y - off},
@@ -449,6 +526,7 @@ function layout:place_miners(state)
 		if flip_lane then direction = opposite[direction] end
 
 		surface.create_entity{
+			raise_built=true,
 			name="entity-ghost",
 			player=state.player,
 			force = state.player.force,
@@ -480,7 +558,7 @@ function layout:place_miners(state)
 	state.delegate = "placement_belts"
 end
 
----@param self Layout
+---@param self SimpleLayout
 ---@param state SimpleState
 function layout:placement_belts(state)
 	local c = state.coords
@@ -490,7 +568,7 @@ function layout:placement_belts(state)
 	local attempt = state.best_attempt
 
 	---@type table<number, MinerPlacement[]>
-	local miner_lanes = {}
+	local miner_lanes = {{}}
 	local miner_lane_number = 0 -- highest index of a lane, because using # won't do the job if a lane is missing
 
 	for _, miner in ipairs(attempt.miners) do
@@ -530,6 +608,7 @@ function layout:placement_belts(state)
 				g:get_tile(x, y).built_on = "belt"
 				local tx, ty = coord_revert[state.direction_choice](x, y, c.tw, c.th)
 				surface.create_entity{
+					raise_built=true,
 					name="entity-ghost",
 					player=state.player,
 					force=state.player.force,
@@ -548,7 +627,7 @@ function layout:placement_belts(state)
 	state.delegate = "placement_poles"
 end
 
----@param self Layout
+---@param self SimpleLayout
 ---@param state SimpleState
 function layout:placement_poles(state)
 	local c = state.coords
@@ -597,6 +676,7 @@ function layout:placement_poles(state)
 					built = true
 					local tx, ty = coord_revert[state.direction_choice](x, y, c.tw, c.th)
 					surface.create_entity{
+						raise_built=true,
 						name="entity-ghost",
 						player=state.player,
 						force=state.player.force,
@@ -614,7 +694,7 @@ function layout:placement_poles(state)
 	state.delegate = "placement_lamp"
 end
 
----@param self Layout
+---@param self SimpleLayout
 ---@param state SimpleState
 function layout:placement_lamp(state)
 	if not state.lamp_choice or state.lamp_choice == "none" then
@@ -633,10 +713,11 @@ function layout:placement_lamp(state)
 		local x, y = pole.x, pole.y
 		local ix, iy = pole.ix, pole.iy
 		local tile = grid:get_tile(x+sx, y+sy)
-		if tile and pole.built then
+		if tile and pole.built and not pole.no_light then
 			tile.built_on = "lamp"
 			local tx, ty = coord_revert[state.direction_choice](x + sx, y + sy, c.tw, c.th)
 			surface.create_entity{
+				raise_built=true,
 				name="entity-ghost",
 				player=state.player,
 				force=state.player.force,
@@ -649,7 +730,7 @@ function layout:placement_lamp(state)
 	state.delegate = "placement_landfill"
 end
 
----@param self Layout
+---@param self SimpleLayout
 ---@param state SimpleState
 function layout:placement_landfill(state)
 	local c = state.coords
@@ -678,6 +759,7 @@ function layout:placement_landfill(state)
 
 		if tile and tile.built_on then
 			surface.create_entity{
+				raise_built=true,
 				name="tile-ghost",
 				player=state.player,
 				force=state.player.force,
@@ -690,11 +772,10 @@ function layout:placement_landfill(state)
 	state.delegate = "finish"
 end
 
----@param self Layout
+---@param self SimpleLayout
 ---@param state SimpleState
 function layout:finish(state)
 	state.finished = true
 end
 
 return layout
-
