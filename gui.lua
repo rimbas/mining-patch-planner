@@ -1,127 +1,340 @@
+local algorithm = require("algorithm")
+local mpp_util = require("mpp_util")
+
+local layouts = algorithm.layouts
+
 local gui = {}
 
----@class GuiSettings
----@field layout_choice string The layout direction
----@field miner_choice string The miner choice
+--[[
+	tag explanations:
+	mpp_action - a choice between several settings for a "*_choice"
+	mpp_toggle - a toggle for a boolean "*_choice"
+]]
 
-local function build_belt_table(player)
-	local ply_global = global.players[player.index]
-	ply_global.gui.belt_table.clear()
-	local belts = game.get_filtered_entity_prototypes{{filter="type", type="transport-belt"}}
-	for _, belt in pairs(belts) do
-		local button_style = ply_global.belt_choice == belt.name and "yellow_slot_button" or "recipe_slot_button"
-		ply_global.gui.belt_table.add{
-			type="sprite-button", sprite=("entity/"..belt.name), style=button_style, tags={action="mpp_belt_choice", belt=belt.name},
-			tooltip={"entity-name."..belt.name},
-		}
-	end
+---Creates a setting section (label + table)
+---Can be hidden
+---@param player_data PlayerData
+---@param root any
+---@param name any
+---@return LuaGuiElement, LuaGuiElement
+local function create_setting_section(player_data, root, name)
+	local section = root.add{type="flow", direction="vertical"}
+	player_data.gui.section[name] = section
+	section.add{type="label", style="subheader_caption_label", caption={"mpp.settings_"..name.."_label"}}
+	local table_root = section.add{
+		type="table",
+		direction="horizontal",
+		style="filter_slot_table",
+		column_count=6,
+	}
+	player_data.gui.tables[name] = table_root
+	return table_root, section
 end
 
-local function build_miner_table(player)
-	local ply_global = global.players[player.index]
-	ply_global.gui.miner_table.clear()
-	local miners = game.get_filtered_entity_prototypes{{filter="type", type="mining-drill"}}
-	for _, miner in pairs(miners) do
-		local cbox_tl, cbox_br = miner.collision_box.left_top, miner.collision_box.right_bottom
-		local w, h = math.ceil(cbox_br.x - cbox_tl.x), math.ceil(cbox_br.y - cbox_tl.y) -- Algorithm doesn't support even size miners
-		if miner.resource_categories["basic-solid"] and miner.electric_energy_source_prototype and w % 2 == 1 then
-			local button_style = ply_global.miner_choice == miner.name and "yellow_slot_button" or "recipe_slot_button"
-			ply_global.gui.miner_table.add{
-				type="sprite-button", sprite=("entity/"..miner.name), style=button_style, tags={action="mpp_miner_choice", miner=miner.name},
-				tooltip={"entity-name."..miner.name},
-			}
-		end
+local function style_helper_selection(check)
+	if check then return "yellow_slot_button" end
+	return "recipe_slot_button"
+end
+
+local function style_helper_advanced_toggle(check)
+	return check and "mpp_selected_frame_action_button" or "frame_action_button"
+end
+
+---@param player_data any global player GUI reference object
+---@param root LuaGuiElement
+local function create_setting_selector(player_data, root, action_type, action, values)
+	local action_class = {}
+	player_data.gui.selections[action] = action_class
+	root.clear()
+	local selected = player_data[action.."_choice"]
+	for _, value in ipairs(values) do
+		local toggle_value = action_type == "mpp_toggle" and player_data[value.value.."_choice"]
+		local style_check = value.value == selected or toggle_value
+		local button = root.add{
+			type="sprite-button",
+			style=style_helper_selection(style_check),
+			sprite=value.icon,
+			tags={[action_type]=action, value=value.value, default=value.default},
+			tooltip=value.tooltip,
+		}
+		action_class[value.value] = button
 	end
 end
 
 ---@param player LuaPlayer
-function gui.build_interface(player)
-	local ply_global = global.players[player.index]
+function gui.create_interface(player)
+	---@type LuaGuiElement
+	local frame = player.gui.screen.add{type="frame", name="mpp_settings_frame", direction="vertical"}
+	local player_data = global.players[player.index]
+	local player_gui = player_data.gui
 
-	local screen_element = player.gui.left
-	if screen_element.mpp_settings_frame then return end
-	local settings_frame = screen_element.add{type="frame", name="mpp_settings_frame", caption={"mpp.settings_frame"}, direction = "vertical"}
-
-	local settings_layout_label = settings_frame.add{type="label", name="mpp_layout_label", style="subheader_caption_label", caption={"mpp.settings_layout_label"}}
-	local radiobutton_dir_up = settings_frame.add{
-		type="radiobutton", name="mpp_radiobutton_up", caption={"mpp.settings_radio_up"}, state=ply_global.layout_choice == "vertical" and ply_global.vertical_direction == "up", tags={action="mpp_direction", layout="vertical", direction="up"}
-	}
-	local radiobutton_dir_right = settings_frame.add{
-		type="radiobutton", name="mpp_radiobutton_right", caption={"mpp.settings_radio_right"}, state=ply_global.layout_choice == "horizontal" and ply_global.horizontal_direction == "right", tags={action="mpp_direction", layout="horizontal", direction="right"}
-	}
-	local radiobutton_dir_down = settings_frame.add{
-		type="radiobutton", name="mpp_radiobutton_down", caption={"mpp.settings_radio_down"}, state=ply_global.layout_choice == "vertical" and ply_global.vertical_direction == "down", tags={action="mpp_direction", layout="vertical", direction="down"}
-	}
-	local radiobutton_dir_left = settings_frame.add{
-		type="radiobutton", name="mpp_radiobutton_left", caption={"mpp.settings_radio_left"}, state=ply_global.layout_choice == "horizontal" and ply_global.horizontal_direction == "left", tags={action="mpp_direction", layout="horizontal", direction="left"}
-	}
-	ply_global.gui.layout_radio_dir = {
-		[radiobutton_dir_right.name] = radiobutton_dir_right,
-		[radiobutton_dir_left.name] = radiobutton_dir_left,
-		[radiobutton_dir_up.name] = radiobutton_dir_up,
-		[radiobutton_dir_down.name] = radiobutton_dir_down,
+	local titlebar = frame.add{type="flow", name="mpp_titlebar", direction="horizontal"}
+	titlebar.add{type="label", style="frame_title", name="mpp_titlebar_label", caption={"mpp.settings_frame"}}
+	titlebar.add{type="empty-widget", name="mpp_titlebar_spacer", horizontally_strechable=true}
+	player_gui.advanced_settings = titlebar.add{
+		type="sprite-button",
+		style="frame_action_button",
+		sprite="mpp_advanced_settings",
+		tooltip={"mpp.advanced_settings"},
+		tags={mpp_advanced_settings=true},
 	}
 
-	local settings_belt_label = settings_frame.add{type="label", name="mpp_belt_label", style="subheader_caption_label", caption={"mpp.settings_belt_label"}}
-	local belt_frame = settings_frame.add{type="frame", name="mpp_belt_frame", direction="horizontal", style="invisible_frame"}
-	local belt_table = belt_frame.add{type="table", name="mpp_belt_table", style="filter_slot_table", column_count=5}
-	ply_global.gui.belt_table = belt_table
-	build_belt_table(player)
+	do -- layout selection
+		local table_root, section = create_setting_section(player_data, frame, "layout")
 
-	local settings_miner_label = settings_frame.add{type="label", name="mpp_miner_label", style="subheader_caption_label", caption={"mpp.settings_miner_label"}}
-	local miner_frame = settings_frame.add{type="frame", name="mpp_miner_frame", direction="horizontal", style="invisible_frame"}
-	local miner_table = miner_frame.add{type="table", name="mpp_miner_table", style="filter_slot_table", column_count=5}
-	ply_global.gui.miner_table = miner_table
-	build_miner_table(player)
+		local choices = {}
+		local index = 0
+		for i, layout in ipairs(layouts) do
+			if player_data.layout_choice == layout.name then 
+				index = i
+			end
+			choices[#choices+1] = layout.translation
+		end
 
-	local misc_label = settings_frame.add{type="label", name="mpp_misc_label", style="subheader_caption_label", caption={"mpp.settings_misc_label"}}
-	local checkbox_lamps = settings_frame.add{type="checkbox", name="mpp_checkbox_lamp", state=ply_global.lamp, caption={"mpp.settings_checkbox_lamps"}, tags={action="mpp_lamp"}}
+		player_gui.layout_dropdown = table_root.add{
+			type="drop-down",
+			items=choices,
+			selected_index=index,
+			tags={mpp_drop_down="layout", default=1},
+		}
+		
+		section.visible = player_data.advanced
+	end
 
+	do -- Direction selection
+		local table_root = create_setting_section(player_data, frame, "direction")
+		create_setting_selector(player_data, table_root, "mpp_action", "direction", {
+			{value="north", icon="mpp_direction_north"},
+			{value="south", icon="mpp_direction_south"},
+			{value="west", icon="mpp_direction_west"},
+			{value="east", icon="mpp_direction_east"},
+		})
+	end
+
+	do -- Miner selection
+		create_setting_section(player_data, frame, "miner")
+	end
+
+	do -- Belt selection
+		create_setting_section(player_data, frame, "belt")
+	end
+
+	do -- Electric pole selection
+		create_setting_section(player_data, frame, "pole")
+	end
+
+	do -- Misc selection
+		create_setting_section(player_data, frame, "misc")
+	end
 end
 
----@param event EventDataGuiCheckedStateChanged
-function gui.on_gui_checked_state_changed(event)
-	local ply_global = global.players[event.player_index]
-	if event.element.tags.action == "mpp_direction" then
-		ply_global.layout_choice = event.element.tags.layout
-		ply_global[event.element.tags.layout.."_direction"] = event.element.tags.direction
-		for key, ele in pairs(ply_global.gui.layout_radio_dir) do
-			if key ~= event.element.name then
-				ele.state = false
-			end
-		end
+---@param player_data PlayerData
+local function update_drill_selection(player_data)
+	local layout = layouts[player_data.layout_choice]
+	local restrictions = layout.restrictions
+	local near_radius_min, near_radius_max = restrictions.miner_near_radius[1], restrictions.miner_near_radius[2]
+	local far_radius_min, far_radius_max = restrictions.miner_far_radius[1], restrictions.miner_far_radius[2]
+
+	local values = {}
+	local existing_choice_is_valid = false
+	local miners = game.get_filtered_entity_prototypes{{filter="type", type="mining-drill"}}
+	for _, miner_proto in pairs(miners) do
+		local miner = mpp_util.miner_struct(miner_proto)
+		
+		if miner.size % 2 == 0 then goto skip_miner end -- Algorithm doesn't support even size miners
+		if not miner.resource_categories["basic-solid"] then goto skip_miner end
+		if not miner_proto.electric_energy_source_prototype then goto skip_miner end
+		if miner.near < near_radius_min or near_radius_max < miner.near then goto skip_miner end
+		if miner.far < far_radius_min or far_radius_max < miner.far then goto skip_miner end
+
+		values[#values+1] = {
+			value=miner.name,
+			tooltip={"entity-name."..miner.name},
+			icon=("entity/"..miner.name),
+			sort={miner_proto.mining_drill_radius, miner_proto.mining_speed},
+		}
+		if miner.name == player_data.miner_choice then existing_choice_is_valid = true end
+
+		::skip_miner::
+	end
+	
+	if not existing_choice_is_valid then
+		player_data.miner_choice = layout.defaults.miner
+	end
+
+	table.sort(values, function(a, b) return a.sort[1] < b.sort[1] and a.sort[2] < b.sort[2] end)
+	local table_root = player_data.gui.tables["miner"]
+	create_setting_selector(player_data, table_root, "mpp_action", "miner", values)
+end
+
+---@param player_data PlayerData
+local function update_belt_selection(player_data)
+	local values = {}
+	local belts = game.get_filtered_entity_prototypes{{filter="type", type="transport-belt"}}
+	for _, belt in pairs(belts) do
+		values[#values+1] = {
+			value=belt.name,
+			tooltip={"entity-name."..belt.name},
+			icon=("entity/"..belt.name),
+			sort=belt.belt_speed,
+		}
+	end
+	
+	table.sort(values, function(a, b) return a.sort < b.sort end)
+	local table_root = player_data.gui.tables["belt"]
+	create_setting_selector(player_data, table_root, "mpp_action", "belt", values)
+end
+
+---@param player_data PlayerData
+local function update_pole_selection(player_data)
+	local layout = layouts[player_data.layout_choice]
+	local restrictions = layout.restrictions
+	local pole_width_min, pole_width_max = restrictions.pole_width[1], restrictions.pole_width[2]
+	local pole_supply_min, pole_supply_max = restrictions.pole_supply_area[1], restrictions.pole_supply_area[2]
+	
+	local values = {}
+	values[1] = {
+		value="none",
+		tooltip={"mpp.choice_none"},
+		icon="mpp_no_entity",
+	}
+
+	local existing_choice_is_valid = false
+	local poles = game.get_filtered_entity_prototypes{{filter="type", type="electric-pole"}}
+	for _, pole in pairs(poles) do
+		local cbox = pole.collision_box
+		local size = math.ceil(cbox.right_bottom.x - cbox.left_top.x)
+		local supply_area = pole.supply_area_distance
+		if size < pole_width_min or pole_width_max < size then goto skip_pole end
+		if supply_area < pole_supply_min or pole_supply_max < supply_area then goto skip_pole end
+
+		values[#values+1] = {
+			value=pole.name,
+			tooltip={"entity-name."..pole.name},
+			icon=("entity/"..pole.name),
+		}
+		if pole.name == player_data.pole_choice then existing_choice_is_valid = true end
+
+		::skip_pole::
+	end
+
+	if not existing_choice_is_valid then
+		player_data.pole_choice = layout.defaults.pole
+	end
+
+	local table_root = player_data.gui.tables["pole"]
+	create_setting_selector(player_data, table_root, "mpp_action", "pole", values)
+end
+
+---@param player_data PlayerData
+local function update_misc_selection(player_data)
+	local layout = layouts[player_data.layout_choice]
+	local values = {}
+	values[#values+1] = {
+		value="lamp",
+		tooltip={"mpp.choice_lamp"},
+		icon=("entity/small-lamp"),
+	}
+
+	if player_data.advanced and layout.restrictions.coverage_tuning then
+		values[#values+1] = {
+			value="coverage",
+			tooltip={"mpp.choice_coverage"},
+			icon=("mpp_miner_coverage"),
+		}
+	end
+	
+	local table_root = player_data.gui.tables["misc"]
+	create_setting_selector(player_data, table_root, "mpp_toggle", "misc", values)
+end
+
+local function update_selections(player_data)
+	update_drill_selection(player_data)
+	update_belt_selection(player_data)
+	update_pole_selection(player_data)
+	update_misc_selection(player_data)
+end
+
+---@param player LuaPlayer
+function gui.show_interface(player)
+	---@type LuaGuiElement
+	local frame = player.gui.screen["mpp_settings_frame"]
+	local player_data = global.players[player.index]
+	if frame then
+		frame.visible = true
+	else
+		gui.create_interface(player)
+	end
+	update_selections(player_data)
+end
+
+---@param player LuaPlayer
+function gui.hide_interface(player)
+	---@type LuaGuiElement
+	local frame = player.gui.screen["mpp_settings_frame"]
+	if frame then
+		frame.visible = false
 	end
 end
 
 ---@param event EventDataGuiClick
-function gui.on_gui_click(event)
-	local player = game.get_player(event.player_index)
-	local ply_global = global.players[event.player_index]
-	if event.element.tags.action == "mpp_belt_choice" then
-		ply_global.belt_choice = event.element.tags.belt
-		build_belt_table(player)
-	elseif event.element.tags.action == "mpp_miner_choice" then
-		ply_global.miner_choice = event.element.tags.miner
-		build_miner_table(player)
-	elseif event.element.tags.action == "mpp_lamp" then
-		ply_global.lamp = event.element.state
+local function on_gui_click(event)
+	if event.element.tags["mpp_advanced_settings"] then
+		---@type PlayerData
+		local player_data = global.players[event.player_index]
+
+		local last_value = player_data.advanced
+		local value = not last_value
+		player_data.advanced = value
+
+		local layout_section = player_data.gui.section["layout"]
+
+		layout_section.visible = value
+
+		player_data.gui.layout_dropdown.selected_index = 1
+		player_data.layout_choice = "simple"
+		player_data.coverage_choice = false
+		update_selections(player_data)
+
+		player_data.gui["advanced_settings"].style = style_helper_advanced_toggle(value)
+	elseif event.element.tags["mpp_action"] then
+		---@type PlayerData
+		local player_data = global.players[event.player_index]
+
+		local action = event.element.tags["mpp_action"]
+		local value = event.element.tags["value"]
+		local last_value = player_data[action.."_choice"]
+
+		---@type LuaGuiElement
+		player_data.gui.selections[action][last_value].style = style_helper_selection(false)
+		event.element.style = style_helper_selection(true)
+		player_data[action.."_choice"] = value
+	elseif event.element.tags["mpp_toggle"] then
+		---@type PlayerData
+		local player_data = global.players[event.player_index]
+
+		local action = event.element.tags["mpp_toggle"]
+		local value = event.element.tags["value"]
+		local last_value = player_data[value.."_choice"]
+		player_data[value.."_choice"] = not last_value
+		event.element.style = style_helper_selection(not last_value)
 	end
 end
+script.on_event(defines.events.on_gui_click, on_gui_click)
+--script.on_event(defines.events.on_gui_checked_state_changed, gui.on_gui_checked_state_changed)
 
----@param player LuaPlayer
-function gui.destroy_interface(player)
-	---@type LuaGuiElement
-	local settings_frame = player.gui.left.mpp_settings_frame
+---@param event EventDataGuiSelectionStateChanged
+local function on_gui_selection_state_changed(event)
+	if event.element.tags["mpp_drop_down"] then
+		---@type PlayerData
+		local player_data = global.players[event.player_index]
 
-	if settings_frame then
-		settings_frame.destroy()
-		local ply_global = global.players[player.index]
-		ply_global.gui = {}
+		local action = event.element.tags["mpp_drop_down"]
+		local value = layouts[event.element.selected_index].name
+		player_data.layout_choice = value
+		update_selections(player_data)
 	end
 end
-
-function gui.on_player_removed(event)
-	global.players[event.player_index] = nil
-end
+script.on_event(defines.events.on_gui_selection_state_changed, on_gui_selection_state_changed)
 
 return gui

@@ -1,4 +1,15 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.1.0
+Date: 2022-01-29
+  Features:
+    - Added two more layouts - compact, and sparse
+    - Added power poles choice
+    - Added a progress indicator rectangle over a resource patch
+  Optimizations:
+    - Rewrote the algorithm to be modular
+    - Rewrote the logic to work on separate ticks
+    - Simplified layout algorithms with rotation invariant logic
+---------------------------------------------------------------------------------------------------
 Version: 1.0.3
 Date: 2021-11-30
   Optimizations:

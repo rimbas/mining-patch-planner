@@ -57,5 +57,89 @@ data:extend{
 		style="blue",
 		associated_control_input="mining-patch-selector-keybind",
 		technology_to_unlock="",
+	},
+	{
+		type = "sprite",
+		name = "mpp_advanced_settings",
+		filename = graphics.."advanced-settings.png",
+		size = 64,
+		mipmap_count = 3,
+		flags = { "icon" },
+	},
+	{
+		type = "sprite",
+		name = "mpp_advanced_settings_black",
+		filename = graphics.."advanced-settings-black.png",
+		size = 64,
+		mipmap_count = 3,
+		flags = { "icon" },
+	},
+	{
+		type = "sprite",
+		name = "mpp_no_entity",
+		filename = graphics.."no-entity.png",
+		size = 64,
+		mipmap_count = 3,
+		flags = { "icon" },
+	},
+	{
+		type = "sprite",
+		name = "mpp_direction_north",
+		filename = graphics.."arrow-north.png",
+		size = 64,
+		mipmap_count = 3,
+		flags = { "icon" },
+	},
+	{
+		type = "sprite",
+		name = "mpp_direction_east",
+		filename = graphics.."arrow-east.png",
+		size = 64,
+		mipmap_count = 3,
+		flags = { "icon" },
+	},
+	{
+		type = "sprite",
+		name = "mpp_direction_south",
+		filename = graphics.."arrow-south.png",
+		size = 64,
+		mipmap_count = 3,
+		flags = { "icon" },
+	},
+	{
+		type = "sprite",
+		name = "mpp_direction_west",
+		filename = graphics.."arrow-west.png",
+		size = 64,
+		mipmap_count = 3,
+		flags = { "icon" },
+	},
+	{
+		type = "sprite",
+		name = "mpp_miner_coverage",
+		filename = graphics.."miner_coverage.png",
+		size = 64,
+		mipmap_count = 2,
+		flags = { "icon" },
+	},
+}
+
+local default_style = data.raw["gui-style"].default
+
+--- taken from flib
+default_style.mpp_selected_frame_action_button = {
+	type = "button_style",
+	parent = "frame_action_button",
+	default_graphical_set = {
+		base = {position = {225, 17}, corner_size = 8},
+		shadow = {position = {440, 24}, corner_size = 8, draw_type = "outer"},
+	},
+	hovered_graphical_set = {
+		base = {position = {369, 17}, corner_size = 8},
+		shadow = {position = {440, 24}, corner_size = 8, draw_type = "outer"},
+	},
+	clicked_graphical_set = {
+		base = {position = {352, 17}, corner_size = 8},
+		shadow = {position = {440, 24}, corner_size = 8, draw_type = "outer"},
 	}
 }
