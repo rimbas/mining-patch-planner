@@ -36,6 +36,7 @@ require_layout("sparse")
 ---@field coords Coords
 ---@field grid Grid
 ---@field miner MinerStruct
+---@field preview_rectangle uint64 -- LuaRendering.draw_rectangle
 
 ---@param event EventDataPlayerSelectedArea
 ---@return State
@@ -60,6 +61,7 @@ local function create_state(event)
 	state.pole_choice = player_data.pole_choice
 	state.lamp_choice = player_data.lamp_choice
 	state.coverage_choice = player_data.coverage_choice
+	state.preview_rectangle = nil
 
 	return state
 end
@@ -114,10 +116,35 @@ function algorithm.on_player_selected_area(event)
 		return nil, {"mpp.msg_miner_err_0"}
 	end
 
+	local cats = game.entity_prototypes[state.miner_choice].resource_categories
+
+	for k, v in pairs(found_resources) do
+		if not cats[v] then
+			local miner_name = game.entity_prototypes[state.miner_choice].localised_name
+			local resource_name = game.entity_prototypes[k].localised_name
+			--player.print(("Can't build on this resource patch with selected miner \"%s\" because it can't mine resource \"%s\""):format())
+			state.player.print{"", {"mpp.msg_miner_err_2_1"}, " \"", miner_name, "\" ", {"mpp.msg_miner_err_2_2"}, " \"", resource_name, "\""}
+			return
+		end
+	end
 	
 	local validation_result, error = layout:validate(state)
 	if validation_result then
 		layout:initialize(state)
+
+		-- "Progress" bar
+		local c = state.coords
+		state.preview_rectangle = rendering.draw_rectangle{
+			surface=state.surface,
+			left_top={state.coords.ix1, state.coords.iy1},
+			right_bottom={state.coords.ix1 + c.w, state.coords.iy1 + c.h},
+			filled=false, color={0, 0.8, 0.3, 1},
+			width = 8,
+			draw_on_ground = true,
+			time_to_live = 60*5,
+			players={state.player},
+		}
+
 		return state
 	else
 		return nil, error

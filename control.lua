@@ -25,6 +25,7 @@ local function task_runner(event)
 
 	layout:tick(state)
 	if state.finished then
+		rendering.destroy(state.preview_rectangle)
 		table.remove(global.tasks, 1)
 	end
 end
@@ -39,7 +40,6 @@ script.on_event(defines.events.on_player_selected_area, function(event)
 			return
 		end
 	end
-
 
 	local state, error = algorithm.on_player_selected_area(event)
 

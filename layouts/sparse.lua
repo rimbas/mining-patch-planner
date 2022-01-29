@@ -245,17 +245,19 @@ function layout:placement_poles(state)
 		for x = attempt.sx + m.near + 1, c.tw + m.size, pole_step do
 			local built = false
 			if get_covered_miners(x, y) then
-				g:get_tile(x, y).built_on = "pole"
 				built = true
-				local tx, ty = coord_revert[state.direction_choice](x, y, c.tw, c.th)
-				surface.create_entity{
-					raise_built=true,
-					name="entity-ghost",
-					player=state.player,
-					force=state.player.force,
-					position={c.gx + tx, c.gy + ty},
-					inner_name=state.pole_choice,
-				}
+				if state.pole_choice ~= "none" then
+					g:get_tile(x, y).built_on = "pole"
+					local tx, ty = coord_revert[state.direction_choice](x, y, c.tw, c.th)
+					surface.create_entity{
+						raise_built=true,
+						name="entity-ghost",
+						player=state.player,
+						force=state.player.force,
+						position={c.gx + tx, c.gy + ty},
+						inner_name=state.pole_choice,
+					}
+				end
 			end
 			power_poles_all[#power_poles_all+1] = {x=x, y=y, ix=ix, iy=iy, built=built, no_light=no_light}
 			ix = ix + 1

@@ -671,9 +671,9 @@ function layout:placement_poles(state)
 		for x = attempt.sx + pole_start, c.tw + m.near, pole_step do
 			local built = false
 			if get_covered_miners(x, y) then
+				built = true
 				if state.pole_choice ~= "none" then
 					g:get_tile(x, y).built_on = "pole"
-					built = true
 					local tx, ty = coord_revert[state.direction_choice](x, y, c.tw, c.th)
 					surface.create_entity{
 						raise_built=true,
@@ -697,7 +697,7 @@ end
 ---@param self SimpleLayout
 ---@param state SimpleState
 function layout:placement_lamp(state)
-	if not state.lamp_choice or state.lamp_choice == "none" then
+	if not state.lamp_choice then
 		state.delegate = "placement_landfill"
 		return
 	end

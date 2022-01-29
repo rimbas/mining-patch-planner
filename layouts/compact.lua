@@ -259,6 +259,7 @@ function layout:placement_belts_small(state)
 						power_poles[#power_poles+1] = {
 							x=x1+3, y=y,
 							ix=1+floor(i/2), iy=1+floor(j/2),
+							built = true,
 						}
 					else -- just a passthrough belt
 						for x = x1, x1 + m.size - 1 do
@@ -439,6 +440,7 @@ function layout:placement_belts_large(state)
 						power_poles[#power_poles+1] = {
 							x=x1, y=y,
 							ix=1+floor(i/2), iy=1+floor(j/2),
+							built = true,
 						}
 					else -- just a passthrough belt
 						for x = x1, x1 + m.size - 1 do
@@ -481,13 +483,16 @@ end
 ---@param self CompactLayout
 ---@param state SimpleState
 function layout:placement_pole(state)
+	if state.pole_choice == "none" then
+		state.delegate = "placement_lamp"
+		return
+	end
 	local c = state.coords
 	local m = state.miner
 	local g = state.grid
 	local DIR = state.direction_choice
 	local surface = state.surface
 	local attempt = state.best_attempt
-
 	for _, pole in ipairs(state.power_poles_all) do
 		local x, y = pole.x, pole.y
 		g:get_tile(x, y).built_on = "pole"
@@ -499,7 +504,6 @@ function layout:placement_pole(state)
 			position=mpp_revert(c.gx, c.gy, DIR, x, y, c.tw, c.th),
 			inner_name=state.pole_choice,
 		}
-		pole.built = true
 	end
 
 	state.delegate = "placement_lamp"
@@ -518,7 +522,7 @@ function layout:placement_lamp(state)
 
 	local sx, sy = -1, 0
 	local lamp_spacing = true
-	if state.pole_step > 6 then lamp_spacing = false end
+	if state.pole_step > 7 then lamp_spacing = false end
 
 	for _, pole in ipairs(state.power_poles_all) do
 		local x, y = pole.x, pole.y
