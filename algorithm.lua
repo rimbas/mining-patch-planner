@@ -1,5 +1,4 @@
 local enums = require("enums")
-local resource_categories = enums.resource_categories
 
 local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
@@ -78,7 +77,8 @@ local function process_entities(entities)
 	for _, entity in pairs(entities) do
 		---@type LuaResourceCategoryPrototype
 		local category = entity.prototype.resource_category
-		if resource_categories[category] then
+		local _, cached_resources = enums.get_available_miners()
+		if cached_resources[category] then
 			found_resources[entity.name] = category
 			filtered[#filtered+1] = entity
 			local x, y = entity.position.x, entity.position.y

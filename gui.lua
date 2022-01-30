@@ -1,5 +1,6 @@
 local algorithm = require("algorithm")
 local mpp_util = require("mpp_util")
+local enums = require("enums")
 
 local layouts = algorithm.layouts
 
@@ -137,13 +138,14 @@ local function update_drill_selection(player_data)
 
 	local values = {}
 	local existing_choice_is_valid = false
-	local miners = game.get_filtered_entity_prototypes{{filter="type", type="mining-drill"}}
-	for _, miner_proto in pairs(miners) do
+
+	local cached_miners, cached_resources = enums.get_available_miners()
+
+	for _, miner_proto in pairs(cached_miners) do
 		local miner = mpp_util.miner_struct(miner_proto)
-		
-		if miner.size % 2 == 0 then goto skip_miner end -- Algorithm doesn't support even size miners
-		if not miner.resource_categories["basic-solid"] then goto skip_miner end
+
 		if not miner_proto.electric_energy_source_prototype then goto skip_miner end
+		if miner.size % 2 == 0 then goto skip_miner end -- Algorithm doesn't support even size miners
 		if miner.near < near_radius_min or near_radius_max < miner.near then goto skip_miner end
 		if miner.far < far_radius_min or far_radius_max < miner.far then goto skip_miner end
 
@@ -151,18 +153,18 @@ local function update_drill_selection(player_data)
 			value=miner.name,
 			tooltip={"entity-name."..miner.name},
 			icon=("entity/"..miner.name),
-			sort={miner_proto.mining_drill_radius, miner_proto.mining_speed},
+			sort={miner.size, miner_proto.mining_speed},
 		}
 		if miner.name == player_data.miner_choice then existing_choice_is_valid = true end
 
 		::skip_miner::
 	end
-	
+
 	if not existing_choice_is_valid then
 		player_data.miner_choice = layout.defaults.miner
 	end
 
-	table.sort(values, function(a, b) return a.sort[1] < b.sort[1] and a.sort[2] < b.sort[2] end)
+	table.sort(values, function(a, b) return a.sort[1] < b.sort[1] or a.sort[2] < b.sort[2] end)
 	local table_root = player_data.gui.tables["miner"]
 	create_setting_selector(player_data, table_root, "mpp_action", "miner", values)
 end
