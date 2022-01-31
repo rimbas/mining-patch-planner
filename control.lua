@@ -31,9 +31,12 @@ local function task_runner(event)
 end
 
 script.on_event(defines.events.on_player_selected_area, function(event)
-	if #event.entities == 0 then return nil end
-
 	local player = game.get_player(event.player_index)
+	local cursor_stack = player.cursor_stack
+	if not cursor_stack or not cursor_stack.valid or not cursor_stack.valid_for_read then return end
+	if cursor_stack and cursor_stack.valid and cursor_stack.valid_for_read and cursor_stack.name ~= "mining-patch-planner" then return end
+
+	if #event.entities == 0 then return nil end
 
 	for _, task in ipairs(global.tasks) do
 		if task.player == player then
