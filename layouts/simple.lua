@@ -76,11 +76,10 @@ function layout:start(state)
 	c.th, c.tw = th, tw
 	local conv = coord_convert[state.direction_choice]
 
-	-- TODO: Rewrite (for performance?) with shift, so table indices starts at 1 instead of less than 1
-	for y = -1-miner.size, th + miner.size + miner.far do
+	for y = -1-miner.size-miner.far, th + miner.size + miner.far do
 		local row = {}
 		grid[y] = row
-		for x = -1-miner.size, tw + miner.size * 2 do
+		for x = -1-miner.size-miner.far, tw + miner.size + miner.far do
 			--local tx1, ty1 = conv(c.x1, c.y1, c.tw, c.th)
 			row[x] = {
 				contains_resource = false,
@@ -418,59 +417,6 @@ end
 
 ---@param self SimpleLayout
 ---@param state SimpleState
-function layout:second_pass(state)
-	local grid = state.grid
-	local m = state.miner
-	local attempt = state.best_attempt
-	
-	for _, miner in ipairs(attempt.miners) do
-		grid:consume(miner.center.x, miner.center.y)
-	end
-
-	for _, miner in ipairs(attempt.postponed) do
-		local center = miner.center
-		miner.unconsumed = grid:get_unconsumed(center.x, center.y)
-	end
-
-	table.sort(attempt.postponed, function(a, b)
-		if a.unconsumed == b.unconsumed then
-			return a.center.far_neighbor_count > b.center.far_neighbor_count
-		end
-		return a.unconsumed > b.unconsumed
-	end)
-
-	local miners = attempt.miners
-	for _, miner in ipairs(attempt.postponed) do
-		local center = miner.center
-		local unconsumed_count = grid:get_unconsumed(center.x, center.y)
-		if unconsumed_count > 0 then
-			grid:consume(center.x, center.y)
-			miners[#miners+1] = miner
-		end
-	end
-
-	--[[ debug visualisation - unconsumed tiles
-	local c = state.coords
-	for k, tile in pairs(state.resource_tiles) do
-		if tile.consumed == 0 then
-			rendering.draw_circle{
-				surface = state.surface,
-				filled = false,
-				color = {1, 0, 0, 1},
-				width = 4,
-				target = {c.gx + tile.x, c.gy + tile.y},
-				radius = 0.45,
-				players={state.player},
-			}
-		end
-	end
-	--]]
-
-	state.delegate = "simple_deconstruct"
-end
-
----@param self SimpleLayout
----@param state SimpleState
 function layout:simple_deconstruct(state)
 	local c = state.coords
 	local m = state.miner
@@ -481,8 +427,8 @@ function layout:simple_deconstruct(state)
 		force=player.force,
 		player=player.index,
 		area={
-			left_top={c.x1-m.size, c.y1-m.size},
-			right_bottom={c.x2+m.size, c.y2+m.far}
+			left_top={c.x1-m.size-1, c.y1-m.size-1},
+			right_bottom={c.x2+m.size+1, c.y2+m.size+1}
 		},
 	}
 

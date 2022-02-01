@@ -151,10 +151,11 @@ local function update_drill_selection(player_data)
 
 		values[#values+1] = {
 			value=miner.name,
-			tooltip={"entity-name."..miner.name},
+			tooltip=miner_proto.localised_name,
 			icon=("entity/"..miner.name),
-			sort={miner.size, miner_proto.mining_speed},
+			order=miner_proto.order,
 		}
+		print(miner_proto.order)
 		if miner.name == player_data.miner_choice then existing_choice_is_valid = true end
 
 		::skip_miner::
@@ -164,7 +165,7 @@ local function update_drill_selection(player_data)
 		player_data.miner_choice = layout.defaults.miner
 	end
 
-	table.sort(values, function(a, b) return a.sort[1] < b.sort[1] or a.sort[2] < b.sort[2] end)
+	table.sort(values, function(a, b) return a.order < b.order end)
 	local table_root = player_data.gui.tables["miner"]
 	create_setting_selector(player_data, table_root, "mpp_action", "miner", values)
 end
@@ -176,13 +177,12 @@ local function update_belt_selection(player_data)
 	for _, belt in pairs(belts) do
 		values[#values+1] = {
 			value=belt.name,
-			tooltip={"entity-name."..belt.name},
+			tooltip=belt.localised_name,
 			icon=("entity/"..belt.name),
-			sort=belt.belt_speed,
+			order=belt.order,
 		}
 	end
 	
-	table.sort(values, function(a, b) return a.sort < b.sort end)
 	local table_root = player_data.gui.tables["belt"]
 	create_setting_selector(player_data, table_root, "mpp_action", "belt", values)
 end
@@ -212,7 +212,7 @@ local function update_pole_selection(player_data)
 
 		values[#values+1] = {
 			value=pole.name,
-			tooltip={"entity-name."..pole.name},
+			tooltip=pole.localised_name,
 			icon=("entity/"..pole.name),
 		}
 		if pole.name == player_data.pole_choice then existing_choice_is_valid = true end

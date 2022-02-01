@@ -157,7 +157,59 @@ function layout:first_pass(state)
 	end
 end
 
-layout.second_pass = simple.second_pass
+---@param self CompactLayout
+---@param state SimpleState
+function layout:second_pass(state)
+	local grid = state.grid
+	local m = state.miner
+	local attempt = state.best_attempt
+	
+	for _, miner in ipairs(attempt.miners) do
+		grid:consume(miner.center.x, miner.center.y)
+	end
+
+	for _, miner in ipairs(attempt.postponed) do
+		local center = miner.center
+		miner.unconsumed = grid:get_unconsumed(center.x, center.y)
+	end
+
+	table.sort(attempt.postponed, function(a, b)
+		if a.unconsumed == b.unconsumed then
+			return a.center.far_neighbor_count > b.center.far_neighbor_count
+		end
+		return a.unconsumed > b.unconsumed
+	end)
+
+	local miners = attempt.miners
+	for _, miner in ipairs(attempt.postponed) do
+		local center = miner.center
+		local unconsumed_count = grid:get_unconsumed(center.x, center.y)
+		if unconsumed_count > 0 then
+			grid:consume(center.x, center.y)
+			miners[#miners+1] = miner
+		end
+	end
+
+	--[[ debug visualisation - unconsumed tiles
+	local c = state.coords
+	for k, tile in pairs(state.resource_tiles) do
+		if tile.consumed == 0 then
+			rendering.draw_circle{
+				surface = state.surface,
+				filled = false,
+				color = {1, 0, 0, 1},
+				width = 4,
+				target = {c.gx + tile.x, c.gy + tile.y},
+				radius = 0.45,
+				players={state.player},
+			}
+		end
+	end
+	--]]
+
+	state.delegate = "simple_deconstruct"
+end
+
 layout.simple_deconstruct = simple.simple_deconstruct
 
 ---@param self CompactLayout
@@ -377,7 +429,7 @@ function layout:placement_belts_large(state)
 			for j = 1, column_count do
 				local x1 = x0 + (j-1) * m.size
 				if j % 3 == 1 then -- part one
-					if indices[j] or indices[j+1] then
+					if indices[j] or indices[j+1] or indices[j+2] then
 						g:get_tile(x1, y).built_on = "belt"
 						surface.create_entity{
 							raise_built=true,
@@ -399,6 +451,11 @@ function layout:placement_belts_large(state)
 							direction=defines.direction[DIR],
 							inner_name=stopper,
 							type="output",
+						}
+						power_poles[#power_poles+1] = {
+							x=x1+3, y=y,
+							ix=1+floor(i/2), iy=1+floor(j/2),
+							built = true,
 						}
 					else -- just a passthrough belt
 						for x = x1, x1 + m.size - 1 do
@@ -436,11 +493,6 @@ function layout:placement_belts_large(state)
 							position = mpp_revert(c.gx, c.gy, DIR, x1+2, y, c.tw, c.th),
 							direction=defines.direction[DIR],
 							inner_name=state.belt_choice,
-						}
-						power_poles[#power_poles+1] = {
-							x=x1, y=y,
-							ix=1+floor(i/2), iy=1+floor(j/2),
-							built = true,
 						}
 					else -- just a passthrough belt
 						for x = x1, x1 + m.size - 1 do
