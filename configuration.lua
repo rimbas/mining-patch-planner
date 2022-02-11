@@ -10,6 +10,7 @@ local conf = {}
 ---@field pole_choice string
 ---@field lamp_choice boolean
 ---@field coverage_choice boolean
+---@field logistics_choice string
 ---@field gui PlayerGui
 
 ---@class PlayerGui
@@ -28,6 +29,7 @@ conf.default_config = {
 	pole_choice = "medium-electric-pole",
 	lamp_choice = false,
 	coverage_choice = false,
+	logistics_choice = "logistic-chest-passive-provider",
 
 	gui = {
 		section = {},

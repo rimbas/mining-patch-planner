@@ -16,14 +16,13 @@ local layout = table.deepcopy(base)
 layout.name = "compact"
 layout.translation = {"mpp.settings_layout_choice_compact"}
 
-layout.restrictions = {}
 layout.restrictions.miner_near_radius = {1, 1}
 layout.restrictions.miner_far_radius = {2, 10e3}
 layout.restrictions.pole_omittable = true
 layout.restrictions.pole_width = {1, 1}
 layout.restrictions.pole_length = {7.5, 10e3}
 layout.restrictions.pole_supply_area = {2.5, 10e3}
-layout.restrictions.lamp = true
+layout.restrictions.lamp_available = true
 
 layout.on_load = simple.on_load
 layout.start = simple.start
@@ -65,7 +64,7 @@ local function placement_attempt(state, shift_x, shift_y)
 	
 	local heuristic = miner_heuristic(state.miner)
 	
-	for ry = 1 + shift_y, state.coords.th + size, size + 0.5 do
+	for ry = 1 + shift_y, state.coords.th + near, size + 0.5 do
 		local y = ceil(ry)
 		local column_index = 1
 		for x = 1 + shift_x, state.coords.tw, size do
@@ -88,6 +87,7 @@ local function placement_attempt(state, shift_x, shift_y)
 		end
 		miner_index = miner_index + 1
 	end
+	
 	return {
 		sx=shift_x, sy=shift_y,
 		miners=miners,
@@ -108,7 +108,6 @@ local function attempt_score_heuristic(attempt, miner)
 	local far_neighbor_score = attempt.far_neighbor_sum / ((miner.far * 2 + 1) ^ 2) / 2
 	return miner_score - density_score - neighbor_score - far_neighbor_score
 end
-
 
 ---@param self CompactLayout
 ---@param state SimpleState
@@ -560,6 +559,7 @@ function layout:placement_pole(state)
 
 	state.delegate = "placement_lamp"
 end
+
 ---@param self CompactLayout
 ---@param state SimpleState
 function layout:placement_lamp(state)

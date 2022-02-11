@@ -120,6 +120,10 @@ function gui.create_interface(player)
 		create_setting_section(player_data, frame, "belt")
 	end
 
+	do -- Logistics selection
+		create_setting_section(player_data, frame, "logistics")
+	end
+
 	do -- Electric pole selection
 		create_setting_section(player_data, frame, "pole")
 	end
@@ -155,7 +159,6 @@ local function update_drill_selection(player_data)
 			icon=("entity/"..miner.name),
 			order=miner_proto.order,
 		}
-		print(miner_proto.order)
 		if miner.name == player_data.miner_choice then existing_choice_is_valid = true end
 
 		::skip_miner::
@@ -165,13 +168,13 @@ local function update_drill_selection(player_data)
 		player_data.miner_choice = layout.defaults.miner
 	end
 
-	table.sort(values, function(a, b) return a.order < b.order end)
 	local table_root = player_data.gui.tables["miner"]
 	create_setting_selector(player_data, table_root, "mpp_action", "miner", values)
 end
 
 ---@param player_data PlayerData
 local function update_belt_selection(player_data)
+	local layout = layouts[player_data.layout_choice]
 	local values = {}
 	local belts = game.get_filtered_entity_prototypes{{filter="type", type="transport-belt"}}
 	for _, belt in pairs(belts) do
@@ -182,10 +185,54 @@ local function update_belt_selection(player_data)
 			order=belt.order,
 		}
 	end
+
+	local belt_section = player_data.gui.section["belt"]
+	belt_section.visible = not layout.restrictions.robot_logistics
 	
 	local table_root = player_data.gui.tables["belt"]
 	create_setting_selector(player_data, table_root, "mpp_action", "belt", values)
 end
+
+---@param player_data PlayerData
+local function update_logistics_selection(player_data)
+	local layout = layouts[player_data.layout_choice]
+	local values = {}
+
+	local filter = {
+		["passive-provider"]=true,
+		["active-provider"]=true,
+		["storage"] = true,
+	}
+	
+	local existing_choice_is_valid = false
+	local logistics = game.get_filtered_entity_prototypes{{filter="type", type="logistic-container"}}
+	for _, chest in pairs(logistics) do
+		local cbox = chest.collision_box
+		local size = math.ceil(cbox.right_bottom.x - cbox.left_top.x)
+		if size > 1 then goto skip_chest end
+		if not filter[chest.logistic_mode] then goto skip_chest end
+
+		values[#values+1] = {
+			value=chest.name,
+			tooltip=chest.localised_name,
+			icon=("entity/"..chest.name),
+		}
+		if chest.name == player_data.logistics_choice then existing_choice_is_valid = true end
+
+		::skip_chest::
+	end
+
+	local logistics_section = player_data.gui.section["logistics"]
+	logistics_section.visible = layout.restrictions.robot_logistics
+	
+	if not existing_choice_is_valid then
+		player_data.logistics_choice = layout.defaults.logistics
+	end
+
+	local table_root = player_data.gui.tables["logistics"]
+	create_setting_selector(player_data, table_root, "mpp_action", "logistics", values)
+end
+
 
 ---@param player_data PlayerData
 local function update_pole_selection(player_data)
@@ -232,11 +279,14 @@ end
 local function update_misc_selection(player_data)
 	local layout = layouts[player_data.layout_choice]
 	local values = {}
-	values[#values+1] = {
-		value="lamp",
-		tooltip={"mpp.choice_lamp"},
-		icon=("entity/small-lamp"),
-	}
+	
+	if layout.restrictions.lamp_available then
+		values[#values+1] = {
+			value="lamp",
+			tooltip={"mpp.choice_lamp"},
+			icon=("entity/small-lamp"),
+		}
+	end
 
 	if player_data.advanced and layout.restrictions.coverage_tuning then
 		values[#values+1] = {
@@ -245,6 +295,9 @@ local function update_misc_selection(player_data)
 			icon=("mpp_miner_coverage"),
 		}
 	end
+
+	local misc_section = player_data.gui.section["misc"]
+	misc_section.visible = #values > 0
 	
 	local table_root = player_data.gui.tables["misc"]
 	create_setting_selector(player_data, table_root, "mpp_toggle", "misc", values)
@@ -253,6 +306,7 @@ end
 local function update_selections(player_data)
 	update_drill_selection(player_data)
 	update_belt_selection(player_data)
+	update_logistics_selection(player_data)
 	update_pole_selection(player_data)
 	update_misc_selection(player_data)
 end

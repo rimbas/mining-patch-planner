@@ -13,16 +13,18 @@ layout.defaults = {}
 layout.defaults.miner = "electric-mining-drill"
 layout.defaults.belt = "transport-belt"
 layout.defaults.pole = "medium-electric-pole"
+layout.defaults.logistics = "logistic-chest-passive-provider"
 
 layout.restrictions = {}
 layout.restrictions.miner_near_radius = {1, 10e3}
 layout.restrictions.miner_far_radius = {2, 10e3}
 layout.restrictions.pole_omittable = true
 layout.restrictions.pole_width = {1, 1}
-layout.restrictions.pole_length = {7.5, 10e3}
+layout.restrictions.pole_length = {5, 10e3}
 layout.restrictions.pole_supply_area = {2.5, 10e3}
 layout.restrictions.lamp_available = true
 layout.restrictions.coverage_tuning = false
+layout.restrictions.robot_logistics = false
 
 ---Called from script.on_load
 ---@param self Layout

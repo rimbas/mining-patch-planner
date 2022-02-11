@@ -3,7 +3,6 @@ local min, max = math.min, math.max
 
 local base = require("layouts.base")
 local simple = require("layouts.simple")
-local grid_mt = require("grid_mt")
 local mpp_util = require("mpp_util")
 local coord_convert, coord_revert = mpp_util.coord_convert, mpp_util.coord_revert
 local miner_direction, opposite = mpp_util.miner_direction, mpp_util.opposite
@@ -16,14 +15,13 @@ local layout = table.deepcopy(base)
 layout.name = "sparse"
 layout.translation = {"mpp.settings_layout_choice_sparse"}
 
-layout.restrictions = {}
 layout.restrictions.miner_near_radius = {1, 10e3}
 layout.restrictions.miner_far_radius = {2, 10e3}
 layout.restrictions.pole_omittable = true
 layout.restrictions.pole_width = {1, 1}
 layout.restrictions.pole_length = {7.5, 10e3}
 layout.restrictions.pole_supply_area = {2.5, 10e3}
-layout.restrictions.lamp = true
+layout.restrictions.lamp_available = true
 
 layout.on_load = simple.on_load
 layout.start = simple.start
@@ -38,18 +36,21 @@ local function placement_attempt(state, shift_x, shift_y)
 	local miners = {}
 	local miner_index = 1
 
-	for y = 1 + shift_y, state.coords.th + size, full_size do
+	for y = 1 + shift_y, state.coords.th + near, full_size do
+		local miner_column = 1
 		for x = 1 + shift_x, state.coords.tw, full_size do
 			local tile = grid:get_tile(x, y)
 			local center = grid:get_tile(x+near, y+near)
 			local miner = {
 				tile = tile,
 				line = miner_index,
+				column = miner_column,
 				center = center,
 			}
 			if center.far_neighbor_count > 0 then
 				miners[#miners+1] = miner
 			end
+			miner_column = miner_column + 1
 		end
 		miner_index = miner_index + 1
 	end
@@ -120,7 +121,6 @@ end
 layout.simple_deconstruct = simple.simple_deconstruct
 layout.place_miners = simple.place_miners
 
----Bruteforce the best solution
 ---@param self SimpleLayout
 ---@param state SimpleState
 function layout:placement_belts(state)
@@ -131,15 +131,18 @@ function layout:placement_belts(state)
 	local attempt = state.best_attempt
 
 	local miner_lanes = {{}}
-	local miner_lane_number = 0 -- highest index of a lane, because using # won't do the job if a lane is missing
+	local miner_lane_number = 0 -- highest index of a lane, because using # won't do the job if a miner is missing
+	local miner_column_max = 0
 	
 	for _, miner in ipairs(attempt.miners) do
 		local index = miner.line
 		miner_lane_number = max(miner_lane_number, index)
+		miner_column_max = max(miner_column_max, miner.column)
 		if not miner_lanes[index] then miner_lanes[index] = {} end
 		local line = miner_lanes[index]
 		line[#line+1] = miner
 	end
+	state.miner_column_max = miner_column_max
 
 	for _, lane in ipairs(miner_lanes) do
 		table.sort(lane, function(a, b) return a.center.x < b.center.x end)
@@ -221,13 +224,16 @@ function layout:placement_poles(state)
 	local supply_area_distance = pole_proto.supply_area_distance
 	local supply_radius = floor(supply_area_distance)
 	local supply_area = floor(supply_area_distance * 2)
-	local wire_reach = pole_proto.max_wire_distance
 
 	local power_poles_all = {}
 	state.power_poles_all = power_poles_all
 
-	local pole_step = floor(wire_reach)
+	local pole_step = min(floor(pole_proto.max_wire_distance), supply_area + 2)
 	state.pole_step = pole_step
+
+	local miner_lane_width = (state.miner_column_max-1)*m.far*2 + state.miner_column_max
+	local slack = ceil(miner_lane_width / pole_step) * pole_step - c.tw
+	local pole_start = supply_radius - floor(slack / 2) - 1
 
 	local function get_covered_miners(ix, iy)
 		for sy = -supply_radius, supply_radius do
@@ -241,27 +247,32 @@ function layout:placement_poles(state)
 	end
 
 	local function place_pole_lane(y, iy, no_light)
+		local pole_lane = {}
 		local ix = 1
-		for x = attempt.sx + m.near + 1, c.tw + m.size, pole_step do
+		for x = attempt.sx + pole_start, c.tw + m.size, pole_step do
 			local built = false
 			if get_covered_miners(x, y) then
 				built = true
-				if state.pole_choice ~= "none" then
-					g:get_tile(x, y).built_on = "pole"
-					local tx, ty = coord_revert[state.direction_choice](x, y, c.tw, c.th)
-					surface.create_entity{
-						raise_built=true,
-						name="entity-ghost",
-						player=state.player,
-						force=state.player.force,
-						position={c.gx + tx, c.gy + ty},
-						inner_name=state.pole_choice,
-					}
+			end
+			local pole = {x=x, y=y, ix=ix, iy=iy, built=built, no_light=no_light}
+			pole_lane[ix] = pole
+
+			if built and ix > 1 and pole_lane[ix-1] then
+				for bx = ix - 1, 1, -1 do
+					local backtrack_pole = pole_lane[bx]
+					if not backtrack_pole.built then
+						backtrack_pole.built = true
+					else
+						break
+					end
+
 				end
 			end
-			power_poles_all[#power_poles_all+1] = {x=x, y=y, ix=ix, iy=iy, built=built, no_light=no_light}
+
+			power_poles_all[#power_poles_all+1] = pole
 			ix = ix + 1
 		end
+		return pole_lane
 	end
 
 	local initial_y = attempt.sy
@@ -277,6 +288,23 @@ function layout:placement_poles(state)
 			place_pole_lane(y + backstep)
 		end
 		iy = iy + 1
+	end
+
+	if state.pole_choice ~= "none" then
+		for  _, pole in ipairs(power_poles_all) do
+			if pole.built then
+				local x, y = pole.x, pole.y
+				g:get_tile(x, y).built_on = "pole"
+				surface.create_entity{
+					raise_built=true,
+					name="entity-ghost",
+					player=state.player,
+					force=state.player.force,
+					position=mpp_revert(c.gx, c.gy, DIR, x, y, c.tw, c.th),
+					inner_name=state.pole_choice,
+				}
+			end
+		end
 	end
 
 	state.delegate = "placement_lamp"

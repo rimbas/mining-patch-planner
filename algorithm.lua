@@ -14,8 +14,10 @@ local function require_layout(layout)
 end
 require_layout("simple")
 require_layout("compact")
+require_layout("super_compact")
 require_layout("sparse")
---require_layout("logistics")
+require_layout("logistics")
+require_layout("compact_logistics")
 
 ---@class State
 ---@field delegate string
@@ -32,6 +34,7 @@ require_layout("sparse")
 ---@field belt_choice string Belt name
 ---@field lamp_choice boolean Lamp placement
 ---@field coverage_choice boolean
+---@field logistics_choice string
 ---@field coords Coords
 ---@field grid Grid
 ---@field miner MinerStruct
@@ -59,6 +62,7 @@ local function create_state(event)
 	state.belt_choice = player_data.belt_choice
 	state.pole_choice = player_data.pole_choice
 	state.lamp_choice = player_data.lamp_choice
+	state.logistics_choice = player_data.logistics_choice
 	state.coverage_choice = player_data.coverage_choice
 	state.preview_rectangle = nil
 

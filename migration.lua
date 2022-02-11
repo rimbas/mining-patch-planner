@@ -1,6 +1,6 @@
 local conf = require("configuration")
 
-local current_version = 010101 -- 1.1.1
+local current_version = 010200 -- 1.2.0
 
 ---@param player LuaPlayer
 local function reset_gui(player)
@@ -14,12 +14,14 @@ local function reset_gui(player)
 	end
 end
 
+local i = 0
+
 script.on_configuration_changed(function(config_changed_data)
 	if config_changed_data.mod_changes["mining-patch-planner"] then
 		local version = global.version or 0
 
 		if version < current_version then
-			global.tasks = {}
+			global.tasks = global.tasks or {}
 			for player_index, data in ipairs(global.players) do
 				---@type LuaPlayer
 				local player = game.players[player_index]
@@ -28,5 +30,10 @@ script.on_configuration_changed(function(config_changed_data)
 			end
 		end
 		global.version = current_version
+	else
+		i = i + 1
+		for player_index, data in ipairs(global.players) do
+			reset_gui(game.players[player_index])
+		end
     end
 end)

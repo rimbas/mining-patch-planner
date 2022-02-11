@@ -1,4 +1,13 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.2.0
+Date: 2022-02-11
+  Features:
+    - Added Super Compact layout
+    - Added Logistics and Compact Logistics layouts
+  Bugfixes:
+    - Changed power pole logic to be more robust with modded variants
+    - Tuned iteration parameters
+---------------------------------------------------------------------------------------------------
 Version: 1.1.2
 Date: 2022-01-31
   Bugfixes:
