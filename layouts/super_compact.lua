@@ -162,10 +162,6 @@ function layout:place_miners(state)
 	local g = state.grid
 	local surface = state.surface
 	local DIR = state.direction_choice
-	--simple.place_miners(self, state)
-
-	local placeholder_pole = state.pole_choice == "none" and "medium-electric-pole" or state.pole_choice
-	local pole_proto = game.entity_prototypes[placeholder_pole]
 
 	for _, miner in ipairs(state.best_attempt.miners) do
 		local center = miner.center
@@ -387,7 +383,6 @@ function layout:placement_belts(state)
 	end
 
 	local stagger_shift = 1
-	--for y = m.size + shift_y - 1, c.th, m.size + 2 do
 	for i = 1, miner_lane_number do
 		local lane = miner_lanes[i]
 		local y = m.size + shift_y - 1 + (m.size + 2) * (i-1)

@@ -216,10 +216,11 @@ layout.simple_deconstruct = simple.simple_deconstruct
 function layout:place_miners(state)
 	simple.place_miners(self, state)
 
-	local placeholder_pole = state.pole_choice == "none" and "medium-electric-pole" or state.pole_choice
-	local pole_proto = game.entity_prototypes[placeholder_pole]
-	local supply_area = pole_proto.supply_area_distance
-	local wire_reach = pole_proto.max_wire_distance
+	local pole_proto = game.entity_prototypes[state.pole_choice] or {supply_area_distance=3, max_wire_distance=9}
+	local supply_area, wire_reach = 3.5, 9
+	if pole_proto then
+		supply_area, wire_reach = pole_proto.supply_area_distance, pole_proto.max_wire_distance
+	end
 
 	if supply_area < 3 or wire_reach < 9 then
 		state.pole_step = 6

@@ -60,15 +60,23 @@ end
 ---@param pole_proto LuaEntityPrototype
 ---@return PoleStruct
 function mpp_util.pole_struct(pole_proto)
-	local pole = {}
-	local cbox = pole_proto.collision_box
-	pole.size = ceil(cbox.right_bottom.x - cbox.left_top.x)
-	local radius = pole_proto.supply_area_distance
-	pole.supply_width = radius * 2 + ((radius * 2 % 2) == 0 and 1 or 0)
-	pole.radius = pole.supply_width / 2
-	pole.wire = pole_proto.max_wire_distance
+	if pole_proto then
+		local pole = {}
+		local cbox = pole_proto.collision_box
+		pole.size = ceil(cbox.right_bottom.x - cbox.left_top.x)
+		local radius = pole_proto.supply_area_distance
+		pole.supply_width = radius * 2 + ((radius * 2 % 2) == 0 and 1 or 0)
+		pole.radius = pole.supply_width / 2
+		pole.wire = pole_proto.max_wire_distance
 
-	return pole
+		return pole
+	end
+	return {
+		size = 1,
+		supply_width = 7,
+		radius = 3.5,
+		wire = 9,
+	}
 end
 
 function mpp_util.map(t, key)

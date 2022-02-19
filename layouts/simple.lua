@@ -577,10 +577,11 @@ function layout:placement_poles(state)
 	local surface = state.surface
 	local attempt = state.best_attempt
 
-	local placeholder_pole = state.pole_choice == "none" and "medium-electric-pole" or state.pole_choice
-	local pole_proto = game.entity_prototypes[placeholder_pole]
-	local supply_area = floor(pole_proto.supply_area_distance)
-	local wire_reach = pole_proto.max_wire_distance
+	local pole_proto = game.entity_prototypes[state.pole_choice] or {supply_area_distance=3, max_wire_distance=9}
+	local supply_area, wire_reach = 3, 9
+	if pole_proto then
+		supply_area, wire_reach = floor(pole_proto.supply_area_distance), pole_proto.max_wire_distance
+	end
 
 	--TODO: figure out double lane coverage with insane supply areas
 	local function get_covered_miners(ix, iy)

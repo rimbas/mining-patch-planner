@@ -219,11 +219,14 @@ function layout:placement_poles(state)
 	local surface = state.surface
 	local attempt = state.best_attempt
 
-	local placeholder_pole = state.pole_choice == "none" and "medium-electric-pole" or state.pole_choice
-	local pole_proto = game.entity_prototypes[placeholder_pole]
-	local supply_area_distance = pole_proto.supply_area_distance
-	local supply_radius = floor(supply_area_distance)
-	local supply_area = floor(supply_area_distance * 2)
+	local pole_proto = game.entity_prototypes[state.pole_choice] or {supply_area_distance=3, max_wire_distance=9}
+	local supply_area_distance, supply_radius, supply_area = 3.5, 3, 6
+	if pole_proto then
+		supply_area = pole_proto.supply_area_distance
+		supply_area_distance = pole_proto.supply_area_distance
+		supply_radius = floor(supply_area_distance)
+		supply_area = floor(supply_area_distance * 2)
+	end
 
 	local power_poles_all = {}
 	state.power_poles_all = power_poles_all

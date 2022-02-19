@@ -248,7 +248,7 @@ local function update_pole_selection(player_data)
 		icon="mpp_no_entity",
 	}
 
-	local existing_choice_is_valid = false
+	local existing_choice_is_valid = ("none" == player_data.pole_choice)
 	local poles = game.get_filtered_entity_prototypes{{filter="type", type="electric-pole"}}
 	for _, pole in pairs(poles) do
 		local cbox = pole.collision_box
