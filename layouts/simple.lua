@@ -522,7 +522,7 @@ function layout:placement_belts(state)
 	state.miner_lane_count = miner_lane_number
 	state.miner_max_column = miner_max_column
 
-	for _, lane in ipairs(miner_lanes) do
+	for _, lane in pairs(miner_lanes) do
 		table.sort(lane, function(a, b) return a.center.x < b.center.x end)
 	end
 

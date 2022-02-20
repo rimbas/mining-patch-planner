@@ -401,7 +401,7 @@ function layout:placement_belts_large(state)
 		line[#line+1] = miner
 	end
 
-	for _, lane in ipairs(miner_lanes) do
+	for _, lane in pairs(miner_lanes) do
 		table.sort(lane, function(a, b) return a.center.x < b.center.x end)
 	end
 
@@ -472,7 +472,7 @@ function layout:placement_belts_large(state)
 						end
 					end
 				elseif j % 3 == 2 then -- part two
-					if indices[j-1] or indices[j] then
+					if indices[j-1] or indices[j] or indices[j+1] then
 						g:get_tile(x1+1, y).built_on = "belt"
 						surface.create_entity{
 							raise_built=true,

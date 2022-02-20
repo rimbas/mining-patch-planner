@@ -385,9 +385,11 @@ function layout:placement_belts(state)
 	local stagger_shift = 1
 	for i = 1, miner_lane_number do
 		local lane = miner_lanes[i]
-		local y = m.size + shift_y - 1 + (m.size + 2) * (i-1)
-		local x_start = stagger_shift % 2 == 0 and 3 or 0
-		place_belts(x_start, lane.last_x, y)
+		if lane then
+			local y = m.size + shift_y - 1 + (m.size + 2) * (i-1)
+			local x_start = stagger_shift % 2 == 0 and 3 or 0
+			place_belts(x_start, lane.last_x, y)
+		end
 		stagger_shift = stagger_shift + 1
 	end
 

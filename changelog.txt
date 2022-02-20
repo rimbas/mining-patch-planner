@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.2.2
+Date: 2022-02-20
+  Bugfixes:
+    - Fixed crash when placing belts on fragmented mining patches
+    - Fixed belt placement sometimes stopping midway
+---------------------------------------------------------------------------------------------------
 Version: 1.2.1
 Date: 2022-02-19
   Bugfixes:
