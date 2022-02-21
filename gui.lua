@@ -1,6 +1,7 @@
 local algorithm = require("algorithm")
 local mpp_util = require("mpp_util")
 local enums = require("enums")
+local blacklist = require("blacklist")
 
 local layouts = algorithm.layouts
 
@@ -146,6 +147,7 @@ local function update_drill_selection(player_data)
 	local cached_miners, cached_resources = enums.get_available_miners()
 
 	for _, miner_proto in pairs(cached_miners) do
+		if blacklist[miner_proto.name] then goto skip_miner end
 		local miner = mpp_util.miner_struct(miner_proto)
 
 		if not miner_proto.electric_energy_source_prototype then goto skip_miner end
@@ -178,12 +180,16 @@ local function update_belt_selection(player_data)
 	local values = {}
 	local belts = game.get_filtered_entity_prototypes{{filter="type", type="transport-belt"}}
 	for _, belt in pairs(belts) do
+		if blacklist[belt.name] then goto skip_belt end
+
 		values[#values+1] = {
 			value=belt.name,
 			tooltip=belt.localised_name,
 			icon=("entity/"..belt.name),
 			order=belt.order,
 		}
+
+		::skip_belt::
 	end
 
 	local belt_section = player_data.gui.section["belt"]
@@ -207,6 +213,7 @@ local function update_logistics_selection(player_data)
 	local existing_choice_is_valid = false
 	local logistics = game.get_filtered_entity_prototypes{{filter="type", type="logistic-container"}}
 	for _, chest in pairs(logistics) do
+		if blacklist[chest.name] then goto skip_chest end
 		local cbox = chest.collision_box
 		local size = math.ceil(cbox.right_bottom.x - cbox.left_top.x)
 		if size > 1 then goto skip_chest end
@@ -251,6 +258,7 @@ local function update_pole_selection(player_data)
 	local existing_choice_is_valid = ("none" == player_data.pole_choice)
 	local poles = game.get_filtered_entity_prototypes{{filter="type", type="electric-pole"}}
 	for _, pole in pairs(poles) do
+		if blacklist[pole.name] then goto skip_pole end
 		local cbox = pole.collision_box
 		local size = math.ceil(cbox.right_bottom.x - cbox.left_top.x)
 		local supply_area = pole.supply_area_distance

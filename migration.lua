@@ -6,15 +6,13 @@ local current_version = 010200 -- 1.2.0
 local function reset_gui(player)
 	local root = player.gui.left["mpp_settings_frame"] or player.gui.screen["mpp_settings_frame"]
 	if root then
-		local cursor_stack = player.cursor_stack
-		if cursor_stack and cursor_stack.valid and cursor_stack.valid_for_read and cursor_stack.name == "mining-patch-planner" then
-			cursor_stack.clear()
-		end
 		root.destroy()
 	end
+	local cursor_stack = player.cursor_stack
+	if cursor_stack and cursor_stack.valid and cursor_stack.valid_for_read and cursor_stack.name == "mining-patch-planner" then
+		cursor_stack.clear()
+	end
 end
-
-local i = 0
 
 script.on_configuration_changed(function(config_changed_data)
 	if config_changed_data.mod_changes["mining-patch-planner"] then
@@ -31,7 +29,6 @@ script.on_configuration_changed(function(config_changed_data)
 		end
 		global.version = current_version
 	else
-		i = i + 1
 		for player_index, data in ipairs(global.players) do
 			reset_gui(game.players[player_index])
 		end
