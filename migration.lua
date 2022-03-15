@@ -1,6 +1,6 @@
 local conf = require("configuration")
 
-local current_version = 010200 -- 1.2.0
+local current_version = 010204 -- 1.2.4
 
 ---@param player LuaPlayer
 local function reset_gui(player)
@@ -20,6 +20,7 @@ script.on_configuration_changed(function(config_changed_data)
 
 		if version < current_version then
 			global.tasks = global.tasks or {}
+			conf.initialize_deconstruction_filter()
 			for player_index, data in ipairs(global.players) do
 				---@type LuaPlayer
 				local player = game.players[player_index]

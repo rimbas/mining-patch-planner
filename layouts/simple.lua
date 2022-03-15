@@ -442,6 +442,7 @@ function layout:simple_deconstruct(state)
 			left_top={c.x1-m.size-1, c.y1-m.size-1},
 			right_bottom={c.x2+m.size+1, c.y2+m.size+1}
 		},
+		item=global.script_inventory[1],
 	}
 
 	state.delegate = "place_miners"

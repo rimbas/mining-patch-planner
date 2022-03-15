@@ -43,6 +43,21 @@ function conf.initialize_global(player_index)
 	global.players[player_index] = table.deepcopy(conf.default_config)
 end
 
+function conf.initialize_deconstruction_filter()
+	if global.script_inventory then
+		global.script_inventory.destroy()
+	end
+
+	---@type LuaInventory
+	local inventory = game.create_inventory(1)
+	---@type LuaItemStack
+	inventory.insert("deconstruction-planner")
+	local deconstruction_planner = inventory[1]
+	deconstruction_planner.tile_selection_mode = defines.deconstruction_item.tile_selection_mode.never
+
+	global.script_inventory = inventory
+end
+
 script.on_event(defines.events.on_player_created, function(e)
 	conf.initialize_global(e.player_index)
 end)

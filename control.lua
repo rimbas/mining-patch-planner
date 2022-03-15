@@ -6,6 +6,7 @@ local algorithm = require("algorithm")
 script.on_init(function()
 	global.players = {}
 	global.tasks = {}
+	conf.initialize_deconstruction_filter()
 
 	for _, player in pairs(game.players) do
 		conf.initialize_global(player.index)
