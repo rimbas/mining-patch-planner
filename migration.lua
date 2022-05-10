@@ -1,6 +1,6 @@
 local conf = require("configuration")
 
-local current_version = 010204 -- 1.2.4
+local current_version = 010205 -- 1.2.5
 
 ---@param player LuaPlayer
 local function reset_gui(player)

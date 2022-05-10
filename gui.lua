@@ -181,6 +181,7 @@ local function update_belt_selection(player_data)
 	local belts = game.get_filtered_entity_prototypes{{filter="type", type="transport-belt"}}
 	for _, belt in pairs(belts) do
 		if blacklist[belt.name] then goto skip_belt end
+		if layout.restrictions.uses_underground_belts and belt.related_underground_belt == nil then goto skip_belt end
 
 		values[#values+1] = {
 			value=belt.name,
