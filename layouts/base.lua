@@ -17,7 +17,7 @@ layout.defaults.logistics = "logistic-chest-passive-provider"
 
 layout.restrictions = {}
 layout.restrictions.miner_near_radius = {1, 10e3}
-layout.restrictions.miner_far_radius = {2, 10e3}
+layout.restrictions.miner_far_radius = {1, 10e3}
 layout.restrictions.uses_underground_belts = false
 layout.restrictions.pole_omittable = true
 layout.restrictions.pole_width = {1, 1}

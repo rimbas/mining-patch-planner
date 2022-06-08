@@ -181,6 +181,7 @@ local function update_belt_selection(player_data)
 	local belts = game.get_filtered_entity_prototypes{{filter="type", type="transport-belt"}}
 	for _, belt in pairs(belts) do
 		if blacklist[belt.name] then goto skip_belt end
+		if belt.flags.hidden then goto skip_belt end
 		if layout.restrictions.uses_underground_belts and belt.related_underground_belt == nil then goto skip_belt end
 
 		values[#values+1] = {
@@ -214,6 +215,7 @@ local function update_logistics_selection(player_data)
 	local existing_choice_is_valid = false
 	local logistics = game.get_filtered_entity_prototypes{{filter="type", type="logistic-container"}}
 	for _, chest in pairs(logistics) do
+		if chest.flags.hidden then goto skip_chest end
 		if blacklist[chest.name] then goto skip_chest end
 		local cbox = chest.collision_box
 		local size = math.ceil(cbox.right_bottom.x - cbox.left_top.x)
@@ -259,6 +261,7 @@ local function update_pole_selection(player_data)
 	local existing_choice_is_valid = ("none" == player_data.pole_choice)
 	local poles = game.get_filtered_entity_prototypes{{filter="type", type="electric-pole"}}
 	for _, pole in pairs(poles) do
+		if pole.flags.hidden then goto skip_pole end
 		if blacklist[pole.name] then goto skip_pole end
 		local cbox = pole.collision_box
 		local size = math.ceil(cbox.right_bottom.x - cbox.left_top.x)

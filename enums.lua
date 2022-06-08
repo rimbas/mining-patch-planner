@@ -6,6 +6,13 @@ local miner_blacklist = {
 	["se-core-miner-drill"] = true
 }
 
+function enums.get_default_miner()
+	if game.active_mods["nullius"] then
+		return "nullius-medium-miner-1"
+	end
+	return "electric-mining-drill"
+end
+
 function enums.get_available_miners()
 	enums.get_available_miners = function() return cached_miners, cached_resources end
 
@@ -30,6 +37,7 @@ function enums.get_available_miners()
 
 		local miners = {}
 		for name, proto in pairs(all_miners) do
+			if proto.flags.hidden then goto continue_miner end
 			if string.find(name, ";") then -- Cursed-FMD hack
 				for resource_name, _ in pairs(proto.resource_categories) do
 					if not fluid_resources[resource_name] and not string.find(resource_name, "core-fragment") then
@@ -51,8 +59,13 @@ function enums.get_available_miners()
 		cached_resources = mangled_categories
 	else
 		local miners = {}
-		for name, miner in pairs(all_miners) do
-			if miner.resource_categories["basic-solid"] then miners[name] = miner end
+		for name, proto in pairs(all_miners) do
+			if proto.flags.hidden then goto continue_miner end
+			if not proto.resource_categories["basic-solid"] then goto continue_miner end
+
+			miners[name] = proto
+
+			::continue_miner::
 		end
 
 		cached_miners = miners

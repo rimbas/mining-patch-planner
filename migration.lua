@@ -1,6 +1,7 @@
 local conf = require("configuration")
+local enums = require("enums")
 
-local current_version = 010205 -- 1.2.5
+local current_version = 010206 -- 1.2.6
 
 ---@param player LuaPlayer
 local function reset_gui(player)
@@ -15,6 +16,19 @@ local function reset_gui(player)
 end
 
 script.on_configuration_changed(function(config_changed_data)
+	-- Fix selection defaults for players on mod changes
+	if conf.default_config.miner_choice ~= enums.get_default_miner() then
+		conf.default_config.miner_choice = enums.get_default_miner()
+		local cached_miners, cached_resources = enums.get_available_miners()
+		for player_index, data in ipairs(global.players) do
+			if not cached_miners[data.miner_choice] then
+				reset_gui(game.players[player_index])
+				conf.initialize_global(player_index)
+			end
+		end
+	end
+
+	-- Native changes
 	if config_changed_data.mod_changes["mining-patch-planner"] then
 		local version = global.version or 0
 
