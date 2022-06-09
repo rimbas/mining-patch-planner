@@ -35,6 +35,7 @@ require_layout("compact_logistics")
 ---@field lamp_choice boolean Lamp placement
 ---@field coverage_choice boolean
 ---@field logistics_choice string
+---@field landfill_choice boolean
 ---@field coords Coords
 ---@field grid Grid
 ---@field miner MinerStruct
@@ -64,6 +65,7 @@ local function create_state(event)
 	state.lamp_choice = player_data.lamp_choice
 	state.logistics_choice = player_data.logistics_choice
 	state.coverage_choice = player_data.coverage_choice
+	state.landfill_choice = player_data.landfill_choice
 	state.preview_rectangle = nil
 
 	return state

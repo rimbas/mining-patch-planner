@@ -37,7 +37,7 @@ function enums.get_available_miners()
 
 		local miners = {}
 		for name, proto in pairs(all_miners) do
-			if proto.flags.hidden then goto continue_miner end
+			if proto.flags and proto.flags.hidden then goto continue_miner end
 			if string.find(name, ";") then -- Cursed-FMD hack
 				for resource_name, _ in pairs(proto.resource_categories) do
 					if not fluid_resources[resource_name] and not string.find(resource_name, "core-fragment") then

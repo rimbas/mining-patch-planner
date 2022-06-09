@@ -249,7 +249,7 @@ function layout:placement_belts(state)
 	state.power_poles_all = power_poles
 	
 	---@type table<number, MinerPlacement[]>
-	local miner_lanes = {{}}
+	local miner_lanes = {}
 	local miner_lane_number = 0 -- highest index of a lane, because using # won't do the job if a lane is missing
 
 	for _, miner in ipairs(attempt.miners) do
@@ -386,7 +386,7 @@ function layout:placement_belts(state)
 	local stagger_shift = 1
 	for i = 1, miner_lane_number do
 		local lane = miner_lanes[i]
-		if lane then
+		if lane and lane.last_x then
 			local y = m.size + shift_y - 1 + (m.size + 2) * (i-1)
 			local x_start = stagger_shift % 2 == 0 and 3 or 0
 			place_belts(x_start, lane.last_x, y)

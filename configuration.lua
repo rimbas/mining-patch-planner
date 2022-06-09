@@ -11,6 +11,7 @@ local conf = {}
 ---@field lamp_choice boolean
 ---@field coverage_choice boolean
 ---@field logistics_choice string
+---@field landfill_choice boolean
 ---@field gui PlayerGui
 
 ---@class PlayerGui
@@ -27,9 +28,10 @@ conf.default_config = {
 	belt_choice = "transport-belt",
 	miner_choice = "electric-mining-drill",
 	pole_choice = "medium-electric-pole",
+	logistics_choice = "logistic-chest-passive-provider",
 	lamp_choice = false,
 	coverage_choice = false,
-	logistics_choice = "logistic-chest-passive-provider",
+	landfill_choice = false,
 
 	gui = {
 		section = {},

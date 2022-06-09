@@ -122,6 +122,14 @@ data:extend{
 		mipmap_count = 2,
 		flags = { "icon" },
 	},
+	{
+		type = "sprite",
+		name = "mpp_omit_landfill",
+		filename = graphics.."omit_landfill.png",
+		size = 64,
+		mipmap_count = 3,
+		flags = { "icon" },
+	},
 }
 
 local default_style = data.raw["gui-style"].default

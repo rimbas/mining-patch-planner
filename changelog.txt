@@ -1,4 +1,12 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.2.7
+Date: 2022-06-09
+  Features:
+    - Adden an option to omit landfill placement. Will still place ghosts for entities.
+  Bugfixes:
+    - Fixed crash regression caused by a flag check on entity prototypes
+    - Fixed crash in super compact layout with missing lanes
+---------------------------------------------------------------------------------------------------
 Version: 1.2.6
 Date: 2022-06-09
   Bugfixes:

@@ -711,6 +711,11 @@ function layout:placement_landfill(state)
 	local grid = state.grid
 	local surface = state.surface
 
+	if state.landfill_choice then
+		state.delegate = "finish"
+		return
+	end
+
 	local conv = coord_convert[state.direction_choice]
 	local gx, gy = state.coords.ix1 - 1, state.coords.iy1 - 1
 
