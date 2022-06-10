@@ -1,7 +1,7 @@
 local conf = require("configuration")
 local enums = require("enums")
 
-local current_version = 010207 -- 1.2.7
+local current_version = 010208 -- 1.2.8
 
 ---@param player LuaPlayer
 local function reset_gui(player)

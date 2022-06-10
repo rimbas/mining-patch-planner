@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.2.8
+Date: 2022-06-09
+  Bugfixes:
+    - Fixed regression with Cursed Filter Mining Drill mod
+  Translation:
+    - Added Russian translation (provided by Aquilo)
+---------------------------------------------------------------------------------------------------
 Version: 1.2.7
 Date: 2022-06-09
   Features:
