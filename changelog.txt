@@ -1,6 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.2.9
+Date: 2022-06-29
+  Translation:
+    - Added Ukrainian translation (provided by Deps Exploits)
+---------------------------------------------------------------------------------------------------
 Version: 1.2.8
-Date: 2022-06-09
+Date: 2022-06-11
   Bugfixes:
     - Fixed regression with Cursed Filter Mining Drill mod
   Translation:
