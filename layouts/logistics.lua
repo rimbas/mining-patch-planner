@@ -24,7 +24,6 @@ function layout:placement_belts(state)
 	local DIR = state.direction_choice
 	local surface = state.surface
 	local attempt = state.best_attempt
-	local underground_belt = game.entity_prototypes[state.belt_choice].related_underground_belt.name
 
 	local power_poles = {}
 	state.power_poles_all = power_poles
@@ -51,7 +50,7 @@ function layout:placement_belts(state)
 	---@param lane MinerPlacement[]
 	local function get_lane_length(lane) if lane then return lane[#lane].center.x end return 0 end
 	---@param lane MinerPlacement[]
-	local function get_lane_column(lane) if lane then return lane[#lane].column end return 0 end
+	local function get_lane_column(lane) if lane and #lane > 0 then return lane[#lane].column or 0 end return 0 end
 
 	local belts = {}
 	state.belts = belts

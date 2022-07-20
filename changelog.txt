@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.2.10
+Date: 2022-07-20
+  Bugfixes:
+    - Fixed crash in Logistics layout
+    - Fixed edge case crash due to patch shape in Compact layout
+---------------------------------------------------------------------------------------------------
 Version: 1.2.9
 Date: 2022-06-29
   Translation:

@@ -265,7 +265,7 @@ function layout:placement_belts_small(state)
 	---@param lane MinerPlacement[]
 	local function get_lane_length(lane) if lane then return lane[#lane].center.x end return 0 end
 	---@param lane MinerPlacement[]
-	local function get_lane_column(lane) if lane then return lane[#lane].column end return 0 end
+	local function get_lane_column(lane) if lane and #lane > 0 then return lane[#lane].column end return 0 end
 
 	local belts = {}
 	state.belts = belts
@@ -407,9 +407,9 @@ function layout:placement_belts_large(state)
 	end
 
 	---@param lane MinerPlacement[]
-	local function get_lane_length(lane) if lane then return lane[#lane].center.x end return 0 end
+	local function get_lane_length(lane) if lane and #lane > 0 then return lane[#lane].center.x or 0 end return 0 end
 	---@param lane MinerPlacement[]
-	local function get_lane_column(lane) if lane then return lane[#lane].column end return 0 end
+	local function get_lane_column(lane) if lane and #lane > 0 then return lane[#lane].column or 0 end return 0 end
 
 	local belts = {}
 	state.belts = belts
