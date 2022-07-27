@@ -173,4 +173,13 @@ function mpp_util.calculate_shifted_pole_coverage(state, miner_count)
 	return cov
 end
 
+---@param t table
+---@param func function
+---@return true | nil
+function mpp_util.table_find(t, func)
+	for k, v in pairs(t) do
+		if func(v) then return true end
+	end
+end
+
 return mpp_util

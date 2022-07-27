@@ -178,6 +178,8 @@ end
 local function update_belt_selection(player_data)
 	local layout = layouts[player_data.layout_choice]
 	local values = {}
+	local existing_choice_is_valid = false
+
 	local belts = game.get_filtered_entity_prototypes{{filter="type", type="transport-belt"}}
 	for _, belt in pairs(belts) do
 		if blacklist[belt.name] then goto skip_belt end
@@ -190,12 +192,21 @@ local function update_belt_selection(player_data)
 			icon=("entity/"..belt.name),
 			order=belt.order,
 		}
+		if belt.name == player_data.belt_choice then existing_choice_is_valid = true end
 
 		::skip_belt::
 	end
 
 	local belt_section = player_data.gui.section["belt"]
 	belt_section.visible = not layout.restrictions.robot_logistics
+
+	if not existing_choice_is_valid then
+		if mpp_util.table_find(values, function(v) return v.value == layout.defaults.belt end) then
+			player_data.belt_choice = layout.defaults.belt
+		else
+			player_data.belt_choice = values[1].value
+		end
+	end
 	
 	local table_root = player_data.gui.tables["belt"]
 	create_setting_selector(player_data, table_root, "mpp_action", "belt", values)
@@ -236,13 +247,16 @@ local function update_logistics_selection(player_data)
 	logistics_section.visible = layout.restrictions.robot_logistics
 	
 	if not existing_choice_is_valid then
-		player_data.logistics_choice = layout.defaults.logistics
+		if mpp_util.table_find(values, function(v) return v.value == layout.defaults.logistics end) then
+			player_data.logistics_choice = layout.defaults.logistics
+		else
+			player_data.logistics_choice = values[1].value
+		end
 	end
 
 	local table_root = player_data.gui.tables["logistics"]
 	create_setting_selector(player_data, table_root, "mpp_action", "logistics", values)
 end
-
 
 ---@param player_data PlayerData
 local function update_pole_selection(player_data)
