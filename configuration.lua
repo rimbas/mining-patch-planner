@@ -13,6 +13,7 @@ local conf = {}
 ---@field logistics_choice string
 ---@field landfill_choice boolean
 ---@field gui PlayerGui
+---@field blueprint_items LuaInventory
 
 ---@class PlayerGui
 ---@field section table<string, LuaGuiElement>
@@ -32,6 +33,7 @@ conf.default_config = {
 	lamp_choice = false,
 	coverage_choice = false,
 	landfill_choice = false,
+	blueprint_items = nil,
 
 	gui = {
 		section = {},
@@ -43,6 +45,7 @@ conf.default_config = {
 ---@param player_index number
 function conf.initialize_global(player_index)
 	global.players[player_index] = table.deepcopy(conf.default_config)
+	global.players[player_index].blueprint_items = game.create_inventory(1)
 end
 
 function conf.initialize_deconstruction_filter()
@@ -65,6 +68,9 @@ script.on_event(defines.events.on_player_created, function(e)
 end)
 
 script.on_event(defines.events.on_player_removed, function(e)
+	if global.players[player_index].blueprint_items then
+		global.players[player_index].blueprint_items.destroy()
+	end
 	global.players[e.player_index] = nil
 end)
 

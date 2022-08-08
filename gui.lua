@@ -87,7 +87,7 @@ function gui.create_interface(player)
 		local choices = {}
 		local index = 0
 		for i, layout in ipairs(layouts) do
-			if player_data.layout_choice == layout.name then 
+			if player_data.layout_choice == layout.name then
 				index = i
 			end
 			choices[#choices+1] = layout.translation
@@ -99,7 +99,7 @@ function gui.create_interface(player)
 			selected_index=index,
 			tags={mpp_drop_down="layout", default=1},
 		}
-		
+
 		section.visible = player_data.advanced
 	end
 
@@ -127,6 +127,10 @@ function gui.create_interface(player)
 
 	do -- Electric pole selection
 		create_setting_section(player_data, frame, "pole")
+	end
+
+	do -- Blueprint settings
+
 	end
 
 	do -- Misc selection
@@ -207,7 +211,7 @@ local function update_belt_selection(player_data)
 			player_data.belt_choice = values[1].value
 		end
 	end
-	
+
 	local table_root = player_data.gui.tables["belt"]
 	create_setting_selector(player_data, table_root, "mpp_action", "belt", values)
 end
@@ -222,7 +226,7 @@ local function update_logistics_selection(player_data)
 		["active-provider"]=true,
 		["storage"] = true,
 	}
-	
+
 	local existing_choice_is_valid = false
 	local logistics = game.get_filtered_entity_prototypes{{filter="type", type="logistic-container"}}
 	for _, chest in pairs(logistics) do
@@ -245,7 +249,7 @@ local function update_logistics_selection(player_data)
 
 	local logistics_section = player_data.gui.section["logistics"]
 	logistics_section.visible = layout.restrictions.robot_logistics
-	
+
 	if not existing_choice_is_valid then
 		if mpp_util.table_find(values, function(v) return v.value == layout.defaults.logistics end) then
 			player_data.logistics_choice = layout.defaults.logistics
@@ -264,7 +268,7 @@ local function update_pole_selection(player_data)
 	local restrictions = layout.restrictions
 	local pole_width_min, pole_width_max = restrictions.pole_width[1], restrictions.pole_width[2]
 	local pole_supply_min, pole_supply_max = restrictions.pole_supply_area[1], restrictions.pole_supply_area[2]
-	
+
 	local values = {}
 	values[1] = {
 		value="none",
@@ -305,7 +309,7 @@ end
 local function update_misc_selection(player_data)
 	local layout = layouts[player_data.layout_choice]
 	local values = {}
-	
+
 	if layout.restrictions.lamp_available then
 		values[#values+1] = {
 			value="lamp",
@@ -332,7 +336,7 @@ local function update_misc_selection(player_data)
 
 	local misc_section = player_data.gui.section["misc"]
 	misc_section.visible = #values > 0
-	
+
 	local table_root = player_data.gui.tables["misc"]
 	create_setting_selector(player_data, table_root, "mpp_toggle", "misc", values)
 end
