@@ -182,4 +182,23 @@ function mpp_util.table_find(t, func)
 	end
 end
 
+---@param t table
+---@param m LuaObject 
+function mpp_util.table_mapping(t, m)
+	for k, v in pairs(t) do
+		if k == m then return v end
+	end
+end
+
+---@param player LuaPlayer
+---@param blueprint LuaItemStack
+function mpp_util.validate_blueprint(player, blueprint)
+	if not blueprint.blueprint_snap_to_grid then
+		player.print({"mpp.msg_blueprint_undefined_grid"})
+		return false
+	end
+	return true
+end
+
+
 return mpp_util

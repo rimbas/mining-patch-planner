@@ -3,6 +3,7 @@ local conf = {}
 
 ---@class PlayerData
 ---@field advanced boolean
+---@field blueprint_add_mode boolean
 ---@field layout_choice string
 ---@field direction_choice string
 ---@field belt_choice string
@@ -14,6 +15,8 @@ local conf = {}
 ---@field landfill_choice boolean
 ---@field gui PlayerGui
 ---@field blueprint_items LuaInventory
+---@field blueprint_choice LuaGuiElement Currently selected blueprint (flow)
+---@field blueprints PlayerGuiBlueprints
 
 ---@class PlayerGui
 ---@field section table<string, LuaGuiElement>
@@ -21,9 +24,18 @@ local conf = {}
 ---@field selections table<string, LuaGuiElement>
 ---@field advanced_settings LuaGuiElement
 ---@field layout_dropdown LuaGuiElement
+---@field blueprint_add_button LuaGuiElement
 
+---@class PlayerGuiBlueprints All subtables are indexed by root flow index
+---@field flow table<number, LuaGuiElement> Root blueprint element
+---@field button table<number, LuaGuiElement> Blueprint button toggle
+---@field delete table<number, LuaGuiElement> Blueprint delete button
+---@field mapping table<number, LuaItemStack>
+
+---@type PlayerData
 conf.default_config = {
 	advanced = false,
+	blueprint_add_mode = false,
 	layout_choice = "simple",
 	direction_choice = "north",
 	belt_choice = "transport-belt",
@@ -33,13 +45,22 @@ conf.default_config = {
 	lamp_choice = false,
 	coverage_choice = false,
 	landfill_choice = false,
-	blueprint_items = nil,
+	--blueprint_items = nil,
+	--blueprint_choice = nil,
 
 	gui = {
 		section = {},
 		tables = {},
 		selections = {},
 	},
+
+	blueprints = {
+		mapping = {},
+		flow = {},
+		button = {},
+		delete = {},
+	}
+
 }
 
 ---@param player_index number
@@ -64,12 +85,14 @@ function conf.initialize_deconstruction_filter()
 end
 
 script.on_event(defines.events.on_player_created, function(e)
+	---@cast e EventData.on_player_created
 	conf.initialize_global(e.player_index)
 end)
 
 script.on_event(defines.events.on_player_removed, function(e)
-	if global.players[player_index].blueprint_items then
-		global.players[player_index].blueprint_items.destroy()
+	---@cast e EventData.on_player_removed
+	if global.players[e.player_index].blueprint_items then
+		global.players[e.player_index].blueprint_items.destroy()
 	end
 	global.players[e.player_index] = nil
 end)

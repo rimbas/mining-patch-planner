@@ -5,14 +5,15 @@ local compact = require("layouts.super_compact")
 local mpp_util = require("mpp_util")
 local mpp_revert = mpp_util.revert
 
----@type SimpleLayout
+---@class CompactLayout
 local layout = table.deepcopy(compact)
 
 layout.name = "compact_logistics"
 layout.translation = {"mpp.settings_layout_choice_compact_logistics"}
 
 layout.restrictions.lamp_available = false
-layout.restrictions.robot_logistics = true
+layout.restrictions.belt_available = false
+layout.restrictions.logistics_available = true
 
 ---@param self SimpleLayout
 ---@param state SimpleState

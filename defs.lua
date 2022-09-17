@@ -34,15 +34,24 @@
 
 ---@class Layout
 ---@field name string
----@field starting_state string Initial 
+---@field starting_state string Initial state
 ---@field restrictions Restrictions
+---@field tick function(state: State)
 
 ---@class Restrictions
----@field miner_near_radius number[] #Supported near radius of a miner
----@field miner_far_radius number[] #Supported far radius of a miner
----@field pole_width number[] 
+---@field miner_available boolean
+---@field miner_near_radius number[] Supported near radius of a miner
+---@field miner_far_radius number[] Supported far radius of a miner
+---@field belt_available boolean
+---@field uses_underground_belts boolean
+---@field pole_available boolean
+---@field pole_omittable boolean Allow a no electric pole option
+---@field pole_width number[]
 ---@field pole_length number[]
 ---@field pole_supply_area number[]
----@field lamp boolean #Enable lamp placement option
+---@field logistics_available boolean
+---@field lamp_available boolean Enable lamp placement option
+---@field coverage_tuning boolean
+---@field landfill_omit_available boolean
 
 table.deepcopy = function(t) end
