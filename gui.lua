@@ -19,15 +19,16 @@ local gui = {}
 ---@param root any
 ---@param name any
 ---@return LuaGuiElement, LuaGuiElement
-local function create_setting_section(player_data, root, name)
+local function create_setting_section(player_data, root, name, opts)
+	opts = opts or {}
 	local section = root.add{type="flow", direction="vertical"}
 	player_data.gui.section[name] = section
 	section.add{type="label", style="subheader_caption_label", caption={"mpp.settings_"..name.."_label"}}
 	local table_root = section.add{
 		type="table",
-		direction="horizontal",
+		direction=opts.direction or "horizontal",
 		style="filter_slot_table",
-		column_count=6,
+		column_count=opts.column_count or 6,
 	}
 	player_data.gui.tables[name] = table_root
 	return table_root, section
@@ -40,6 +41,14 @@ end
 
 local function style_helper_advanced_toggle(check)
 	return check and "mpp_selected_frame_action_button" or "frame_action_button"
+end
+
+local function style_helper_blueprint_toggle(check)
+	return check and "mpp_blueprint_mode_button_active" or "mpp_blueprint_mode_button"
+end
+
+local function style_helper_blueprint_selection(check)
+	return check and "mpp_fake_blueprint_button" or "mpp_fake_blueprint_button_selected"
 end
 
 ---@param player_data any global player GUI reference object
@@ -67,6 +76,7 @@ end
 function gui.create_interface(player)
 	---@type LuaGuiElement
 	local frame = player.gui.screen.add{type="frame", name="mpp_settings_frame", direction="vertical"}
+	---@type PlayerData
 	local player_data = global.players[player.index]
 	local player_gui = player_data.gui
 
@@ -93,14 +103,24 @@ function gui.create_interface(player)
 			choices[#choices+1] = layout.translation
 		end
 
-		player_gui.layout_dropdown = table_root.add{
+		local flow = table_root.add{type="flow", direction="horizontal"}
+
+		player_gui.layout_dropdown = flow.add{
 			type="drop-down",
 			items=choices,
-			selected_index=index,
+			selected_index=index --[[@as uint]],
 			tags={mpp_drop_down="layout", default=1},
 		}
 
-		section.visible = player_data.advanced
+		player_gui.blueprint_add_button = flow.add{
+			type="sprite-button",
+			name="blueprint_add_button",
+			sprite="mpp_plus",
+			style=style_helper_blueprint_toggle(),
+			tooltip={"mpp.blueprint_add_mode"},
+			tags={mpp_blueprint_add_mode=true},
+		}
+		player_gui.blueprint_add_button.visible = player_data.layout_choice == "blueprints"
 	end
 
 	do -- Direction selection
@@ -114,40 +134,66 @@ function gui.create_interface(player)
 	end
 
 	do -- Miner selection
-		create_setting_section(player_data, frame, "miner")
+		local table_root, section = create_setting_section(player_data, frame, "miner")
 	end
 
 	do -- Belt selection
-		create_setting_section(player_data, frame, "belt")
+		local table_root, section = create_setting_section(player_data, frame, "belt")
 	end
 
 	do -- Logistics selection
-		create_setting_section(player_data, frame, "logistics")
+		local table_root, section = create_setting_section(player_data, frame, "logistics")
 	end
 
 	do -- Electric pole selection
-		create_setting_section(player_data, frame, "pole")
+		local table_root, section = create_setting_section(player_data, frame, "pole")
 	end
 
 	do -- Blueprint settings
+		---@type LuaGuiElement, LuaGuiElement
+		--local table_root, section = create_setting_section(player_data, frame, "blueprints")
+		local section = frame.add{type="flow", direction="vertical"}
+		player_data.gui.section["blueprints"] = section
+		section.add{type="label", style="subheader_caption_label", caption={"mpp.settings_blueprints_label"}}
+
+		local root = section.add{type="flow", direction="vertical"}
+		player_data.gui.tables["blueprints"] = root
+
+		player_gui.blueprint_add_section = section.add{
+			type="flow",
+			direction="horizontal",
+		}
+
+		player_gui.blueprint_receptacle = player_gui.blueprint_add_section.add{
+			type="sprite-button",
+			sprite="mpp_blueprint_add",
+			tags={mpp_blueprint_receptacle=true},
+		}
+		local blueprint_label = player_gui.blueprint_add_section.add{
+			type="label",
+			caption={"mpp.label_add_blueprint", },
+		}
+		player_gui.blueprint_add_section.visible = player_data.blueprint_add_mode
 
 	end
 
 	do -- Misc selection
-		create_setting_section(player_data, frame, "misc")
+		local table_root, section = create_setting_section(player_data, frame, "misc")
 	end
 end
 
 ---@param player_data PlayerData
-local function update_drill_selection(player_data)
+local function update_miner_selection(player_data)
 	local layout = layouts[player_data.layout_choice]
 	local restrictions = layout.restrictions
+	
+	player_data.gui.section["miner"].visible = restrictions.miner_available
+	if not restrictions.miner_available then return end
+
 	local near_radius_min, near_radius_max = restrictions.miner_near_radius[1], restrictions.miner_near_radius[2]
 	local far_radius_min, far_radius_max = restrictions.miner_far_radius[1], restrictions.miner_far_radius[2]
-
 	local values = {}
 	local existing_choice_is_valid = false
-
 	local cached_miners, cached_resources = enums.get_available_miners()
 
 	for _, miner_proto in pairs(cached_miners) do
@@ -181,8 +227,15 @@ end
 ---@param player_data PlayerData
 local function update_belt_selection(player_data)
 	local layout = layouts[player_data.layout_choice]
+	local restrictions = layout.restrictions
+	
+	player_data.gui.section["belt"].visible = restrictions.miner_available
+	if not restrictions.miner_available then return end
+
 	local values = {}
 	local existing_choice_is_valid = false
+	local belt_section = player_data.gui.section["belt"]
+	belt_section.visible = layout.restrictions.belt_available
 
 	local belts = game.get_filtered_entity_prototypes{{filter="type", type="transport-belt"}}
 	for _, belt in pairs(belts) do
@@ -201,8 +254,6 @@ local function update_belt_selection(player_data)
 		::skip_belt::
 	end
 
-	local belt_section = player_data.gui.section["belt"]
-	belt_section.visible = not layout.restrictions.robot_logistics
 
 	if not existing_choice_is_valid then
 		if mpp_util.table_find(values, function(v) return v.value == layout.defaults.belt end) then
@@ -248,7 +299,7 @@ local function update_logistics_selection(player_data)
 	end
 
 	local logistics_section = player_data.gui.section["logistics"]
-	logistics_section.visible = layout.restrictions.robot_logistics
+	logistics_section.visible = layout.restrictions.logistics_available
 
 	if not existing_choice_is_valid then
 		if mpp_util.table_find(values, function(v) return v.value == layout.defaults.logistics end) then
@@ -266,6 +317,10 @@ end
 local function update_pole_selection(player_data)
 	local layout = layouts[player_data.layout_choice]
 	local restrictions = layout.restrictions
+
+	player_data.gui.section["pole"].visible = restrictions.pole_available
+	if not restrictions.pole_available then return end
+
 	local pole_width_min, pole_width_max = restrictions.pole_width[1], restrictions.pole_width[2]
 	local pole_supply_min, pole_supply_max = restrictions.pole_supply_area[1], restrictions.pole_supply_area[2]
 
@@ -341,11 +396,27 @@ local function update_misc_selection(player_data)
 	create_setting_selector(player_data, table_root, "mpp_toggle", "misc", values)
 end
 
+---@param player_data PlayerData
+local function update_blueprint_selection(player_data)
+	local player_blueprints = player_data.blueprints
+	player_data.gui.section["blueprints"].visible = player_data.layout_choice == "blueprints"
+	player_data.gui["blueprint_add_section"].visible = player_data.blueprint_add_mode
+	player_data.gui["blueprint_add_button"].style = style_helper_blueprint_toggle(player_data.blueprint_add_mode)
+
+	for key, value in pairs(player_blueprints.delete) do
+		value.visible = player_data.blueprint_add_mode
+	end
+
+end
+
+---@param player_data PlayerData
 local function update_selections(player_data)
-	update_drill_selection(player_data)
+	player_data.gui.blueprint_add_button.visible = player_data.layout_choice == "blueprints"
+	update_miner_selection(player_data)
 	update_belt_selection(player_data)
 	update_logistics_selection(player_data)
 	update_pole_selection(player_data)
+	update_blueprint_selection(player_data)
 	update_misc_selection(player_data)
 end
 
@@ -354,6 +425,7 @@ function gui.show_interface(player)
 	---@type LuaGuiElement
 	local frame = player.gui.screen["mpp_settings_frame"]
 	local player_data = global.players[player.index]
+	player_data.blueprint_add_mode = false
 	if frame then
 		frame.visible = true
 	else
@@ -363,55 +435,187 @@ function gui.show_interface(player)
 end
 
 ---@param player LuaPlayer
+local function abort_blueprint_mode(player)
+	local player_data = global.players[player.index]
+	if not player_data.blueprint_add_mode then return end
+	player_data.blueprint_add_mode = false
+	update_blueprint_selection(player_data)
+	local cursor_stack = player.cursor_stack
+	player.clear_cursor()
+	cursor_stack.set_stack("mining-patch-planner")
+end
+
+---@param player LuaPlayer
 function gui.hide_interface(player)
 	---@type LuaGuiElement
 	local frame = player.gui.screen["mpp_settings_frame"]
+	local player_data = global.players[player.index]
+	player_data.blueprint_add_mode = false
 	if frame then
 		frame.visible = false
 	end
 end
 
+
 ---@param event EventDataGuiClick
 local function on_gui_click(event)
-	if event.element.tags["mpp_advanced_settings"] then
-		---@type PlayerData
-		local player_data = global.players[event.player_index]
+	local player = game.players[event.player_index]
+	---@type PlayerData
+	local player_data = global.players[event.player_index]
+	local evt_ele_tags = event.element.tags
+	if evt_ele_tags["mpp_advanced_settings"] then
+		abort_blueprint_mode(player)
 
 		local last_value = player_data.advanced
 		local value = not last_value
 		player_data.advanced = value
 
-		local layout_section = player_data.gui.section["layout"]
-
-		layout_section.visible = value
-
-		player_data.gui.layout_dropdown.selected_index = 1
-		player_data.layout_choice = "simple"
 		player_data.coverage_choice = false
 		update_selections(player_data)
 
 		player_data.gui["advanced_settings"].style = style_helper_advanced_toggle(value)
-	elseif event.element.tags["mpp_action"] then
-		---@type PlayerData
-		local player_data = global.players[event.player_index]
+	elseif evt_ele_tags["mpp_action"] then
+		abort_blueprint_mode(player)
 
-		local action = event.element.tags["mpp_action"]
-		local value = event.element.tags["value"]
+		local action = evt_ele_tags["mpp_action"]
+		local value = evt_ele_tags["value"]
 		local last_value = player_data[action.."_choice"]
 
 		---@type LuaGuiElement
 		player_data.gui.selections[action][last_value].style = style_helper_selection(false)
 		event.element.style = style_helper_selection(true)
 		player_data[action.."_choice"] = value
-	elseif event.element.tags["mpp_toggle"] then
-		---@type PlayerData
-		local player_data = global.players[event.player_index]
+	elseif evt_ele_tags["mpp_toggle"] then
+		abort_blueprint_mode(player)
 
-		local action = event.element.tags["mpp_toggle"]
-		local value = event.element.tags["value"]
+		local action = evt_ele_tags["mpp_toggle"]
+		local value = evt_ele_tags["value"]
 		local last_value = player_data[value.."_choice"]
 		player_data[value.."_choice"] = not last_value
 		event.element.style = style_helper_selection(not last_value)
+	elseif evt_ele_tags["mpp_blueprint_add_mode"] then
+	--elseif evt_ele_tags["mpp_blueprint_receptacle"] then
+		---@type PlayerData
+		local player_data = global.players[event.player_index]
+		player_data.blueprint_add_mode = not player_data.blueprint_add_mode
+		player.clear_cursor()
+		if not player_data.blueprint_add_mode then
+			player.cursor_stack.set_stack("mining-patch-planner")
+		end
+		player_data.gui["blueprint_add_section"].visible = player_data.blueprint_add_mode
+		player_data.gui["blueprint_add_button"].style = style_helper_blueprint_toggle(player_data.blueprint_add_mode)
+		update_blueprint_selection(player_data)
+	elseif evt_ele_tags["mpp_blueprint_receptacle"] then
+		local cursor_stack = player.cursor_stack
+		if (
+			not cursor_stack or
+			not cursor_stack.valid or
+			not cursor_stack.valid_for_read or
+			not cursor_stack.is_blueprint
+		) then
+			if not cursor_stack.is_blueprint then
+				player.print({"mpp.msg_blueprint_valid"})
+			end
+			return nil
+		elseif not mpp_util.validate_blueprint(player, cursor_stack) then
+			return nil
+		end
+
+		local player_blueprints = player_data.blueprint_items
+		local empty_slot = player_blueprints.find_empty_stack()
+
+		if not empty_slot then
+			player_blueprints.resize(#player_blueprints+1--[[@as uint16]])
+			empty_slot = player_blueprints.find_empty_stack()
+		end
+		empty_slot.set_stack(cursor_stack)
+		
+		local blueprint_table = player_data.gui.tables["blueprints"]
+
+		---@param table_root LuaGuiElement
+		local function create_blueprint_entry(table_root)
+			local blueprint_line = table_root.add{type="flow"}
+			player_data.blueprints.flow[blueprint_line.index] = blueprint_line
+			player_data.blueprints.mapping[blueprint_line.index] = empty_slot
+			
+			local blueprint_button = blueprint_line.add{
+				type="button",
+				style="mpp_fake_blueprint_button",
+				tags={mpp_fake_blueprint_button=true},
+			}
+			player_data.blueprints.button[blueprint_line.index] = blueprint_button
+
+			local fake_table = blueprint_button.add{
+				type="table",
+				style="mpp_fake_blueprint_table",
+				direction="horizontal",
+				column_count=2,
+				tags={mpp_fake_blueprint_table=true},
+				ignored_by_interaction=true,
+			}
+
+			for k, v in pairs(empty_slot.blueprint_icons) do
+				local s = v.signal
+				local sprite = s.name
+				if s.type == "virtual" then
+					sprite = "virtual-signal/"..sprite --wube pls
+				else
+					sprite = s.type .. "/" .. sprite
+				end
+				fake_table.add{
+					type="sprite",
+					sprite=(sprite),
+					style="mpp_fake_blueprint_sprite",
+					tags={mpp_fake_blueprint_sprite=true},
+				}
+			end
+
+			local delete_button = blueprint_line.add{
+				type="sprite-button",
+				sprite="mpp_cross",
+				style="mpp_delete_blueprint_button",
+				tags={mpp_delete_blueprint_button=blueprint_line.index},
+			}
+			player_data.blueprints.delete[blueprint_line.index] = delete_button
+
+			blueprint_line.add{
+				type="label",
+				caption=empty_slot.label or "<Unnamed blueprint>",
+			}
+		end
+		create_blueprint_entry(blueprint_table)
+
+	elseif evt_ele_tags["mpp_fake_blueprint_button"] then
+		local button = event.element
+		local player_blueprints = player_data.blueprints
+		local blueprint_flow = player_blueprints.flow[button.parent.index]
+		
+		if blueprint_flow == player_data.blueprint_choice then
+			return nil
+		end
+		
+		if player_data.blueprint_choice then
+			local current_blueprint = player_data.blueprint_choice
+			local current_blueprint_button = player_blueprints.button[current_blueprint.index]
+			current_blueprint_button.style = "mpp_fake_blueprint_button"
+		end
+		
+		local blueprint = player_blueprints.mapping[blueprint_flow.index]
+		button.style = "mpp_fake_blueprint_button_selected"
+		player_data.blueprint_choice = blueprint_flow
+	elseif evt_ele_tags["mpp_delete_blueprint_button"] then
+		local deleted_index = evt_ele_tags["mpp_delete_blueprint_button"]
+		local player_blueprints = player_data.blueprints
+		if player_data.blueprint_choice == player_blueprints.flow[deleted_index] then
+			player_data.blueprint_choice = nil
+		end
+		player_blueprints.mapping[deleted_index].clear()
+		player_blueprints.flow[deleted_index].destroy()
+
+		player_blueprints.button[deleted_index] = nil
+		player_blueprints.delete[deleted_index] = nil
+		player_blueprints.flow[deleted_index] = nil
+		player_blueprints.mapping[deleted_index] = nil
 	end
 end
 script.on_event(defines.events.on_gui_click, on_gui_click)
@@ -419,7 +623,9 @@ script.on_event(defines.events.on_gui_click, on_gui_click)
 
 ---@param event EventDataGuiSelectionStateChanged
 local function on_gui_selection_state_changed(event)
+	local player = game.players[event.player_index]
 	if event.element.tags["mpp_drop_down"] then
+		abort_blueprint_mode(player)
 		---@type PlayerData
 		local player_data = global.players[event.player_index]
 

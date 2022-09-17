@@ -18,6 +18,7 @@ require_layout("super_compact")
 require_layout("sparse")
 require_layout("logistics")
 require_layout("compact_logistics")
+require_layout("blueprints")
 
 ---@class State
 ---@field delegate string
@@ -54,7 +55,7 @@ local function create_state(event)
 
 	-- game state properties
 	state.surface = event.surface
-	state.player = game.get_player(event.player_index)
+	state.player = game.players[event.player_index]
 
 	-- player option properties
 	state.layout_choice = player_data.layout_choice

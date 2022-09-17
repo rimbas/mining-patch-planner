@@ -13,7 +13,8 @@ local layout = table.deepcopy(simple)
 layout.name = "logistics"
 layout.translation = {"mpp.settings_layout_choice_logistics"}
 
-layout.restrictions.robot_logistics = true
+layout.restrictions.belt_available = false
+layout.restrictions.logistics_available = true
 
 ---@param self SimpleLayout
 ---@param state SimpleState

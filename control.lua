@@ -32,6 +32,7 @@ local function task_runner(event)
 end
 
 script.on_event(defines.events.on_player_selected_area, function(event)
+	---@cast event EventData.on_player_selected_area
 	local player = game.get_player(event.player_index)
 	local cursor_stack = player.cursor_stack
 	if not cursor_stack or not cursor_stack.valid or not cursor_stack.valid_for_read then return end
@@ -67,9 +68,21 @@ script.on_load(function()
 end)
 
 script.on_event(defines.events.on_player_cursor_stack_changed, function(e)
+	---@cast e EventData.on_player_cursor_stack_changed
 	local player = game.get_player(e.player_index)
+	---@type PlayerData
+	local player_data = global.players[e.player_index]
+	local frame = player.gui.screen["mpp_settings_frame"]
+	if player_data.blueprint_add_mode and frame and frame.visible then
+		return
+	end
+
 	local cursor_stack = player.cursor_stack
-	if cursor_stack and cursor_stack.valid and cursor_stack.valid_for_read and cursor_stack.name == "mining-patch-planner" then
+	if (cursor_stack and
+		cursor_stack.valid and
+		cursor_stack.valid_for_read and
+		cursor_stack.name == "mining-patch-planner"
+	) then
 		gui.show_interface(player)
 	else
 		gui.hide_interface(player)

@@ -84,6 +84,30 @@ data:extend{
 	},
 	{
 		type = "sprite",
+		name = "mpp_plus",
+		filename = graphics.."plus.png",
+		size = 64,
+		mipmap_count = 3,
+		flags = { "icon" },
+	},
+	{
+		type = "sprite",
+		name = "mpp_cross",
+		filename = graphics.."cross.png",
+		size = 64,
+		mipmap_count = 2,
+		flags = { "icon" },
+	},
+	{
+		type = "sprite",
+		name = "mpp_blueprint_add",
+		filename = graphics.."blueprint_add.png",
+		size = 64,
+		mipmap_count = 2,
+		flags = { "icon" },
+	},
+	{
+		type = "sprite",
 		name = "mpp_direction_north",
 		filename = graphics.."arrow-north.png",
 		size = 64,
@@ -150,4 +174,75 @@ default_style.mpp_selected_frame_action_button = {
 		base = {position = {352, 17}, corner_size = 8},
 		shadow = {position = {440, 24}, corner_size = 8, draw_type = "outer"},
 	}
+}
+
+default_style.mpp_blueprint_mode_button = {
+	type = "button_style",
+	parent = "recipe_slot_button",
+	size = 28,
+}
+
+default_style.mpp_blueprint_mode_button_active = {
+	type = "button_style",
+	parent = "recipe_slot_button",
+	size = 28,
+	default_graphical_set = {
+		base = {position = {225, 17}, corner_size = 8},
+		shadow = {position = {440, 24}, corner_size = 8, draw_type = "outer"},
+	},
+	hovered_graphical_set = {
+		base = {position = {369, 17}, corner_size = 8},
+		shadow = {position = {440, 24}, corner_size = 8, draw_type = "outer"},
+	},
+	clicked_graphical_set = {
+		base = {position = {352, 17}, corner_size = 8},
+		shadow = {position = {440, 24}, corner_size = 8, draw_type = "outer"},
+	}
+}
+
+default_style.mpp_fake_blueprint_button = {
+	type="button_style",
+	parent="shortcut_bar_button_blue",
+	padding=3,
+	size=48,
+}
+default_style.mpp_delete_blueprint_button = {
+	type="button_style",
+	parent="shortcut_bar_button_red",
+	padding=0,
+	size=24,
+	stretch_image_to_widget_size=true,
+}
+
+default_style.mpp_fake_blueprint_button_selected = {
+	type="button_style",
+	parent="shortcut_bar_button_blue",
+	padding=3,
+	size=48,
+	default_graphical_set = {
+		base = {position = {225, 17}, corner_size = 8},
+		shadow = {position = {440, 24}, corner_size = 8, draw_type = "outer"},
+	},
+	hovered_graphical_set = {
+		base = {position = {369, 17}, corner_size = 8},
+		shadow = {position = {440, 24}, corner_size = 8, draw_type = "outer"},
+	},
+	clicked_graphical_set = {
+		base = {position = {352, 17}, corner_size = 8},
+		shadow = {position = {440, 24}, corner_size = 8, draw_type = "outer"},
+	}
+}
+
+default_style.mpp_fake_blueprint_table = {
+	type="table_style",
+	padding=0,
+	cell_padding=0,
+	horizontal_spacing=2,
+	vertical_spacing=2,
+}
+
+default_style.mpp_fake_blueprint_sprite = {
+	type="image_style",
+	size=16,
+	stretch_image_to_widget_size=true,
 }
