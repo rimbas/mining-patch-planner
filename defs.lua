@@ -35,8 +35,17 @@
 ---@class Layout
 ---@field name string
 ---@field starting_state string Initial state
+---@field defaults LayoutDefaults
 ---@field restrictions Restrictions
+---@field validate function(state: State)
+---@field initialize function(state: State)
 ---@field tick function(state: State)
+
+---@class LayoutDefaults
+---@field miner string
+---@field belt string
+---@field pole string
+---@field logistics string
 
 ---@class Restrictions
 ---@field miner_available boolean

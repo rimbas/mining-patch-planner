@@ -26,6 +26,8 @@ local function task_runner(event)
 
 	layout:tick(state)
 	if state.finished then
+		if state.blueprint then state.blueprint.clear() end
+		if state.blueprint_inventory then state.blueprint_inventory.destroy() end
 		rendering.destroy(state.preview_rectangle)
 		table.remove(global.tasks, 1)
 	end
