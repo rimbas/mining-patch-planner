@@ -37,10 +37,13 @@ require_layout("blueprints")
 ---@field coverage_choice boolean
 ---@field logistics_choice string
 ---@field landfill_choice boolean
+---@field blueprint_choice LuaItemStack
 ---@field coords Coords
 ---@field grid Grid
 ---@field miner MinerStruct
----@field preview_rectangle uint64 -- LuaRendering.draw_rectangle
+---@field preview_rectangle nil|uint64 -- LuaRendering.draw_rectangle
+---@field blueprint_inventory LuaInventory|nil
+---@field blueprint LuaItemStack|nil
 
 ---@param event EventDataPlayerSelectedArea
 ---@return State
@@ -50,6 +53,8 @@ local function create_state(event)
 	state.delegate = "start"
 	state.finished = false
 	state.tick = 0
+	state.preview_rectangle = nil
+	
 	---@type PlayerData
 	local player_data = global.players[event.player_index]
 
@@ -58,16 +63,17 @@ local function create_state(event)
 	state.player = game.players[event.player_index]
 
 	-- player option properties
-	state.layout_choice = player_data.layout_choice
-	state.direction_choice = player_data.direction_choice
-	state.miner_choice = player_data.miner_choice
-	state.belt_choice = player_data.belt_choice
-	state.pole_choice = player_data.pole_choice
-	state.lamp_choice = player_data.lamp_choice
-	state.logistics_choice = player_data.logistics_choice
-	state.coverage_choice = player_data.coverage_choice
-	state.landfill_choice = player_data.landfill_choice
-	state.preview_rectangle = nil
+	local player_choices = player_data.choices
+	for k, v in pairs(player_choices) do
+		state[k] = v
+	end
+
+	if state.layout_choice == "blueprints" then
+		local blueprint = player_data.blueprints.mapping[player_data.choices.blueprint_choice.index]
+		state.blueprint_inventory = game.create_inventory(1)
+		state.blueprint = state.blueprint_inventory.find_empty_stack()
+		state.blueprint.set_stack(blueprint)
+	end
 
 	return state
 end
@@ -112,7 +118,7 @@ function algorithm.on_player_selected_area(event)
 	---@type PlayerData
 	local player_data = global.players[event.player_index]
 	local state = create_state(event)
-	local layout = layouts[player_data.layout_choice]
+	local layout = layouts[player_data.choices.layout_choice]
 
 	local coords, filtered, found_resources = process_entities(event.entities)
 	state.coords = coords

@@ -4,19 +4,22 @@ local conf = {}
 ---@class PlayerData
 ---@field advanced boolean
 ---@field blueprint_add_mode boolean
+---@field gui PlayerGui
+---@field blueprint_items LuaInventory
+---@field choices PlayerChoices
+---@field blueprints PlayerGuiBlueprints
+
+---@class PlayerChoices
 ---@field layout_choice string
+---@field blueprint_choice LuaGuiElement Currently selected blueprint (flow)
 ---@field direction_choice string
----@field belt_choice string
 ---@field miner_choice string
 ---@field pole_choice string
 ---@field lamp_choice boolean
----@field coverage_choice boolean
+---@field belt_choice string
 ---@field logistics_choice string
 ---@field landfill_choice boolean
----@field gui PlayerGui
----@field blueprint_items LuaInventory
----@field blueprint_choice LuaGuiElement Currently selected blueprint (flow)
----@field blueprints PlayerGuiBlueprints
+---@field coverage_choice boolean
 
 ---@class PlayerGui
 ---@field section table<string, LuaGuiElement>
@@ -36,17 +39,20 @@ local conf = {}
 conf.default_config = {
 	advanced = false,
 	blueprint_add_mode = false,
-	layout_choice = "simple",
-	direction_choice = "north",
-	belt_choice = "transport-belt",
-	miner_choice = "electric-mining-drill",
-	pole_choice = "medium-electric-pole",
-	logistics_choice = "logistic-chest-passive-provider",
-	lamp_choice = false,
-	coverage_choice = false,
-	landfill_choice = false,
 	--blueprint_items = nil,
-	--blueprint_choice = nil,
+
+	choices = {
+		layout_choice = "simple",
+		--blueprint_choice = nil,
+		direction_choice = "north",
+		miner_choice = "electric-mining-drill",
+		pole_choice = "medium-electric-pole",
+		belt_choice = "transport-belt",
+		lamp_choice = false,
+		logistics_choice = "logistic-chest-passive-provider",
+		landfill_choice = false,
+		coverage_choice = false,
+	},
 
 	gui = {
 		section = {},
@@ -60,7 +66,6 @@ conf.default_config = {
 		button = {},
 		delete = {},
 	}
-
 }
 
 ---@param player_index number
