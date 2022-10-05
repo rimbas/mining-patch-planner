@@ -54,7 +54,7 @@ grid_mt.__index = grid_mt
 ---comment
 ---@param x integer Grid coordinate
 ---@param y integer Grid coordinate
----@return GridTile
+---@return GridTile|nil
 function grid_mt:get_tile(x, y)
 	local row = self[y]
 	if row then return row[x] end
@@ -82,6 +82,20 @@ function grid_mt:convolve(x, y)
 	end
 end
 
+function grid_mt:convolve_custom(x, y, w)
+	for sy = -w, w do
+		local row = self[y+sy]
+		if row == nil then goto continue_row end
+		for sx = -w, w do
+			local tile = row[x+sx]
+			if tile == nil then goto continue_column end
+			tile.neighbor_counts[w] = (tile.neighbor_counts[w] or 0) + 1
+			::continue_column::
+		end
+		::continue_row::
+	end
+end
+
 ---Marks tiles as consumed by a miner
 ---@param cx integer
 ---@param cy integer
@@ -92,6 +106,20 @@ function grid_mt:consume(cx, cy)
 		local row = self[cy+y]
 		if row == nil then goto continue_row end
 		for x = -far, far do
+			local tile = row[cx+x]
+			if tile and tile.contains_resource then
+				tile.consumed = true
+			end
+		end
+		::continue_row::
+	end
+end
+
+function grid_mt:consume_custom(cx, cy, w)
+	for y = -w, w do
+		local row = self[cy+y]
+		if row == nil then goto continue_row end
+		for x = -w, w do
 			local tile = row[cx+x]
 			if tile and tile.contains_resource then
 				tile.consumed = true
@@ -125,6 +153,20 @@ function grid_mt:build_miner(cx, cy)
 	end
 end
 
+function grid_mt:build_miner_custom(cx, cy, w)
+	for y = -w, w do
+		local row = self[cy+y]
+		if row == nil then goto continue_row end
+		for x = -w, w do
+			local tile = row[cx+x]
+			if tile then
+				tile.built_on = "miner"
+			end
+		end
+		::continue_row::
+	end
+end
+
 function grid_mt:get_unconsumed(mx, my)
 	local far = self.miner.far
 	local count = 0
@@ -143,5 +185,24 @@ function grid_mt:get_unconsumed(mx, my)
 	end
 	return count
 end
+
+function grid_mt:get_unconsumed_custom(mx, my, w)
+	local count = 0
+	for y = -w, w do
+		local row = self[my+y]
+		if row == nil then goto continue_row end
+		for x = -w, w do
+			local tile = row[mx+x]
+			if tile then
+				if tile.contains_resource and tile.consumed == 0 then
+					count = count + 1
+				end
+			end
+		end
+		::continue_row::
+	end
+	return count
+end
+
 
 return grid_mt

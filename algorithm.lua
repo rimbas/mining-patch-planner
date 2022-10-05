@@ -37,13 +37,14 @@ require_layout("blueprints")
 ---@field coverage_choice boolean
 ---@field logistics_choice string
 ---@field landfill_choice boolean
----@field blueprint_choice LuaItemStack
 ---@field coords Coords
 ---@field grid Grid
 ---@field miner MinerStruct
 ---@field preview_rectangle nil|uint64 -- LuaRendering.draw_rectangle
----@field blueprint_inventory LuaInventory|nil
----@field blueprint LuaItemStack|nil
+---@field blueprint_choice LuaGuiElement
+---@field blueprint_inventory LuaInventory
+---@field blueprint LuaItemStack
+---@field cache EvaluatedBlueprint
 
 ---@param event EventDataPlayerSelectedArea
 ---@return State
@@ -73,6 +74,7 @@ local function create_state(event)
 		state.blueprint_inventory = game.create_inventory(1)
 		state.blueprint = state.blueprint_inventory.find_empty_stack()
 		state.blueprint.set_stack(blueprint)
+		state.cache = player_data.blueprints.cache[player_data.choices.blueprint_choice.index]
 	end
 
 	return state

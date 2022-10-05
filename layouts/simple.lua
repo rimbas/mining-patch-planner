@@ -17,12 +17,14 @@ local layout = table.deepcopy(base)
 ---@field attempts any
 ---@field attempt_index number
 ---@field best_attempt PlacementAttempt
+---@field resourcs LuaEntity[]
 ---@field resource_tiles GridTile
 ---@field longest_belt number For pole alignment information
 ---@field power_poles_all table
 ---@field pole_step number
 ---@field miner_lane_count number Miner lane count
 ---@field miner_max_column number Miner column span
+---@field grid Grid
 
 layout.name = "simple"
 layout.translation = {"mpp.settings_layout_choice_simple"}
@@ -132,7 +134,7 @@ function layout:process_grid(state)
 	local resource_tiles = state.resource_tiles
 
 	local convolve_size = state.miner.full_size ^ 2
-	local budget, cost = 20000, 0
+	local budget, cost = 12000, 0
 
 	local i = state.resource_iter or 1
 	while i <= #resources and cost < budget do

@@ -2,6 +2,7 @@ local conf = require("configuration")
 require("migration")
 local gui = require("gui")
 local algorithm = require("algorithm")
+local bp_meta = require("blueprintmeta")
 
 script.on_init(function()
 	global.players = {}
@@ -50,7 +51,7 @@ script.on_event(defines.events.on_player_selected_area, function(event)
 
 	local state, error = algorithm.on_player_selected_area(event)
 
-	--rendering.clear("mining-patch-planner")
+	rendering.clear("mining-patch-planner")
 
 	if state then
 		table.insert(global.tasks, state)
@@ -61,6 +62,17 @@ script.on_event(defines.events.on_player_selected_area, function(event)
 end)
 
 script.on_load(function()
+	if global.players then
+		for _, ply in pairs(global.players) do
+			---@cast ply PlayerData
+			if ply.blueprints then
+				for _, bp in pairs(ply.blueprints.cache) do
+					setmetatable(bp, bp_meta)
+				end
+			end
+		end
+	end
+
 	if global.tasks and #global.tasks > 0 then
 		script.on_event(defines.events.on_tick, task_runner)
 		for _, task in ipairs(global.tasks) do
