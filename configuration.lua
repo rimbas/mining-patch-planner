@@ -30,10 +30,11 @@ local conf = {}
 ---@field blueprint_add_button LuaGuiElement
 
 ---@class PlayerGuiBlueprints All subtables are indexed by root flow index
+---@field mapping table<number, LuaItemStack>
 ---@field flow table<number, LuaGuiElement> Root blueprint element
 ---@field button table<number, LuaGuiElement> Blueprint button toggle
 ---@field delete table<number, LuaGuiElement> Blueprint delete button
----@field mapping table<number, LuaItemStack>
+---@field cache table<number, table>
 
 ---@type PlayerData
 conf.default_config = {
@@ -62,6 +63,7 @@ conf.default_config = {
 
 	blueprints = {
 		mapping = {},
+		cache = {},
 		flow = {},
 		button = {},
 		delete = {},

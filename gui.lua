@@ -1,6 +1,7 @@
 local algorithm = require("algorithm")
 local mpp_util = require("mpp_util")
 local enums = require("enums")
+local blueprint_meta = require("blueprintmeta")
 local blacklist = require("blacklist")
 
 local layouts = algorithm.layouts
@@ -69,6 +70,28 @@ local function create_setting_selector(player_data, root, action_type, action, v
 end
 
 ---@param player_data PlayerData
+---@param button LuaGuiElement
+local function set_player_blueprint(player_data, button)
+	local choices = player_data.choices
+	local player_blueprints = player_data.blueprints
+	local blueprint_flow = player_blueprints.flow[button.parent.index]
+	
+	if blueprint_flow == choices.blueprint_choice then
+		return nil
+	end
+	
+	if choices.blueprint_choice then
+		local current_blueprint = choices.blueprint_choice
+		local current_blueprint_button = player_blueprints.button[current_blueprint.index]
+		current_blueprint_button.style = "mpp_fake_blueprint_button"
+	end
+	
+	--local blueprint = player_blueprints.mapping[blueprint_flow.index]
+	button.style = "mpp_fake_blueprint_button_selected"
+	choices.blueprint_choice = blueprint_flow
+end
+
+---@param player_data PlayerData
 ---@param table_root LuaGuiElement
 local function create_blueprint_entry(player_data, table_root, blueprint_item)
 	local blueprint_line = table_root.add{type="flow"}
@@ -119,6 +142,12 @@ local function create_blueprint_entry(player_data, table_root, blueprint_item)
 		type="label",
 		caption=blueprint_item.label or {"mpp.label_unnamed_blueprint"},
 	}
+
+	player_data.blueprints.cache[blueprint_line.index] = blueprint_meta:new(blueprint_item)
+
+	if not player_data.choices.blueprint_choice then
+		set_player_blueprint(player_data, blueprint_button)
+	end
 end
 
 ---@param player LuaPlayer
@@ -488,11 +517,6 @@ function gui.show_interface(player)
 	update_selections(player_data)
 end
 
----@param player_data PlayerData
-local function set_player_blueprint(player_data)
-
-end
-
 ---@param player LuaPlayer
 local function abort_blueprint_mode(player)
 	local player_data = global.players[player.index]
@@ -551,7 +575,6 @@ local function on_gui_click(event)
 		player_data.choices[value.."_choice"] = not last_value
 		event.element.style = style_helper_selection(not last_value)
 	elseif evt_ele_tags["mpp_blueprint_add_mode"] then
-	--elseif evt_ele_tags["mpp_blueprint_receptacle"] then
 		---@type PlayerData
 		local player_data = global.players[event.player_index]
 		player_data.blueprint_add_mode = not player_data.blueprint_add_mode
@@ -590,26 +613,9 @@ local function on_gui_click(event)
 		local blueprint_table = player_data.gui.tables["blueprints"]
 
 		create_blueprint_entry(player_data, blueprint_table, pending_slot)
-
 	elseif evt_ele_tags["mpp_fake_blueprint_button"] then
-		local choices = player_data.choices
 		local button = event.element
-		local player_blueprints = player_data.blueprints
-		local blueprint_flow = player_blueprints.flow[button.parent.index]
-		
-		if blueprint_flow == choices.blueprint_choice then
-			return nil
-		end
-		
-		if choices.blueprint_choice then
-			local current_blueprint = choices.blueprint_choice
-			local current_blueprint_button = player_blueprints.button[current_blueprint.index]
-			current_blueprint_button.style = "mpp_fake_blueprint_button"
-		end
-		
-		--local blueprint = player_blueprints.mapping[blueprint_flow.index]
-		button.style = "mpp_fake_blueprint_button_selected"
-		choices.blueprint_choice = blueprint_flow
+		set_player_blueprint(player_data, button)
 	elseif evt_ele_tags["mpp_delete_blueprint_button"] then
 		local choices = player_data.choices
 		local deleted_index = evt_ele_tags["mpp_delete_blueprint_button"]
@@ -620,14 +626,14 @@ local function on_gui_click(event)
 		player_blueprints.mapping[deleted_index].clear()
 		player_blueprints.flow[deleted_index].destroy()
 
+		player_blueprints.mapping[deleted_index] = nil
+		player_blueprints.flow[deleted_index] = nil
 		player_blueprints.button[deleted_index] = nil
 		player_blueprints.delete[deleted_index] = nil
-		player_blueprints.flow[deleted_index] = nil
-		player_blueprints.mapping[deleted_index] = nil
+		player_blueprints.cache[deleted_index] = nil
 	end
 end
 script.on_event(defines.events.on_gui_click, on_gui_click)
---script.on_event(defines.events.on_gui_checked_state_changed, gui.on_gui_checked_state_changed)
 
 ---@param event EventDataGuiSelectionStateChanged
 local function on_gui_selection_state_changed(event)

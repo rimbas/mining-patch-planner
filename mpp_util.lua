@@ -23,6 +23,37 @@ mpp_util.miner_direction = {west="south",east="north",north="west",south="east"}
 mpp_util.belt_direction = {west="north", east="south", north="east", south="west"}
 mpp_util.opposite = {west="east",east="west",north="south",south="north"}
 
+do
+	local d = defines.direction
+	local t = {
+		west = {
+			[d.north] = d.north,
+			[d.east] = d.east,
+			[d.south] = d.south,
+			[d.west] = d.west,
+		},
+		north = {
+			[d.north] = d.east,
+			[d.east] = d.south,
+			[d.south] = d.west,
+			[d.west] = d.north,
+		},
+		east = {
+			[d.north] = d.south,
+			[d.east] = d.west,
+			[d.south] = d.north,
+			[d.west] = d.east,
+		},
+		south = {
+			[d.north] = d.west,
+			[d.east] = d.north,
+			[d.south] = d.east,
+			[d.west] = d.south,
+		},
+	}
+	mpp_util.bp_direction = t
+end
+
 ---@class MinerStruct
 ---@field name string
 ---@field size number Physical miner size
@@ -200,5 +231,18 @@ function mpp_util.validate_blueprint(player, blueprint)
 	return true
 end
 
+function mpp_util.keys_to_set(...)
+	local set, temp = {}, {}
+	for _, t in pairs{...} do
+		for k, _ in pairs(t) do
+			temp[k] = true
+		end
+	end
+	for k, _  in pairs(temp) do
+		set[#set+1] = k
+	end
+	table.sort(set)
+	return set
+end
 
 return mpp_util

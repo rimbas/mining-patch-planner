@@ -9,8 +9,8 @@ local miner_direction, opposite = mpp_util.miner_direction, mpp_util.opposite
 local belt_direction = mpp_util.belt_direction
 local mpp_revert = mpp_util.revert
 
----@type SimpleLayout
-local layout = table.deepcopy(base)
+
+local layout = table.deepcopy(base) --[[@as Layout]]
 
 layout.name = "sparse"
 layout.translation = {"mpp.settings_layout_choice_sparse"}
