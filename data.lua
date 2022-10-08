@@ -154,6 +154,22 @@ data:extend{
 		mipmap_count = 3,
 		flags = { "icon" },
 	},
+	{
+		type = "sprite",
+		name = "mpp_align_start",
+		filename = graphics.."align_start.png",
+		size = 64,
+		mipmap_count = 1,
+		flags = { "icon" },
+	},
+	{
+		type = "sprite",
+		name = "mpp_omit_deconstruct",
+		filename = graphics.."omit_deconstruct.png",
+		size = 64,
+		mipmap_count = 2,
+		flags = { "icon" },
+	},
 }
 
 local default_style = data.raw["gui-style"].default

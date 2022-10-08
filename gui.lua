@@ -74,36 +74,40 @@ end
 local function set_player_blueprint(player_data, button)
 	local choices = player_data.choices
 	local player_blueprints = player_data.blueprints
+	local blueprint_number = button.tags.mpp_fake_blueprint_button
 	local blueprint_flow = player_blueprints.flow[button.parent.index]
-	
-	if blueprint_flow == choices.blueprint_choice then
+
+	if choices.blueprint_choice == blueprint_number then
 		return nil
 	end
 	
 	if choices.blueprint_choice then
 		local current_blueprint = choices.blueprint_choice
-		local current_blueprint_button = player_blueprints.button[current_blueprint.index]
+		local current_blueprint_button = player_blueprints.button[current_blueprint.item_number]
 		current_blueprint_button.style = "mpp_fake_blueprint_button"
 	end
 	
-	--local blueprint = player_blueprints.mapping[blueprint_flow.index]
+	local blueprint = player_blueprints.mapping[blueprint_number]
 	button.style = "mpp_fake_blueprint_button_selected"
-	choices.blueprint_choice = blueprint_flow
+	choices.blueprint_choice = blueprint
 end
 
 ---@param player_data PlayerData
 ---@param table_root LuaGuiElement
-local function create_blueprint_entry(player_data, table_root, blueprint_item)
+---@param blueprint_item LuaItemStack
+---@param cursor_stack LuaItemStack|nil
+local function create_blueprint_entry(player_data, table_root, blueprint_item, cursor_stack)
 	local blueprint_line = table_root.add{type="flow"}
-	player_data.blueprints.flow[blueprint_line.index] = blueprint_line
-	player_data.blueprints.mapping[blueprint_line.index] = blueprint_item
+	local item_number = blueprint_item.item_number
+	player_data.blueprints.flow[item_number] = blueprint_line
+	player_data.blueprints.mapping[item_number] = blueprint_item
 	
 	local blueprint_button = blueprint_line.add{
 		type="button",
-		style="mpp_fake_blueprint_button",
-		tags={mpp_fake_blueprint_button=true},
+		style=(player_data.choices.blueprint_choice == blueprint_item and "mpp_fake_blueprint_button_selected" or "mpp_fake_blueprint_button"),
+		tags={mpp_fake_blueprint_button=item_number},
 	}
-	player_data.blueprints.button[blueprint_line.index] = blueprint_button
+	player_data.blueprints.button[item_number] = blueprint_button
 
 	local fake_table = blueprint_button.add{
 		type="table",
@@ -134,16 +138,24 @@ local function create_blueprint_entry(player_data, table_root, blueprint_item)
 		type="sprite-button",
 		sprite="mpp_cross",
 		style="mpp_delete_blueprint_button",
-		tags={mpp_delete_blueprint_button=blueprint_line.index},
+		tags={mpp_delete_blueprint_button=item_number},
+		tooltip={"gui.delete-blueprint-record"},
 	}
-	player_data.blueprints.delete[blueprint_line.index] = delete_button
+	player_data.blueprints.delete[item_number] = delete_button
 
+	local label, tooltip = mpp_util.blueprint_label(blueprint_item)
 	blueprint_line.add{
 		type="label",
-		caption=blueprint_item.label or {"mpp.label_unnamed_blueprint"},
+		caption=label,
+		tooltip=tooltip,
 	}
 
-	player_data.blueprints.cache[blueprint_line.index] = blueprint_meta:new(blueprint_item)
+	if not player_data.blueprints.cache[item_number] then
+		player_data.blueprints.cache[item_number] = blueprint_meta:new(blueprint_item)
+	end
+	if cursor_stack and cursor_stack.valid then
+		player_data.blueprints.original_id[item_number] = cursor_stack.item_number
+	end
 
 	if not player_data.choices.blueprint_choice then
 		set_player_blueprint(player_data, blueprint_button)
@@ -253,6 +265,13 @@ function gui.create_interface(player)
 		}
 		player_gui.blueprint_add_section.visible = player_data.blueprint_add_mode
 
+		for i = 1, #player_data.blueprint_items do
+			---@type LuaItemStack
+			local item = player_data.blueprint_items[i]
+			if item.valid and item.is_blueprint then
+				create_blueprint_entry(player_data, root, item)
+			end
+		end
 	end
 
 	do -- Misc selection
@@ -463,11 +482,27 @@ local function update_misc_selection(player_data)
 			}
 		end
 
+		if layout.restrictions.start_alignment_tuning then
+			values[#values+1] = {
+				value="start",
+				tooltip={"mpp.choice_start"},
+				icon=("mpp_align_start"),
+			}
+		end
+
 		if layout.restrictions.landfill_omit_available then
 			values[#values+1] = {
 				value="landfill",
 				tooltip={"mpp.choice_landfill"},
 				icon=("mpp_omit_landfill")
+			}
+		end
+
+		if layout.restrictions.deconstruction_omit_available then
+			values[#values+1] = {
+				value="deconstruction",
+				tooltip={"mpp.choice_deconstruction"},
+				icon=("mpp_omit_deconstruct"),
 			}
 		end
 	end
@@ -601,8 +636,20 @@ local function on_gui_click(event)
 			return nil
 		end
 
+		
 		local player_blueprints = player_data.blueprint_items
 		local pending_slot = player_blueprints.find_empty_stack()
+		
+		---@param bp LuaItemStack
+		local function check_existing(bp)
+			for k, v in pairs(player_data.blueprints.original_id) do
+				if v == bp.item_number then return true end
+			end
+		end
+		if check_existing(cursor_stack) then 
+			player.print({"mpp.msg_blueprint_existing"})
+			return nil
+		end
 
 		if not pending_slot then
 			player_blueprints.resize(#player_blueprints+1--[[@as uint16]])
@@ -612,25 +659,26 @@ local function on_gui_click(event)
 		
 		local blueprint_table = player_data.gui.tables["blueprints"]
 
-		create_blueprint_entry(player_data, blueprint_table, pending_slot)
+		create_blueprint_entry(player_data, blueprint_table, pending_slot, cursor_stack)
 	elseif evt_ele_tags["mpp_fake_blueprint_button"] then
 		local button = event.element
 		set_player_blueprint(player_data, button)
 	elseif evt_ele_tags["mpp_delete_blueprint_button"] then
 		local choices = player_data.choices
-		local deleted_index = evt_ele_tags["mpp_delete_blueprint_button"]
+		local deleted_number = evt_ele_tags["mpp_delete_blueprint_button"]
 		local player_blueprints = player_data.blueprints
-		if choices.blueprint_choice == player_blueprints.flow[deleted_index] then
+		if choices.blueprint_choice and choices.blueprint_choice.item_number == deleted_number then
 			choices.blueprint_choice = nil
 		end
-		player_blueprints.mapping[deleted_index].clear()
-		player_blueprints.flow[deleted_index].destroy()
+		player_blueprints.mapping[deleted_number].clear()
+		player_blueprints.flow[deleted_number].destroy()
 
-		player_blueprints.mapping[deleted_index] = nil
-		player_blueprints.flow[deleted_index] = nil
-		player_blueprints.button[deleted_index] = nil
-		player_blueprints.delete[deleted_index] = nil
-		player_blueprints.cache[deleted_index] = nil
+		player_blueprints.mapping[deleted_number] = nil
+		player_blueprints.flow[deleted_number] = nil
+		player_blueprints.button[deleted_number] = nil
+		player_blueprints.delete[deleted_number] = nil
+		player_blueprints.cache[deleted_number] = nil
+		player_blueprints.original_id[deleted_number] = nil
 	end
 end
 script.on_event(defines.events.on_gui_click, on_gui_click)

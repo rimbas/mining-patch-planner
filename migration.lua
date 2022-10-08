@@ -1,7 +1,7 @@
 local conf = require("configuration")
 local enums = require("enums")
 
-local current_version = 010300 -- 1.3.0
+local current_version = 010301 -- 1.3.0
 
 ---@param player LuaPlayer
 local function reset_gui(player)
@@ -36,10 +36,11 @@ script.on_configuration_changed(function(config_changed_data)
 			global.tasks = global.tasks or {}
 			conf.initialize_deconstruction_filter()
 			for player_index, data in ipairs(global.players) do
+				---@cast data PlayerData
 				---@type LuaPlayer
 				local player = game.players[player_index]
 				reset_gui(player)
-				conf.initialize_global(player_index)
+				conf.initialize_global(player_index, data)
 			end
 		end
 		global.version = current_version

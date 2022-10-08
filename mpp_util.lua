@@ -245,4 +245,42 @@ function mpp_util.keys_to_set(...)
 	return set
 end
 
+---@param bp LuaItemStack
+function mpp_util.blueprint_label(bp)
+	local label = bp.label
+	if label then
+		if #label > 30 then
+			return string.sub(label, 0, 28) .. "...", label
+		end
+		return label
+	else
+		return {"", {"gui-blueprint.unnamed-blueprint"}, " ", bp.item_number}
+	end
+end
+
+---Filters out a list
+---@param t any
+---@param func any
+function table.filter(t, func)
+	local new = {}
+	for k, v in ipairs(t) do
+		if func(v) then new[#new+1] = v end
+	end
+	return new
+end
+
+-- LuaEntityPrototype#tile_height was added in 1.1.64, I'm developing on 1.1.61
+local even_width_memoize = {}
+function mpp_util.entity_even_width(name)
+	if even_width_memoize[name] then return even_width_memoize[name] end
+	local proto = game.entity_prototypes[name]
+	local cbox = proto.collision_box
+	local cbox_tl, cbox_br = cbox.left_top, cbox.right_bottom
+	local cw, ch = cbox_br.x - cbox_tl.x, cbox_br.y - cbox_tl.y
+	local w, h = ceil(cw), ceil(ch)
+	local res = {w % 2 ~= 1, h % 2 ~= 1, w=w, h=h, near=floor(w/2)}
+	even_width_memoize[name] = res
+	return res
+end
+
 return mpp_util
