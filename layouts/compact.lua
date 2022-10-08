@@ -193,7 +193,7 @@ function layout:second_pass(state)
 	--[[ debug visualisation - unconsumed tiles
 	local c = state.coords
 	for k, tile in pairs(state.resource_tiles) do
-		if tile.consumed == 0 then
+		if not tile.consumed then
 			rendering.draw_circle{
 				surface = state.surface,
 				filled = false,

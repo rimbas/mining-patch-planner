@@ -18,6 +18,23 @@ local layout = table.deepcopy(base)
 ---@field bp_h number
 ---@field s_ix number
 ---@field s_iy number
+---@field other_ents BlueprintEntity[]
+---@field beacons BlueprintEntity[]
+---@field lamps BlueprintEntity[]
+---@field best_attempt BpPlacementAttempt
+---@field beacons BpPlacementEnt[]
+---@field power_poles_all BpPlacementEnt[]
+---@field lamps BpPlacementEnt[]
+
+---@class BpPlacementAttempt : PlacementAttempt
+---@field other_ents BpPlacementEnt[]
+
+---@class BpPlacementEnt
+---@field ent BlueprintEntity
+---@field center GridTile
+---@field x number
+---@field y number
+---@field direction defines.direction
 
 layout.name = "blueprints"
 layout.translation = {"mpp.settings_layout_choice_blueprints"}
@@ -26,8 +43,9 @@ layout.restrictions.miner_available = false
 layout.restrictions.belt_available = false
 layout.restrictions.pole_available = false
 layout.restrictions.lamp_available = false
-layout.restrictions.coverage_tuning = false
+layout.restrictions.coverage_tuning = true
 layout.restrictions.landfill_omit_available = false
+layout.restrictions.start_alignment_tuning = true
 
 ---Called from script.on_load
 ---@param self SimpleLayout
@@ -47,25 +65,26 @@ end
 function layout:start(state)
 	local grid = {}
 	local c = state.coords
+	local bp = state.cache
 
-	local bpw, bph = state.cache.w, state.cache.h
+	bp.tw, bp.th = bp.w, bp.h
 	local th, tw = c.h, c.w
 	if state.direction_choice == "south" or state.direction_choice == "north" then
 		th, tw = tw, th
-		bpw, bph = bph, bpw
+		bp.tw, bp.th = bp.h, bp.w
 	end
 	c.th, c.tw = th, tw
 
-	for y = -bph, th+bph do
+	for y = -bp.h, th+bp.h do
 		local row = {}
 		grid[y] = row
-		for x = -bpw, tw+bpw do
+		for x = -bp.w, tw+bp.w do
 			row[x] = {
 				contains_resource = false,
 				resources = 0,
 				x = x, y = y,
 				gx = c.x1 + x, gy = c.y1 + y,
-				consumed = 0,
+				consumed = false,
 				built_on = false,
 				neighbor_counts = {},
 			}
@@ -80,6 +99,7 @@ end
 ---@param self SimpleLayout
 ---@param state BlueprintState
 function layout:process_grid(state)
+	local c = state.coords
 	local grid = state.grid
 	local resources = state.resources
 	local conv = coord_convert[state.direction_choice]
@@ -94,7 +114,7 @@ function layout:process_grid(state)
 	local convolve_steps = {}
 	for _, miner in pairs(state.cache.miners) do
 		---@cast miner MinerStruct
-		convolve_size = miner.far ^ 2 + miner.near ^ 2
+		convolve_size = miner.full_size ^ 2 + miner.size ^ 2
 		convolve_steps[miner.far] = true
 		convolve_steps[miner.near] = true
 	end
@@ -102,7 +122,6 @@ function layout:process_grid(state)
 
 	local i = state.resource_iter or 1
 	while i <= #resources and cost < budget do
-	--for i, r in pairs(resources) do
 		local r = resources[i]
 		local x, y = r.position.x, r.position.y
 		local tx, ty = conv(x-gx, y-gy, gw, gh)
@@ -115,10 +134,23 @@ function layout:process_grid(state)
 		resource_tiles[#resource_tiles+1] = tile
 		cost = cost + convolve_size
 		i = i + 1
+
+		--[[ debug visualisation - resource
+		rendering.draw_circle{
+			surface = state.surface,
+			filled = false,
+			color = {0, 1, 0.3},
+			width = 1,
+			target = {c.gx + tx, c.gy + ty},
+			radius = 0.5,
+		}
+		--]]
 	end
 	state.resource_iter = i
 
-	state.delegate = "init_first_pass"
+	if state.resource_iter >= #state.resources then
+		state.delegate = "init_first_pass"
+	end
 end
 
 ---@param self SimpleLayout
@@ -131,17 +163,20 @@ function layout:init_first_pass(state)
 	state.best_attempt_index = 1
 	state.attempt_index = 1
 
-	--local slackw = ceil(c.tw / bp.w) * bp.w - c.tw
-	local function calc_slack(tw, bw)
-		local count = ceil(tw / bw)
-		local overrun = count * bw - tw
+	local function calc_slack(tw, bw, offset)
+		local count = ceil((tw-offset) / bw)
+		local overrun = count * bw - tw + offset
 		local start = -floor(overrun / 2)
 		local slack = overrun % 2
 		return count, start, slack
 	end
 
-	local count_x, start_x, slack_x = calc_slack(c.tw, bp.w)
-	local count_y, start_y, slack_y = calc_slack(c.th, bp.h)
+	local count_x, start_x, slack_x = calc_slack(c.tw, bp.w, bp.ox)
+	local count_y, start_y, slack_y = calc_slack(c.th, bp.h, bp.oy)
+
+	if state.start_choice then
+		start_x, slack_x = 0, 0
+	end
 
 	attempts[1] = {
 		x = start_x, y = start_y,
@@ -188,37 +223,57 @@ function layout:init_first_pass(state)
 	state.delegate = "first_pass"
 end
 
+---@param miner MinerStruct
+local function miner_heuristic(miner, coverage)
+	local near, far = miner.near, miner.far
+	local full, size = miner.full_size, miner.size
+	local neighbor_cap = ceil((size ^ 2) * 0.5)
+	if coverage then
+		---@param tile GridTile
+		return function(tile)
+			local nearc, farc = tile.neighbor_counts[near], tile.neighbor_counts[far]
+			return nearc and (nearc > 0 or
+				(farc and farc > neighbor_cap and nearc > (size * near))
+			)
+		end
+	end
+	---@param tile GridTile
+	return function(tile)
+		local nearc, farc = tile.neighbor_counts[near], tile.neighbor_counts[far]
+		return nearc and (nearc > neighbor_cap or
+			(farc and farc > neighbor_cap and nearc > (size * near))
+		)
+	end
+end
+
 ---@param self SimpleLayout
 ---@param state BlueprintState
 function layout:first_pass(state)
 	local c = state.coords
 	local grid = state.grid
 	local bp = state.cache
-	local attempt = state.attempts[1]
+	local attempt = state.attempts[state.attempt_index]
 	local sx, sy, countx, county = attempt.x, attempt.y, attempt.cx, attempt.cy
-	local conv = coord_convert[state.direction_choice]
-	local rev = coord_revert[state.direction_choice]
 	local bpconv = bp_direction[state.direction_choice]
 	local bpw, bph = bp.w, bp.h
-	if state.direction_choice == "south" or state.direction_choice == "north" then
-		bpw, bph = bph, bpw
-	end
+	local heuristics = {}
+	for k, v in pairs(bp.miners) do heuristics[k] = miner_heuristic(v, state.coverage_choice) end
 	
 	local miners, postponed = {}, {}
 	local other_ents = {}
-	state.best_attempt = {
-		miners = miners,
-		other_ents = other_ents,
-	}
+	attempt.miners = miners
+	attempt.other_ents = other_ents
 	local s_ix = state.s_ix or 0
 	local s_iy = state.s_iy or 0
 	for iy = s_iy, county-1 do
-		local capstone = iy == (county-1)
+		local capstone_y = iy == (county-1)
 		for ix = s_ix, countx-1 do
 			for _, ent in pairs(bp.entities) do
-				if ent.capstone and not capstone then goto skip_ent end
+				local capstone_x = ix == (countx-1)
+				if ent.capstone_y and not capstone_y then goto skip_ent end
+				if ent.capstone_x and not capstone_x then goto skip_ent end
 				local bpx, bpy = ceil(ent.position.x), ceil(ent.position.y)
-				local x, y = attempt.x + ix * bpw + bpx, attempt.y + iy * bph + bpy
+				local x, y = sx + ix * bpw + bpx, sy + iy * bph + bpy
 				local tile = grid:get_tile(x, y)
 				if not tile then goto skip_ent end
 				local bptr = bpconv[ent.direction or defines.direction.north]
@@ -234,13 +289,14 @@ function layout:first_pass(state)
 						name = ent.name,
 						near = miner.near,
 						far = miner.far,
+						x = x, y = y,
 					}
 					local count_near = tile.neighbor_counts[miner.near]
 					local count_far = tile.neighbor_counts[miner.far]
-					if count_near and count_near > 3 then
+					if heuristics[ent.name](tile) then
 						miners[#miners+1] = struct
 						grid:consume_custom(x, y, miner.far)
-					elseif count_far and count_far > 1 then
+					else
 						postponed[#postponed+1] = struct
 					end
 				else
@@ -259,7 +315,7 @@ function layout:first_pass(state)
 					filled = false,
 					color = {1,1,1,1},
 					radius= 0.5,
-					target = {c.gx + rx, c.gy + ry},
+					target = {c.gx + x, c.gy + y},
 				}
 				--]]
 				::skip_ent::
@@ -298,10 +354,12 @@ function layout:first_pass(state)
 		local center = miner.center
 		local unconsumed_count = grid:get_unconsumed_custom(center.x, center.y, miner.far)
 		if unconsumed_count > 0 then
-			grid:consume_custom(center.x, center.y, miner.near)
+			grid:consume_custom(center.x, center.y, miner.far)
 			miners[#miners+1] = miner
 		end
 	end
+
+	state.best_attempt = attempt
 
 	state.delegate = "simple_deconstruct"
 end
@@ -313,30 +371,48 @@ function layout:simple_deconstruct(state)
 	local m = state.miner
 	local player = state.player
 	local surface = state.surface
+	local bp = state.cache
 
+	local deconstructor = global.script_inventory[state.deconstruction_choice and 2 or 1]
 	surface.deconstruct_area{
 		force=player.force,
 		player=player.index,
 		area={
-			left_top={c.x1-m.size-1, c.y1-m.size-1},
-			right_bottom={c.x2+m.size+1, c.y2+m.size+1}
+			left_top={c.x1-(bp.tw/2), c.y1-(bp.th/2)},
+			right_bottom={c.x2+(bp.tw/2), c.y2+(bp.th/2)}
 		},
-		item=global.script_inventory[1],
+		item=deconstructor,
 	}
 
 	state.delegate = "place_miners"
 end
 
+---@param tile GridTile
+---@param ent BlueprintEntity|MinerPlacement
+---@return number
+---@return number
+local function fix_offgrid(tile, ent)
+	local ex, ey = ent.position.x, ent.position.y
+	local ox, oy = 0, 0
+	if ex == ceil(ex) then ox = 0.5 end
+	if ey == ceil(ey) then oy = 0.5 end
+	return tile.x + ox, tile.y + oy
+end
+
 ---@param self SimpleLayout
----@param state SimpleState
+---@param state BlueprintState
 function layout:place_miners(state)
 	local c = state.coords
-	local g = state.grid
+	local grid = state.grid
 	local surface = state.surface
 	for _, miner in ipairs(state.best_attempt.miners) do
 		local center = miner.center
-		g:build_miner_custom(center.x, center.y, miner.near)
-		local x, y = coord_revert[state.direction_choice](center.x, center.y, c.tw, c.th)
+		--g:build_miner_custom(center.x, center.y, miner.near)
+
+		local even = mpp_util.entity_even_width(miner.ent.name)
+		grid:build_thing(center.x, center.y, "miner", miner.near, even[1])
+		local ex, ey = fix_offgrid(center, miner.ent)
+		local x, y = coord_revert[state.direction_choice](ex, ey, c.tw, c.th)
 		-- local can_place = surface.can_place_entity{
 		-- 	name=state.miner.name,
 		-- 	force = state.player.force,
@@ -358,7 +434,7 @@ function layout:place_miners(state)
 		}
 		--]]
 
-		surface.create_entity{
+		local target = surface.create_entity{
 			raise_built=true,
 			name="entity-ghost",
 			player=state.player,
@@ -367,38 +443,43 @@ function layout:place_miners(state)
 			direction = miner.direction,
 			inner_name = state.miner_choice,
 		}
+		if miner.ent.items then
+			target.item_requests = miner.ent.items
+		end
 	end
 
 	state.delegate = "place_other"
 end
 
----@param tile GridTile
----@param ent BlueprintEntity
----@return number
----@return number
-local function fix_offgrid(tile, ent)
-	local ex, ey = ent.position.x, ent.position.y
-	local ox, oy = 0, 0
-	if ex == ceil(ex) then ox = 0.5 end
-	if ey == ceil(ey) then oy = 0.5 end
-	return tile.x + ox, tile.y + oy
-end
-
 ---@param self SimpleLayout
----@param state SimpleState
+---@param state BlueprintState
 function layout:place_other(state)
 	local c = state.coords
-	local g = state.grid
+	local grid = state.grid
 	local surface = state.surface
+	local beacons, power, lamps = {}, {}, {}
+	state.beacons, state.power_poles_all, state.lamps = beacons, power, lamps
 
 	for _, other_ent in ipairs(state.best_attempt.other_ents) do
 		---@type BlueprintEntity
 		local ent = other_ent.ent
 		local center = other_ent.center
+		local ent_type = game.entity_prototypes[ent.name].type
+
+		if ent_type == "beacon" then
+			beacons[#beacons+1] = other_ent
+			goto continue
+		elseif ent_type == "electric-pole" then
+			power[#power+1] = other_ent
+			goto continue
+		--elseif ent_type == "lamp" then
+			--lamps[#lamps+1] = other_ent
+			--goto continue
+		end
 
 		local ex, ey = fix_offgrid(center, ent)
 		local x, y = coord_revert[state.direction_choice](ex, ey, c.tw, c.th)
-		surface.create_entity{
+		local target = surface.create_entity{
 			raise_built=true,
 			name="entity-ghost",
 			player=state.player,
@@ -406,9 +487,104 @@ function layout:place_other(state)
 			position= {c.gx + x, c.gy + y},
 			direction = other_ent.direction,
 			inner_name = ent.name,
+			type=ent.type,
 		}
+
+
+		if ent.items then
+			target.item_requests = ent.items
+		end
+
+		--[[ debug rendering 
+		rendering.draw_circle{
+			surface = state.surface,
+			player = state.player,
+			filled = false,
+			color = {0.5,0.5,1,1},
+			width=3,
+			radius= 0.4,
+			target = {c.gx + center.x, c.gy + center.y},
+		}
+		--]]
+
+		::continue::
 	end
 
+	state.delegate = "place_beacons"
+end
+
+---@param self SimpleLayout
+---@param state BlueprintState
+function layout:place_beacons(state)
+	local c = state.coords
+	local surface = state.surface
+	local grid = state.grid
+
+	for _, other_ent in ipairs(state.beacons) do
+		---@type BlueprintEntity
+		local ent = other_ent.ent
+		local center = other_ent.center
+		
+		local even = mpp_util.entity_even_width(ent.name)
+		local range = game.entity_prototypes[ent.name].supply_area_distance
+		if grid:find_thing(center.x, center.y, "miner", range, even[1]) then
+			local ex, ey = fix_offgrid(center, ent)
+			local x, y = coord_revert[state.direction_choice](ex, ey, c.tw, c.th)
+			local target = surface.create_entity{
+				raise_built=true,
+				name="entity-ghost",
+				player=state.player,
+				force=state.player.force,
+				position= {c.gx + x, c.gy + y},
+				direction = other_ent.direction,
+				inner_name = ent.name,
+				type=ent.type,
+			}
+			if ent.items then
+				target.item_requests = ent.items
+			end
+			grid:build_thing(center.x, center.y, "beacon", even.near, even[1])
+		end
+
+	end
+
+	state.delegate = "place_electricity"
+end
+
+
+---@param self SimpleLayout
+---@param state BlueprintState
+function layout:place_electricity(state)
+	local c = state.coords
+	local surface = state.surface
+	local grid = state.grid
+
+	for _, other_ent in ipairs(state.power_poles_all) do
+		---@type BlueprintEntity
+		local ent = other_ent.ent
+		local center = other_ent.center
+		
+		local even = mpp_util.entity_even_width(ent.name)
+		local range = game.entity_prototypes[ent.name].supply_area_distance
+		if grid:find_thing_in(center.x, center.y, {miner=true, beacon=true}, range, even[1]) then
+			local ex, ey = fix_offgrid(center, ent)
+			local x, y = coord_revert[state.direction_choice](ex, ey, c.tw, c.th)
+			local target = surface.create_entity{
+				raise_built=true,
+				name="entity-ghost",
+				player=state.player,
+				force=state.player.force,
+				position= {c.gx + x, c.gy + y},
+				direction = other_ent.direction,
+				inner_name = ent.name,
+				type=ent.type,
+			}
+			if ent.items then
+				target.item_requests = ent.items
+			end
+			grid:build_thing(center.x, center.y, "electricity", even.near, even[1])
+		end
+	end
 	state.delegate = "finish"
 end
 

@@ -92,7 +92,7 @@ function layout:start(state)
 				far_neighbor_count = 0,
 				x = x, y = y,
 				gx = c.x1 + x, gy = c.y1 + y,
-				consumed = 0,
+				consumed = false,
 				built_on = false,
 			}
 		end
@@ -179,6 +179,7 @@ function layout:process_grid(state)
 			alignment = "center",
 		}
 	end --]]
+	
 	if state.resource_iter >= #state.resources then
 		state.delegate = "init_first_pass"
 	end
@@ -189,6 +190,7 @@ end
 ---@field center GridTile
 ---@field line number lane index
 ---@field column number column index
+---@field ent BlueprintEntity|nil
 
 ---@class PlacementAttempt
 ---@field sx number x shift
@@ -199,6 +201,7 @@ end
 ---@field far_neighbor_sum number
 ---@field density number
 ---@field unconsumed_count number
+---@field simple_density number
 ---@field real_density number
 ---@field leech_sum number
 
@@ -254,6 +257,7 @@ local function placement_attempt(state, shift_x, shift_y)
 	local far_neighbor_sum = 0
 	local miners, postponed = {}, {}
 	local miner_index = 1
+	local simple_density = 0
 	local real_density = 0
 	local leech_sum = 0
 
@@ -279,6 +283,7 @@ local function placement_attempt(state, shift_x, shift_y)
 				miners[#miners+1] = miner
 				neighbor_sum = neighbor_sum + center.neighbor_count
 				far_neighbor_sum = far_neighbor_sum + center.far_neighbor_count
+				simple_density = simple_density + center.neighbor_count / (size ^ 2)
 				real_density = real_density + center.far_neighbor_count / (fullsize ^ 2)
 				leech_sum = max(0, center.far_neighbor_count - center.neighbor_count)
 			elseif center.far_neighbor_count > 0 then
@@ -313,6 +318,7 @@ local function placement_attempt(state, shift_x, shift_y)
 		if unconsumed_count > 0 then
 			neighbor_sum = neighbor_sum + center.neighbor_count
 			far_neighbor_sum = far_neighbor_sum + center.far_neighbor_count
+			simple_density = simple_density + center.neighbor_count / (size ^ 2)
 			real_density = real_density + center.far_neighbor_count / (fullsize ^ 2)
 			leech_sum = leech_sum + max(0, center.far_neighbor_count - center.neighbor_count)
 
@@ -338,6 +344,7 @@ local function placement_attempt(state, shift_x, shift_y)
 		far_neighbor_sum=far_neighbor_sum,
 		leech_sum=leech_sum,
 		density=neighbor_sum / #miners,
+		simple_density=simple_density,
 		real_density=real_density,
 		far_density=far_neighbor_sum / #miners,
 		unconsumed_count=unconsumed_sum,
@@ -349,24 +356,26 @@ end
 ---@param miner MinerStruct
 local function attempt_heuristic_economic(attempt, miner)
 	local miner_count = #attempt.miners
+	local simple_density = attempt.simple_density
 	local real_density = attempt.real_density
 	local density_score = attempt.density
 	local neighbor_score = attempt.neighbor_sum / (miner.size ^ 2) / 7
 	local far_neighbor_score = attempt.far_neighbor_sum / (miner.full_size ^ 2) / 7
-	return miner_count - real_density + attempt.postponed_count
+	return miner_count - simple_density + attempt.postponed_count
 end
 
 ---@param attempt PlacementAttempt
 ---@param miner MinerStruct
 local function attempt_heuristic_coverage(attempt, miner)
 	local miner_count = #attempt.miners
+	local simple_density = attempt.simple_density
 	local real_density = attempt.real_density
 	local density_score = attempt.density
 	local neighbor_score = attempt.neighbor_sum / (miner.size ^ 2)
 	local far_neighbor_score = attempt.far_neighbor_sum / (miner.full_size ^ 2)
 	local leech_score = attempt.leech_sum / (miner.full_size ^ 2 - miner.size ^ 2)
 	--return real_density - miner_count
-	return miner_count + attempt.postponed_count * 2
+	return simple_density - miner_count + real_density
 end
 
 local fmt_str = "Attempt #%i (%i,%i) - miners:%i, density %.3f, score %.3f, unc %i"
@@ -407,7 +416,6 @@ end
 ---@param state SimpleState
 function layout:first_pass(state)
 	local attempt_state = state.attempts[state.attempt_index]
-	local best_attempt = state.best_attempt
 	---@type PlacementAttempt
 	local current_attempt = placement_attempt(state, attempt_state[1], attempt_state[2])
 	local attempt_heuristic = state.coverage_choice and attempt_heuristic_coverage or attempt_heuristic_economic
@@ -437,6 +445,7 @@ function layout:simple_deconstruct(state)
 	local player = state.player
 	local surface = state.surface
 
+	local deconstructor = global.script_inventory[state.deconstruction_choice and 2 or 1]
 	surface.deconstruct_area{
 		force=player.force,
 		player=player.index,
@@ -444,9 +453,8 @@ function layout:simple_deconstruct(state)
 			left_top={c.x1-m.size-1, c.y1-m.size-1},
 			right_bottom={c.x2+m.size+1, c.y2+m.size+1}
 		},
-		item=global.script_inventory[1],
+		item=deconstructor,
 	}
-
 	state.delegate = "place_miners"
 end
 

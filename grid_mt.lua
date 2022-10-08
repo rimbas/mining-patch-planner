@@ -37,12 +37,13 @@ grid_mt.__index = grid_mt
 ---@field contains_resource boolean
 ---@field resources integer
 ---@field neighbor_count integer
+---@field neighbor_counts table<number, number>
 ---@field far_neighbor_count integer
 ---@field x integer
 ---@field y integer
 ---@field gx double actual coordinate in surface
 ---@field gy double actual coordinate in surface
----@field consumed integer How many miners are consuming this tile
+---@field boolean integer Is a miner consuming this tile
 ---@field built_on boolean|string Is tile occupied by a building entity
 
 ---@class Miner
@@ -65,15 +66,17 @@ end
 ---@param y integer coordinate of the resource patch
 function grid_mt:convolve(x, y)
 	local near, far = self.miner.near, self.miner.far
-	for sy = -far, far do
-		local row = self[y+sy]
+	local ny1, ny2 = y-near, y+near
+	local nx1, nx2 = x-near, x+near
+	for sy = y-far, y+far do
+		local row = self[sy]
 		if row == nil then goto continue_row end
-		for sx = -far, far do
-			local tile = row[x+sx]
+		for sx = x-far, x+far do
+			local tile = row[sx]
 			if tile == nil then goto continue_column end
 
 			tile.far_neighbor_count = tile.far_neighbor_count + 1
-			if -near <= sx and sx <= near and -near <= sy and sy <= near then
+			if nx1 <= sx and sx <= nx2 and ny1 <= sy and sy <= ny2 then
 				tile.neighbor_count = tile.neighbor_count + 1
 			end
 			::continue_column::
@@ -83,11 +86,11 @@ function grid_mt:convolve(x, y)
 end
 
 function grid_mt:convolve_custom(x, y, w)
-	for sy = -w, w do
-		local row = self[y+sy]
+	for sy = y-w, y+w do
+		local row = self[sy]
 		if row == nil then goto continue_row end
-		for sx = -w, w do
-			local tile = row[x+sx]
+		for sx = x-w, x+w do
+			local tile = row[sx]
 			if tile == nil then goto continue_column end
 			tile.neighbor_counts[w] = (tile.neighbor_counts[w] or 0) + 1
 			::continue_column::
@@ -102,11 +105,11 @@ end
 function grid_mt:consume(cx, cy)
 	local mc = self.miner
 	local far = mc.far
-	for y = -far, far do
-		local row = self[cy+y]
+	for y = cy-far, cy+far do
+		local row = self[y]
 		if row == nil then goto continue_row end
-		for x = -far, far do
-			local tile = row[cx+x]
+		for x = cx-far, cx+far do
+			local tile = row[x]
 			if tile and tile.contains_resource then
 				tile.consumed = true
 			end
@@ -116,11 +119,11 @@ function grid_mt:consume(cx, cy)
 end
 
 function grid_mt:consume_custom(cx, cy, w)
-	for y = -w, w do
-		local row = self[cy+y]
+	for y = cy-w, cy+w do
+		local row = self[y]
 		if row == nil then goto continue_row end
-		for x = -w, w do
-			local tile = row[cx+x]
+		for x = cx-w, cx+w do
+			local tile = row[x]
 			if tile and tile.contains_resource then
 				tile.consumed = true
 			end
@@ -137,14 +140,80 @@ function grid_mt:clear_consumed(tiles)
 	end
 end
 
+---Builder function
+---@param cx number x coord
+---@param cy number y coord
+---@param thing string Type of building
+---@param r number Radius
+---@param even boolean Is even width building
+function grid_mt:build_thing(cx, cy, thing, r, even)
+	local o = even and 1 or 0
+	for y = cy+o-r, cy+r do
+		local row = self[y]
+		if row == nil then goto continue_row end
+		for x = cx+o-r, cx+r do
+			local tile = row[x]
+			if tile then
+				tile.built_on = thing
+			end
+		end
+		::continue_row::
+	end
+end
+
+---Finds if an entity type is built near
+---@param cx number x coord
+---@param cy number y coord
+---@param thing string Type of building
+---@param r number Radius
+---@param even boolean Is even width building
+---@return boolean
+function grid_mt:find_thing(cx, cy, thing, r, even)
+	local o = even and 1 or 0
+	for y = cy+o-r, cy+r do
+		local row = self[y]
+		if row == nil then goto continue_row end
+		for x = cx+o-r, cx+r do
+			local tile = row[x]
+			if tile and tile.built_on == thing then
+				return true
+			end
+		end
+		::continue_row::
+	end
+	return false
+end
+
+---Finds if an entity type is built near
+---@param cx number x coord
+---@param cy number y coord
+---@param things table<string, true> Types of entities
+---@param r number Radius
+---@param even boolean Is even width building
+---@return boolean
+function grid_mt:find_thing_in(cx, cy, things, r, even)
+	local o = even and 1 or 0
+	for y = cy+o-r, cy+r do
+		local row = self[y]
+		if row == nil then goto continue_row end
+		for x = cx+o-r, cx+r do
+			local tile = row[x]
+			if tile and things[tile.built_on] then
+				return true
+			end
+		end
+		::continue_row::
+	end
+	return false
+end
 
 function grid_mt:build_miner(cx, cy)
 	local near = self.miner.near
-	for y = -near, near do
-		local row = self[cy+y]
+	for y = cy-near, cy+near do
+		local row = self[y]
 		if row == nil then goto continue_row end
-		for x = -near, near do
-			local tile = row[cx+x]
+		for x = cx-near, cx+near do
+			local tile = row[x]
 			if tile then
 				tile.built_on = "miner"
 			end
@@ -154,11 +223,11 @@ function grid_mt:build_miner(cx, cy)
 end
 
 function grid_mt:build_miner_custom(cx, cy, w)
-	for y = -w, w do
-		local row = self[cy+y]
+	for y = cy-w, cy+w do
+		local row = self[y]
 		if row == nil then goto continue_row end
-		for x = -w, w do
-			local tile = row[cx+x]
+		for x = cx-w, cx+w do
+			local tile = row[x]
 			if tile then
 				tile.built_on = "miner"
 			end
@@ -170,13 +239,13 @@ end
 function grid_mt:get_unconsumed(mx, my)
 	local far = self.miner.far
 	local count = 0
-	for y = -far, far do
-		local row = self[my+y]
+	for y = my-far, my+far do
+		local row = self[y]
 		if row == nil then goto continue_row end
-		for x = -far, far do
-			local tile = row[mx+x]
+		for x = mx-far, mx+far do
+			local tile = row[x]
 			if tile then
-				if tile.contains_resource and tile.consumed == 0 then
+				if tile.contains_resource and not tile.consumed then
 					count = count + 1
 				end
 			end
@@ -188,13 +257,13 @@ end
 
 function grid_mt:get_unconsumed_custom(mx, my, w)
 	local count = 0
-	for y = -w, w do
-		local row = self[my+y]
+	for y = my-w, my+w do
+		local row = self[y]
 		if row == nil then goto continue_row end
-		for x = -w, w do
-			local tile = row[mx+x]
+		for x = mx-w, mx+w do
+			local tile = row[x]
 			if tile then
-				if tile.contains_resource and tile.consumed == 0 then
+				if tile.contains_resource and not tile.consumed then
 					count = count + 1
 				end
 			end

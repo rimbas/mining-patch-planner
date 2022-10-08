@@ -3,13 +3,13 @@ local mpp_util = require("mpp_util")
 ---@class EvaluatedBlueprint
 ---@field w number
 ---@field h number
----@field bp_grid BlueprintGrid
+---@field tw number Runtime transposed width
+---@field th number Runtime transposed height
+---@field ox number Start offset x
+---@field oy number Start offset y
 ---@field entities table<number, BlueprintEntity>
 local bp_meta = {}
 bp_meta.__index = bp_meta
-
----@class BlueprintGrid
----@ 
 
 ---Blueprint analysis data
 ---@param bp LuaItemStack
@@ -19,6 +19,11 @@ function bp_meta:new(bp)
 	local new = setmetatable({}, self)
 
 	new.w, new.h = bp.blueprint_snap_to_grid.x, bp.blueprint_snap_to_grid.y
+	if bp.blueprint_position_relative_to_grid then
+		new.ox, new.oy = bp.blueprint_position_relative_to_grid.x, bp.blueprint_position_relative_to_grid.y
+	else
+		new.ox, new.oy = 0, 0
+	end
 	new.entities = bp.get_blueprint_entities()
 
 	new:evaluate_tiling()
@@ -30,22 +35,37 @@ end
 ---Marks capstone BlueprintEntities
 function bp_meta:evaluate_tiling()
 	local sw, sh = self.w, self.h
-	local buckets = {}
+	local buckets_x, buckets_y = {}, {}
 
 	for i, ent in pairs(self.entities) do
 		local x, y = ent.position.x, ent.position.y
-		if not buckets[x] then buckets[x] = {} end
-		table.insert(buckets[x], ent)
+		if not buckets_x[x] then buckets_x[x] = {} end
+		table.insert(buckets_x[x], ent)
+		if not buckets_y[y] then buckets_y[y] = {} end
+		table.insert(buckets_y[y], ent)
 	end
 
-	for _, bucket in pairs(buckets) do
+	for _, bucket in pairs(buckets_x) do
+		for i = 1, #bucket-1 do
+			local e1 = bucket[i] ---@type BlueprintEntity
+			local e1x = e1.position.x
+			for j = 2, #bucket do
+				local e2 = bucket[j] ---@type BlueprintEntity
+				if e1x + sh == e2.position.x or e1x - sh == e2.position.x then
+					e2.capstone_x = true
+				end
+			end
+		end
+	end
+
+	for _, bucket in pairs(buckets_y) do
 		for i = 1, #bucket-1 do
 			local e1 = bucket[i] ---@type BlueprintEntity
 			local e1y = e1.position.y
 			for j = 2, #bucket do
 				local e2 = bucket[j] ---@type BlueprintEntity
 				if e1y + sh == e2.position.y or e1y - sh == e2.position.y then
-					e2.capstone = true
+					e2.capstone_y = true
 				end
 			end
 		end

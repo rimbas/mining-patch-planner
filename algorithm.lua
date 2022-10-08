@@ -37,6 +37,8 @@ require_layout("blueprints")
 ---@field coverage_choice boolean
 ---@field logistics_choice string
 ---@field landfill_choice boolean
+---@field start_choice boolean
+---@field deconstruction_choice boolean
 ---@field coords Coords
 ---@field grid Grid
 ---@field miner MinerStruct
@@ -47,7 +49,8 @@ require_layout("blueprints")
 ---@field cache EvaluatedBlueprint
 
 ---@param event EventDataPlayerSelectedArea
----@return State
+---@return State|nil
+---@return LocalisedString error status
 local function create_state(event)
 	---@type State
 	local state = {}
@@ -70,11 +73,14 @@ local function create_state(event)
 	end
 
 	if state.layout_choice == "blueprints" then
-		local blueprint = player_data.blueprints.mapping[player_data.choices.blueprint_choice.index]
+		if not player_data.choices.blueprint_choice then
+			return nil, {"mpp.msg_unselected_blueprint"}
+		end
+		local blueprint = player_data.choices.blueprint_choice
 		state.blueprint_inventory = game.create_inventory(1)
 		state.blueprint = state.blueprint_inventory.find_empty_stack()
 		state.blueprint.set_stack(blueprint)
-		state.cache = player_data.blueprints.cache[player_data.choices.blueprint_choice.index]
+		state.cache = player_data.blueprints.cache[player_data.choices.blueprint_choice.item_number]
 	end
 
 	return state
@@ -119,7 +125,8 @@ end
 function algorithm.on_player_selected_area(event)
 	---@type PlayerData
 	local player_data = global.players[event.player_index]
-	local state = create_state(event)
+	local state, err = create_state(event)
+	if not state then return nil, err end
 	local layout = layouts[player_data.choices.layout_choice]
 
 	local coords, filtered, found_resources = process_entities(event.entities)
