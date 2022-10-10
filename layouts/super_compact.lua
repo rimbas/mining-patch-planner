@@ -23,6 +23,7 @@ layout.restrictions.pole_omittable = true
 layout.restrictions.pole_width = {1, 1}
 layout.restrictions.pole_length = {5, 10e3}
 layout.restrictions.pole_supply_area = {2.5, 10e3}
+layout.restrictions.coverage_tuning = true
 layout.restrictions.lamp_available = false
 
 layout.on_load = simple.on_load
@@ -56,6 +57,7 @@ local function placement_attempt(state, shift_x, shift_y)
 	local far_neighbor_sum = 0
 	local miners, postponed = {}, {}
 	local miner_score, postponed_score = 0, 0
+	local simple_density = 0
 	
 	---@param tile GridTile
 	local function heuristic(tile) return tile.neighbor_count > 2 end
@@ -76,6 +78,7 @@ local function placement_attempt(state, shift_x, shift_y)
 				if center.far_neighbor_count > 0 then
 					if heuristic(center) then
 						miners[#miners+1] = miner
+						simple_density = simple_density + center.neighbor_count / (size ^ 2)
 					else
 						postponed[#postponed+1] = miner
 					end
@@ -98,13 +101,31 @@ local function placement_attempt(state, shift_x, shift_y)
 		sx=shift_x, sy=shift_y,
 		miners = miners,
 		postponed = postponed,
+		simple_density = simple_density,
 	}
 end
 
 ---@param attempt PlacementAttempt
 ---@param miner MinerStruct
-local function attempt_score_heuristic(attempt, miner)
-	return #attempt.miners + #attempt.postponed * 3
+local function attempt_heuristic_economic(attempt, miner)
+	local miner_count = #attempt.miners
+	local simple_density = attempt.simple_density
+	return miner_count - simple_density
+end
+
+---@param attempt PlacementAttempt
+---@param miner MinerStruct
+local function attempt_heuristic_coverage(attempt, miner)
+	local miner_count = #attempt.miners
+	local simple_density = attempt.simple_density
+	return simple_density - miner_count
+end
+
+local function attempt_score_heuristic(state, miner, coverage)
+	if coverage then
+		return attempt_heuristic_coverage(state, miner)
+	end
+	return attempt_heuristic_economic(state, miner)
 end
 
 ---@param self CompactLayout
@@ -127,7 +148,7 @@ function layout:init_first_pass(state)
 	end
 
 	state.best_attempt = placement_attempt(state, attempts[1][1], attempts[1][2])
-	state.best_attempt_score = attempt_score_heuristic(state.best_attempt, state.miner)
+	state.best_attempt_score = attempt_score_heuristic(state.best_attempt, state.miner, state.coverage_choice)
 
 	state.delegate = "first_pass"
 end
@@ -139,7 +160,7 @@ function layout:first_pass(state)
 	local attempt_state = state.attempts[state.attempt_index]
 	---@type PlacementAttempt
 	local current_attempt = placement_attempt(state, attempt_state[1], attempt_state[2])
-	local current_attempt_score = attempt_score_heuristic(current_attempt, state.miner)
+	local current_attempt_score = attempt_score_heuristic(current_attempt, state.miner, state.coverage_choice)
 
 	if current_attempt_score < state.best_attempt_score  then
 		state.best_attempt_index = state.attempt_index

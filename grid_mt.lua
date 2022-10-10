@@ -118,11 +118,18 @@ function grid_mt:consume(cx, cy)
 	end
 end
 
-function grid_mt:consume_custom(cx, cy, w)
-	for y = cy-w, cy+w do
+---@param cx number
+---@param cy number
+---@param w number
+---@param evenw boolean
+---@param evenh boolean
+function grid_mt:consume_custom(cx, cy, w, evenw, evenh)
+	local ox, oy = evenw and 1 or 0, evenh and 1 or 0
+	local x1, x2 = cx+ox-w, cx+w
+	for y = cy+oy-w, cy+w do
 		local row = self[y]
 		if row == nil then goto continue_row end
-		for x = cx-w, cx+w do
+		for x = x1, x2 do
 			local tile = row[x]
 			if tile and tile.contains_resource then
 				tile.consumed = true
