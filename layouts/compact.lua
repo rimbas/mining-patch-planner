@@ -23,6 +23,7 @@ layout.restrictions.pole_omittable = true
 layout.restrictions.pole_width = {1, 1}
 layout.restrictions.pole_length = {7.5, 10e3}
 layout.restrictions.pole_supply_area = {2.5, 10e3}
+layout.restrictions.coverage_tuning = true
 layout.restrictions.lamp_available = true
 
 layout.on_load = simple.on_load
@@ -30,26 +31,25 @@ layout.start = simple.start
 layout.process_grid = simple.process_grid
 
 ---@param miner MinerStruct
-local function miner_heuristic(miner, variant)
-	local near, far, size = miner.near, miner.far, miner.size
-
-	local neighbor_cap = floor((size ^ 2) / far)
-	local far_neighbor_cap = floor((far * 2 + 1) ^ 2 / far)
-
-	if variant == "importance" then
-		---@param center GridTile
-		return function(center)
-			if center.neighbor_count > neighbor_cap or (center.far_neighbor_count > far_neighbor_cap and center.neighbor_count > size) then
-				return true
-			end
+local function miner_heuristic(miner, coverage)
+	local near, far = miner.near, miner.far
+	local full, size = miner.full_size, miner.size
+	local neighbor_cap = ceil((size ^ 2) * 0.5)
+	if coverage then
+		---@param tile GridTile
+		return function(tile)
+			local nearc, farc = tile.neighbor_count, tile.far_neighbor_count
+			return nearc and (nearc > 0 or
+				(farc and farc > neighbor_cap and nearc > (size * near))
+			)
 		end
 	end
-	
-	---@param center GridTile
-	return function(center)
-		if center.neighbor_count > neighbor_cap or (center.far_neighbor_count > far_neighbor_cap and center.neighbor_count > size) then
-			return true
-		end
+	---@param tile GridTile
+	return function(tile)
+		local nearc, farc = tile.neighbor_count, tile.far_neighbor_count
+		return nearc and (nearc > neighbor_cap or
+			(farc and farc > neighbor_cap and nearc > (size * near))
+		)
 	end
 end
 
@@ -58,12 +58,15 @@ end
 local function placement_attempt(state, shift_x, shift_y)
 	local grid = state.grid
 	local size, near, far = state.miner.size, state.miner.near, state.miner.far
+	local fullsize = state.miner.full_size
 	local neighbor_sum = 0
 	local far_neighbor_sum = 0
+	local simple_density = 0
+	local real_density = 0
 	local miners, postponed = {}, {}
 	local miner_index = 1
 	
-	local heuristic = miner_heuristic(state.miner)
+	local heuristic = miner_heuristic(state.miner, state.coverage_choice)
 	
 	for ry = 1 + shift_y, state.coords.th + near, size + 0.5 do
 		local y = ceil(ry)
@@ -81,6 +84,8 @@ local function placement_attempt(state, shift_x, shift_y)
 				miners[#miners+1] = miner
 				neighbor_sum = neighbor_sum + center.neighbor_count
 				far_neighbor_sum = far_neighbor_sum + center.far_neighbor_count
+				real_density = real_density + center.far_neighbor_count / (fullsize ^ 2)
+				simple_density = simple_density + center.neighbor_count / (size ^ 2)
 			elseif center.far_neighbor_count > 0 then
 				postponed[#postponed+1] = miner
 			end
@@ -89,12 +94,55 @@ local function placement_attempt(state, shift_x, shift_y)
 		miner_index = miner_index + 1
 	end
 	
+	-- second pass
+	for _, miner in ipairs(miners) do
+		grid:consume(miner.center.x, miner.center.y)
+	end
+
+	for _, miner in ipairs(postponed) do
+		local center = miner.center
+		miner.unconsumed = grid:get_unconsumed(center.x, center.y)
+	end
+
+	table.sort(postponed, function(a, b)
+		if a.unconsumed == b.unconsumed then
+			return a.center.far_neighbor_count > b.center.far_neighbor_count
+		end
+		return a.unconsumed > b.unconsumed
+	end)
+	
+	local postponed_count = 0
+	for _, miner in ipairs(postponed) do
+		local center = miner.center
+		local unconsumed_count = grid:get_unconsumed(center.x, center.y)
+		if unconsumed_count > 0 then
+			neighbor_sum = neighbor_sum + center.neighbor_count
+			far_neighbor_sum = far_neighbor_sum + center.far_neighbor_count
+			simple_density = simple_density + center.neighbor_count / (size ^ 2)
+			real_density = real_density + center.far_neighbor_count / (fullsize ^ 2)
+
+			grid:consume(center.x, center.y)
+			miners[#miners+1] = miner
+			miner.postponed = true
+			postponed_count = postponed_count + 1
+		end
+	end
+	local unconsumed_sum = 0
+	for _, tile in ipairs(state.resource_tiles) do
+		if not tile.consumed then unconsumed_sum = unconsumed_sum + 1 end
+	end
+	
+	grid:clear_consumed(state.resource_tiles)
+
 	return {
 		sx=shift_x, sy=shift_y,
 		miners=miners,
 		postponed=postponed,
+		postponed_count=postponed_count,
 		neighbor_sum=neighbor_sum,
 		far_neighbor_sum=far_neighbor_sum,
+		real_density=real_density,
+		simple_density=simple_density,
 		density=neighbor_sum / (#miners > 0 and #miners or #postponed),
 		far_density=far_neighbor_sum / (#miners > 0 and #miners or #postponed),
 	}
@@ -102,12 +150,36 @@ end
 
 ---@param attempt PlacementAttempt
 ---@param miner MinerStruct
-local function attempt_score_heuristic(attempt, miner)
+local function attempt_heuristic_economic(attempt, miner)
+	local miner_count = #attempt.miners
+	local simple_density = attempt.simple_density
+	local real_density = attempt.real_density
 	local density_score = attempt.density
-	local miner_score = #attempt.miners  + #attempt.postponed * 3
-	local neighbor_score = attempt.neighbor_sum / (miner.size * miner.size) / 7
-	local far_neighbor_score = attempt.far_neighbor_sum / ((miner.far * 2 + 1) ^ 2) / 2
-	return miner_score - density_score - neighbor_score - far_neighbor_score
+	local neighbor_score = attempt.neighbor_sum / (miner.size ^ 2) / 7
+	local far_neighbor_score = attempt.far_neighbor_sum / (miner.full_size ^ 2) / 7
+	return miner_count - simple_density
+end
+
+---@param attempt PlacementAttempt
+---@param miner MinerStruct
+local function attempt_heuristic_coverage(attempt, miner)
+	local miner_count = #attempt.miners
+	local simple_density = attempt.simple_density
+	local real_density = attempt.real_density
+	local density_score = attempt.density
+	local neighbor_score = attempt.neighbor_sum / (miner.size ^ 2)
+	local far_neighbor_score = attempt.far_neighbor_sum / (miner.full_size ^ 2)
+	--local leech_score = attempt.leech_sum / (miner.full_size ^ 2 - miner.size ^ 2)
+	--return real_density - miner_count
+	--return simple_density + real_density - miner_count
+	return simple_density - miner_count
+end
+
+local function attempt_score_heuristic(state, miner, coverage)
+	if coverage then
+		return attempt_heuristic_coverage(state, miner)
+	end
+	return attempt_heuristic_economic(state, miner)
 end
 
 ---@param self CompactLayout
@@ -129,7 +201,7 @@ function layout:init_first_pass(state)
 	end
 
 	state.best_attempt = placement_attempt(state, attempts[1][1], attempts[1][2])
-	state.best_attempt_score = attempt_score_heuristic(state.best_attempt, state.miner)
+	state.best_attempt_score = attempt_score_heuristic(state.best_attempt, state.miner, state.coverage_choice)
 
 	state.delegate = "first_pass"
 end
@@ -141,7 +213,7 @@ function layout:first_pass(state)
 	local attempt_state = state.attempts[state.attempt_index]
 	---@type PlacementAttempt
 	local current_attempt = placement_attempt(state, attempt_state[1], attempt_state[2])
-	local current_attempt_score = attempt_score_heuristic(current_attempt, state.miner)
+	local current_attempt_score = attempt_score_heuristic(current_attempt, state.miner, state.coverage_choice)
 
 	if current_attempt_score < state.best_attempt_score  then
 		state.best_attempt_index = state.attempt_index
@@ -151,63 +223,10 @@ function layout:first_pass(state)
 
 	if state.attempt_index >= #state.attempts then
 		--game.print(("Chose attempt #%i"):format(state.best_attempt_index))
-		state.delegate = "second_pass"
+		state.delegate = "simple_deconstruct"
 	else
 		state.attempt_index = state.attempt_index + 1
 	end
-end
-
----@param self CompactLayout
----@param state SimpleState
-function layout:second_pass(state)
-	local grid = state.grid
-	local m = state.miner
-	local attempt = state.best_attempt
-	
-	for _, miner in ipairs(attempt.miners) do
-		grid:consume(miner.center.x, miner.center.y)
-	end
-
-	for _, miner in ipairs(attempt.postponed) do
-		local center = miner.center
-		miner.unconsumed = grid:get_unconsumed(center.x, center.y)
-	end
-
-	table.sort(attempt.postponed, function(a, b)
-		if a.unconsumed == b.unconsumed then
-			return a.center.far_neighbor_count > b.center.far_neighbor_count
-		end
-		return a.unconsumed > b.unconsumed
-	end)
-
-	local miners = attempt.miners
-	for _, miner in ipairs(attempt.postponed) do
-		local center = miner.center
-		local unconsumed_count = grid:get_unconsumed(center.x, center.y)
-		if unconsumed_count > 0 then
-			grid:consume(center.x, center.y)
-			miners[#miners+1] = miner
-		end
-	end
-
-	--[[ debug visualisation - unconsumed tiles
-	local c = state.coords
-	for k, tile in pairs(state.resource_tiles) do
-		if not tile.consumed then
-			rendering.draw_circle{
-				surface = state.surface,
-				filled = false,
-				color = {1, 0, 0, 1},
-				width = 4,
-				target = {c.gx + tile.x, c.gy + tile.y},
-				radius = 0.45,
-				players={state.player},
-			}
-		end
-	end
-	--]]
-
-	state.delegate = "simple_deconstruct"
 end
 
 layout.simple_deconstruct = simple.simple_deconstruct

@@ -14,7 +14,7 @@ local layout = table.deepcopy(base)
 
 ---@class SimpleState : State
 ---@field first_pass any
----@field attempts any
+---@field attempts PlacementAttempt[]
 ---@field attempt_index number
 ---@field best_attempt PlacementAttempt
 ---@field resourcs LuaEntity[]

@@ -70,18 +70,22 @@ function layout:init_first_pass(state)
 	state.best_attempt_index = 1
 	state.attempt_index = 2 -- first attempt is used up
 	
-	local fullsize = m.far * 2 + 1
-	local slackw = ceil(c.tw / fullsize) * fullsize - c.tw
-	local modx = slackw % 2
-	local slackw2 = m.far - floor(slackw / 2) - m.near
-	
-	local slackh = ceil(c.th / fullsize) * fullsize - c.th
-	local mody = slackh % 2
-	local slackh2 = m.far - floor(slackh / 2) - m.near
+	local function calc_slack(tw, near, far)
+		local fullsize = far * 2 + 1
+		local count = ceil(tw / fullsize)
+		local overrun = count * fullsize - tw
+		local slack = overrun % 2
+		--local start = far-near-floor(overrun / 2) - slack
+		local start = (far-near)-floor(overrun / 2) - slack
+		return count, start, slack
+	end
 
+	local countx, slackw2, modx = calc_slack(c.tw, m.near, m.far)
+	local county, slackh2, mody = calc_slack(c.th, m.near, m.far)
+	
 	for sy = slackh2, slackh2 + mody do
 		for sx = slackw2, slackw2 + modx do
-			attempts[#attempts+1] = {sx, sy}
+			attempts[#attempts+1] = {sx, sy, cx = countx, cy = county}
 		end
 	end
 
@@ -280,10 +284,11 @@ function layout:placement_poles(state)
 
 	local initial_y = attempt.sy
 	local iy = 1
-	for y = initial_y, c.th + m.size, m.full_size * 2 do
+	for y = initial_y, c.th + m.full_size, m.full_size * 2 do
 		if (m.far - m.near) * 2 + 2 > supply_area then -- single pole can't supply two lanes
-			place_pole_lane(y, {0, 1, 0, 1})
+			place_pole_lane(y, iy)
 			if y ~= initial_y then
+				iy = iy + 1
 				place_pole_lane(y - (m.far - m.near) * 2 + 1, iy, true)
 			end
 		else

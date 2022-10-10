@@ -272,7 +272,8 @@ end
 -- LuaEntityPrototype#tile_height was added in 1.1.64, I'm developing on 1.1.61
 local even_width_memoize = {}
 function mpp_util.entity_even_width(name)
-	if even_width_memoize[name] then return even_width_memoize[name] end
+	local check = even_width_memoize[name]
+	if check then return check end
 	local proto = game.entity_prototypes[name]
 	local cbox = proto.collision_box
 	local cbox_tl, cbox_br = cbox.left_top, cbox.right_bottom

@@ -7,9 +7,14 @@ local mpp_util = require("mpp_util")
 ---@field th number Runtime transposed height
 ---@field ox number Start offset x
 ---@field oy number Start offset y
----@field entities table<number, BlueprintEntity>
+---@field entities BlueprintEntityEx All entities in the blueprint
+---@field miners table<string, MinerStruct> List of used miner types
 local bp_meta = {}
 bp_meta.__index = bp_meta
+
+---@class BlueprintEntityEx : BlueprintEntity
+---@field capstone_x number
+---@field capstone_y number
 
 ---Blueprint analysis data
 ---@param bp LuaItemStack
