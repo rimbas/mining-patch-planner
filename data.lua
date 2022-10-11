@@ -249,6 +249,14 @@ default_style.mpp_fake_blueprint_button_selected = {
 	}
 }
 
+default_style.mpp_fake_blueprint_button_invalid = {
+	type="button_style",
+	parent="shortcut_bar_button_red",
+	padding=3,
+	size=48,
+	stretch_image_to_widget_size=true,
+}
+
 default_style.mpp_fake_blueprint_table = {
 	type="table_style",
 	padding=0,

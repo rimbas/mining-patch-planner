@@ -120,12 +120,13 @@ local function create_blueprint_entry(player_data, table_root, blueprint_item, c
 
 	for k, v in pairs(blueprint_item.blueprint_icons) do
 		local s = v.signal
-		local sprite = s.name
+		local sprite = s.name or ""
 		if s.type == "virtual" then
 			sprite = "virtual-signal/"..sprite --wube pls
 		else
 			sprite = s.type .. "/" .. sprite
 		end
+		if not fake_table.gui.is_valid_sprite_path(sprite) then sprite = "item/item-unknown" end
 		fake_table.add{
 			type="sprite",
 			sprite=(sprite),
@@ -150,14 +151,23 @@ local function create_blueprint_entry(player_data, table_root, blueprint_item, c
 		tooltip=tooltip,
 	}
 
-	if not player_data.blueprints.cache[item_number] then
-		player_data.blueprints.cache[item_number] = blueprint_meta:new(blueprint_item)
+	local cached = player_data.blueprints.cache[item_number]
+	if not cached then
+		cached = blueprint_meta:new(blueprint_item)
+		player_data.blueprints.cache[item_number] = cached
+	else
+		if not cached:check_valid() then
+			blueprint_button.style = "mpp_fake_blueprint_button_invalid"
+			if player_data.choices.blueprint_choice == blueprint_item then
+				player_data.choices.blueprint_choice = nil
+			end
+		end
 	end
-	if cursor_stack and cursor_stack.valid then
+	if cursor_stack and cursor_stack.valid and cached.valid then
 		player_data.blueprints.original_id[item_number] = cursor_stack.item_number
 	end
 
-	if not player_data.choices.blueprint_choice then
+	if not player_data.choices.blueprint_choice and cached.valid then
 		set_player_blueprint(player_data, blueprint_button)
 	end
 end
@@ -315,7 +325,11 @@ local function update_miner_selection(player_data)
 	end
 
 	if not existing_choice_is_valid then
-		player_choices.miner_choice = layout.defaults.miner
+		if mpp_util.table_find(values, function(v) return v.value == layout.defaults.miner end) then
+			player_choices.miner_choice = layout.defaults.miner
+		else
+			player_choices.miner_choice = values[1].value
+		end
 	end
 
 	local table_root = player_data.gui.tables["miner"]
@@ -662,7 +676,9 @@ local function on_gui_click(event)
 		create_blueprint_entry(player_data, blueprint_table, pending_slot, cursor_stack)
 	elseif evt_ele_tags["mpp_fake_blueprint_button"] then
 		local button = event.element
-		set_player_blueprint(player_data, button)
+		if button.style.name ~= "mpp_fake_blueprint_button_invalid" then
+			set_player_blueprint(player_data, button)
+		end
 	elseif evt_ele_tags["mpp_delete_blueprint_button"] then
 		local choices = player_data.choices
 		local deleted_number = evt_ele_tags["mpp_delete_blueprint_button"]
