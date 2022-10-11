@@ -1,6 +1,7 @@
 local mpp_util = require("mpp_util")
 
 ---@class EvaluatedBlueprint
+---@field valid boolean Are all blueprint entities valid
 ---@field w number
 ---@field h number
 ---@field tw number Runtime transposed width
@@ -8,6 +9,7 @@ local mpp_util = require("mpp_util")
 ---@field ox number Start offset x
 ---@field oy number Start offset y
 ---@field entities BlueprintEntityEx All entities in the blueprint
+---@field entity_names table<string, number>
 ---@field miners table<string, MinerStruct> List of used miner types
 local bp_meta = {}
 bp_meta.__index = bp_meta
@@ -23,6 +25,7 @@ function bp_meta:new(bp)
 	---@type EvaluatedBlueprint
 	local new = setmetatable({}, self)
 
+	new.valid = true
 	new.w, new.h = bp.blueprint_snap_to_grid.x, bp.blueprint_snap_to_grid.y
 	if bp.blueprint_position_relative_to_grid then
 		new.ox, new.oy = bp.blueprint_position_relative_to_grid.x, bp.blueprint_position_relative_to_grid.y
@@ -30,6 +33,7 @@ function bp_meta:new(bp)
 		new.ox, new.oy = 0, 0
 	end
 	new.entities = bp.get_blueprint_entities()
+	new.entity_names = bp.cost_to_build
 
 	new:evaluate_tiling()
 	new:evaluate_miners()
@@ -87,6 +91,17 @@ function bp_meta:evaluate_miners()
 			miners[name] = mpp_util.miner_struct(proto)
 		end
 	end
+end
+
+function bp_meta:check_valid()
+	for k, v in pairs(self.entity_names) do
+		if not game.entity_prototypes[k] and not game.item_prototypes[k] then
+			self.valid = false
+			return false
+		end
+	end
+	self.valid = true
+	return true
 end
 
 return bp_meta

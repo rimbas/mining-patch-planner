@@ -36,7 +36,7 @@ local conf = {}
 ---@field flow table<number, LuaGuiElement> Root blueprint element
 ---@field button table<number, LuaGuiElement> Blueprint button toggle
 ---@field delete table<number, LuaGuiElement> Blueprint delete button
----@field cache table<number, table>
+---@field cache table<number, EvaluatedBlueprint>
 ---@field original_id table<number, number> Inventory blueprint id to 
 
 ---@type PlayerData
