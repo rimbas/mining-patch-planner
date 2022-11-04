@@ -22,6 +22,8 @@ local conf = {}
 ---@field coverage_choice boolean
 ---@field start_choice boolean
 ---@field deconstruction_choice boolean
+---@field pipe_choice boolean
+---@field module_choice table<string, number>
 
 ---@class PlayerGui
 ---@field section table<string, LuaGuiElement>
@@ -58,6 +60,8 @@ conf.default_config = {
 		coverage_choice = false,
 		start_choice = false,
 		deconstruction_choice = false,
+		pipe_choice = false,
+		module_choice = {},
 	},
 
 	gui = {

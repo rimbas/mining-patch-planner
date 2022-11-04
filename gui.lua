@@ -55,6 +55,7 @@ local function create_setting_selector(player_data, root, action_type, action, v
 	player_data.gui.selections[action] = action_class
 	root.clear()
 	local selected = player_data.choices[action.."_choice"]
+
 	for _, value in ipairs(values) do
 		local toggle_value = action_type == "mpp_toggle" and player_data.choices[value.value.."_choice"]
 		local style_check = value.value == selected or toggle_value
@@ -98,7 +99,7 @@ end
 ---@param cursor_stack LuaItemStack|nil
 local function create_blueprint_entry(player_data, table_root, blueprint_item, cursor_stack)
 	local blueprint_line = table_root.add{type="flow"}
-	local item_number = blueprint_item.item_number
+	local item_number = blueprint_item.item_number --[[@as number]]
 	player_data.blueprints.flow[item_number] = blueprint_line
 	player_data.blueprints.mapping[item_number] = blueprint_item
 	
@@ -407,6 +408,7 @@ local function update_logistics_selection(player_data)
 			value=chest.name,
 			tooltip=chest.localised_name,
 			icon=("entity/"..chest.name),
+			order=chest.order,
 		}
 		if chest.name == choices.logistics_choice then existing_choice_is_valid = true end
 
@@ -442,6 +444,7 @@ local function update_pole_selection(player_data)
 		value="none",
 		tooltip={"mpp.choice_none"},
 		icon="mpp_no_entity",
+		order="",
 	}
 
 	local existing_choice_is_valid = ("none" == choices.pole_choice)
@@ -459,6 +462,7 @@ local function update_pole_selection(player_data)
 			value=pole.name,
 			tooltip=pole.localised_name,
 			icon=("entity/"..pole.name),
+			order=pole.order,
 		}
 		if pole.name == choices.pole_choice then existing_choice_is_valid = true end
 
@@ -487,38 +491,36 @@ local function update_misc_selection(player_data)
 		}
 	end
 
-	if player_data.advanced then
-		if layout.restrictions.coverage_tuning then
-			values[#values+1] = {
-				value="coverage",
-				tooltip={"mpp.choice_coverage"},
-				icon=("mpp_miner_coverage"),
-			}
-		end
+	if layout.restrictions.deconstruction_omit_available then
+		values[#values+1] = {
+			value="deconstruction",
+			tooltip={"mpp.choice_deconstruction"},
+			icon=("mpp_omit_deconstruct"),
+		}
+	end
 
-		if layout.restrictions.start_alignment_tuning then
-			values[#values+1] = {
-				value="start",
-				tooltip={"mpp.choice_start"},
-				icon=("mpp_align_start"),
-			}
-		end
+	if layout.restrictions.landfill_omit_available then
+		values[#values+1] = {
+			value="landfill",
+			tooltip={"mpp.choice_landfill"},
+			icon=("mpp_omit_landfill")
+		}
+	end
 
-		if layout.restrictions.landfill_omit_available then
-			values[#values+1] = {
-				value="landfill",
-				tooltip={"mpp.choice_landfill"},
-				icon=("mpp_omit_landfill")
-			}
-		end
+	if layout.restrictions.coverage_tuning then
+		values[#values+1] = {
+			value="coverage",
+			tooltip={"mpp.choice_coverage"},
+			icon=("mpp_miner_coverage"),
+		}
+	end
 
-		if layout.restrictions.deconstruction_omit_available then
-			values[#values+1] = {
-				value="deconstruction",
-				tooltip={"mpp.choice_deconstruction"},
-				icon=("mpp_omit_deconstruct"),
-			}
-		end
+	if layout.restrictions.start_alignment_tuning then
+		values[#values+1] = {
+			value="start",
+			tooltip={"mpp.choice_start"},
+			icon=("mpp_align_start"),
+		}
 	end
 
 	local misc_section = player_data.gui.section["misc"]

@@ -1,6 +1,7 @@
 local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
 
+local common = require("layouts.common")
 local base = require("layouts.base")
 local grid_mt = require("grid_mt")
 local pole_grid_mt = require("pole_grid_mt")
@@ -61,7 +62,7 @@ function layout:validate(state)
 	-- 		return nil, {"mpp.msg_miner_err_1_h", 7}
 	-- 	end
 	-- end
-	return true
+	return base.validate(self, state)
 end
 
 ---@param self SimpleLayout
@@ -253,9 +254,9 @@ local function placement_attempt(state, shift_x, shift_y)
 	local c = state.coords
 	local grid = state.grid
 	local size, near, far, fullsize = state.miner.size, state.miner.near, state.miner.far, state.miner.full_size
+	local miners, postponed = {}, {}
 	local neighbor_sum = 0
 	local far_neighbor_sum = 0
-	local miners, postponed = {}, {}
 	local miner_index = 1
 	local simple_density = 0
 	local real_density = 0
@@ -285,7 +286,7 @@ local function placement_attempt(state, shift_x, shift_y)
 				far_neighbor_sum = far_neighbor_sum + center.far_neighbor_count
 				simple_density = simple_density + center.neighbor_count / (size ^ 2)
 				real_density = real_density + center.far_neighbor_count / (fullsize ^ 2)
-				leech_sum = max(0, center.far_neighbor_count - center.neighbor_count)
+				leech_sum = leech_sum + max(0, center.far_neighbor_count - center.neighbor_count)
 			elseif center.far_neighbor_count > 0 then
 				postponed[#postponed+1] = miner
 			end
@@ -294,48 +295,7 @@ local function placement_attempt(state, shift_x, shift_y)
 		miner_index = miner_index + 1
 	end
 
-	-- second pass
-	for _, miner in ipairs(miners) do
-		grid:consume(miner.center.x, miner.center.y)
-	end
-
-	for _, miner in ipairs(postponed) do
-		local center = miner.center
-		miner.unconsumed = grid:get_unconsumed(center.x, center.y)
-	end
-
-	table.sort(postponed, function(a, b)
-		if a.unconsumed == b.unconsumed then
-			return a.center.far_neighbor_count > b.center.far_neighbor_count
-		end
-		return a.unconsumed > b.unconsumed
-	end)
-
-	local postponed_count = 0
-	for _, miner in ipairs(postponed) do
-		local center = miner.center
-		local unconsumed_count = grid:get_unconsumed(center.x, center.y)
-		if unconsumed_count > 0 then
-			neighbor_sum = neighbor_sum + center.neighbor_count
-			far_neighbor_sum = far_neighbor_sum + center.far_neighbor_count
-			simple_density = simple_density + center.neighbor_count / (size ^ 2)
-			real_density = real_density + center.far_neighbor_count / (fullsize ^ 2)
-			leech_sum = leech_sum + max(0, center.far_neighbor_count - center.neighbor_count)
-
-			grid:consume(center.x, center.y)
-			miners[#miners+1] = miner
-			miner.postponed = true
-			postponed_count = postponed_count + 1
-		end
-	end
-	local unconsumed_sum = 0
-	for _, tile in ipairs(state.resource_tiles) do
-		if not tile.consumed then unconsumed_sum = unconsumed_sum + 1 end
-	end
-	
-	grid:clear_consumed(state.resource_tiles)
-
-	return {
+	local result = {
 		sx=shift_x, sy=shift_y,
 		miners=miners,
 		--postponed=postponed,
@@ -347,9 +307,13 @@ local function placement_attempt(state, shift_x, shift_y)
 		simple_density=simple_density,
 		real_density=real_density,
 		far_density=far_neighbor_sum / #miners,
-		unconsumed_count=unconsumed_sum,
-		postponed_count=postponed_count,
+		unconsumed_count=0,
+		postponed_count=0,
 	}
+
+	common.process_postponed(state, result, miners, postponed)
+
+	return result
 end
 
 ---@param attempt PlacementAttempt

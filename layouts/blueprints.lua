@@ -55,7 +55,7 @@ end
 ---@param self BlueprintLayout
 ---@param state BlueprintState
 function layout:validate(state)
-	return true
+	return base.validate(self, state)
 end
 
 ---@param self BlueprintLayout
@@ -517,8 +517,10 @@ function layout:place_other(state)
 			direction = other_ent.direction,
 			inner_name = ent.name,
 			type=ent.type,
+			output_priority=ent.output_priority,
+			input_priority=ent.input_priority,
+			filter=ent.filter,
 		}
-
 
 		if ent.items then
 			target.item_requests = ent.items

@@ -8,7 +8,7 @@ local mpp_util = require("mpp_util")
 ---@field th number Runtime transposed height
 ---@field ox number Start offset x
 ---@field oy number Start offset y
----@field entities BlueprintEntityEx All entities in the blueprint
+---@field entities BlueprintEntityEx[] All entities in the blueprint
 ---@field entity_names table<string, number>
 ---@field miners table<string, MinerStruct> List of used miner types
 local bp_meta = {}
@@ -32,7 +32,7 @@ function bp_meta:new(bp)
 	else
 		new.ox, new.oy = 0, 0
 	end
-	new.entities = bp.get_blueprint_entities()
+	new.entities = bp.get_blueprint_entities() or {}
 	new.entity_names = bp.cost_to_build
 
 	new:evaluate_tiling()
@@ -102,6 +102,22 @@ function bp_meta:check_valid()
 	end
 	self.valid = true
 	return true
+end
+
+---Returns resource categories for a blueprint
+---@return table<string, boolean>
+function bp_meta:get_resource_categories()
+	local categories = {}
+	for miner_name, struct in pairs(self.miners) do
+		---@type LuaEntityPrototype
+		local proto = game.entity_prototypes[miner_name]
+		if proto.resource_categories then
+			for cat, bool in pairs(proto.resource_categories) do
+				categories[cat] = bool
+			end
+		end
+	end
+	return categories
 end
 
 return bp_meta

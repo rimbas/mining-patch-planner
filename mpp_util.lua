@@ -1,3 +1,4 @@
+local enums = require("enums")
 local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
 
@@ -228,7 +229,17 @@ function mpp_util.validate_blueprint(player, blueprint)
 		player.print({"mpp.msg_blueprint_undefined_grid"})
 		return false
 	end
-	return true
+	
+	local miners, _ = enums.get_available_miners()
+	local cost = blueprint.cost_to_build
+	for name, _ in pairs(miners) do
+		if cost[name] then
+			return true
+		end
+	end
+	
+	player.print({"mpp.msg_blueprint_no_miner"})
+	return false
 end
 
 function mpp_util.keys_to_set(...)
@@ -265,6 +276,14 @@ function table.filter(t, func)
 	local new = {}
 	for k, v in ipairs(t) do
 		if func(v) then new[#new+1] = v end
+	end
+	return new
+end
+
+function table.map(t, func)
+	local new = {}
+	for k, v in pairs(t) do
+		new[k] = func(v)
 	end
 	return new
 end

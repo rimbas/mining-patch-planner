@@ -1,10 +1,9 @@
 local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
 
-local util = require("util")
+local common = require("layouts.common")
 local base = require("layouts.base")
 local simple = require("layouts.simple")
-local grid_mt = require("grid_mt")
 local mpp_util = require("mpp_util")
 local coord_convert, coord_revert = mpp_util.coord_convert, mpp_util.coord_revert
 local miner_direction, opposite = mpp_util.miner_direction, mpp_util.opposite
@@ -52,12 +51,14 @@ layout.process_grid = simple.process_grid
 ---@return PlacementAttempt
 local function placement_attempt(state, shift_x, shift_y)
 	local grid = state.grid
-	local size, near, far = state.miner.size, state.miner.near, state.miner.far
+	local size, near, fullsize = state.miner.size, state.miner.near, state.miner.full_size
 	local neighbor_sum = 0
 	local far_neighbor_sum = 0
 	local miners, postponed = {}, {}
 	local miner_score, postponed_score = 0, 0
 	local simple_density = 0
+	local real_density = 0
+	local leech_sum = 0
 	
 	---@param tile GridTile
 	local function heuristic(tile) return tile.neighbor_count > 2 end
@@ -78,7 +79,11 @@ local function placement_attempt(state, shift_x, shift_y)
 				if center.far_neighbor_count > 0 then
 					if heuristic(center) then
 						miners[#miners+1] = miner
+						neighbor_sum = neighbor_sum + center.neighbor_count
+						far_neighbor_sum = far_neighbor_sum + center.far_neighbor_count
 						simple_density = simple_density + center.neighbor_count / (size ^ 2)
+						real_density = real_density + center.far_neighbor_count / (fullsize ^ 2)
+						leech_sum = leech_sum + max(0, center.far_neighbor_count - center.neighbor_count)
 					else
 						postponed[#postponed+1] = miner
 					end
@@ -97,12 +102,23 @@ local function placement_attempt(state, shift_x, shift_y)
 	miner_stagger(3-size, 0+size+2, "west", 2)
 	miner_stagger(0+size, 2+size+2, "north", 2)
 
-	return {
+	local result = {
 		sx=shift_x, sy=shift_y,
 		miners = miners,
-		postponed = postponed,
+		postponed = {},
+		neighbor_sum = neighbor_sum,
+		far_neighbor_sum = far_neighbor_sum,
+		leech_sum=leech_sum,
 		simple_density = simple_density,
+		real_density = real_density,
+		far_density = far_neighbor_sum / #miners,
+		unconsumed_count = 0,
+		postponed_count = 0,
 	}
+
+	common.process_postponed(state, result, miners, postponed)
+
+	return result
 end
 
 ---@param attempt PlacementAttempt

@@ -16,24 +16,21 @@ local function reset_gui(player)
 end
 
 script.on_configuration_changed(function(config_changed_data)
-	if config_changed_data.mod_changes["mining-patch-planner"] then
-		local version = global.version or 0
-
-		if version < current_version then
-			global.tasks = global.tasks or {}
-			conf.initialize_deconstruction_filter()
-			for player_index, data in ipairs(global.players) do
-				---@cast data PlayerData
-				---@type LuaPlayer
-				local player = game.players[player_index]
-				reset_gui(player)
-				conf.initialize_global(player_index, data)
-			end
+	local version = global.version or 0
+	if config_changed_data.mod_changes["mining-patch-planner"] and version < current_version then
+		global.tasks = global.tasks or {}
+		conf.initialize_deconstruction_filter()
+		for player_index, data in ipairs(global.players) do
+			---@cast data PlayerData
+			---@type LuaPlayer
+			local player = game.players[player_index]
+			reset_gui(player)
+			conf.initialize_global(player_index, data)
 		end
-		global.version = current_version
 	else
 		for player_index, data in ipairs(global.players) do
 			reset_gui(game.players[player_index])
 		end
     end
+	global.version = current_version
 end)

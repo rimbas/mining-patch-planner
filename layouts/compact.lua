@@ -1,10 +1,9 @@
 local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
 
-local util = require("util")
+local common = require("layouts.common")
 local base = require("layouts.base")
 local simple = require("layouts.simple")
-local grid_mt = require("grid_mt")
 local mpp_util = require("mpp_util")
 local coord_convert, coord_revert = mpp_util.coord_convert, mpp_util.coord_revert
 local miner_direction, opposite = mpp_util.miner_direction, mpp_util.opposite

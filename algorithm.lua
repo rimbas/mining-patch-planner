@@ -39,6 +39,8 @@ require_layout("blueprints")
 ---@field landfill_choice boolean
 ---@field start_choice boolean
 ---@field deconstruction_choice boolean
+---@field pipe_choice boolean
+---@field module_choice table<string, number>
 ---@field coords Coords
 ---@field grid Grid
 ---@field miner MinerStruct
@@ -48,7 +50,7 @@ require_layout("blueprints")
 ---@field blueprint LuaItemStack
 ---@field cache EvaluatedBlueprint
 
----@param event EventDataPlayerSelectedArea
+---@param event EventData.on_player_selected_area
 ---@return State|nil
 ---@return LocalisedString error status
 local function create_state(event)
@@ -69,7 +71,7 @@ local function create_state(event)
 	-- player option properties
 	local player_choices = player_data.choices
 	for k, v in pairs(player_choices) do
-		state[k] = v
+		state[k] = util.copy(v)
 	end
 
 	if state.layout_choice == "blueprints" then
@@ -77,10 +79,10 @@ local function create_state(event)
 			return nil, {"mpp.msg_unselected_blueprint"}
 		end
 		local blueprint = player_data.choices.blueprint_choice
-		state.blueprint_inventory = game.create_inventory(1)
-		state.blueprint = state.blueprint_inventory.find_empty_stack()
-		state.blueprint.set_stack(blueprint)
-		state.cache = player_data.blueprints.cache[player_data.choices.blueprint_choice.item_number]
+		-- state.blueprint_inventory = game.create_inventory(1)
+		-- state.blueprint = state.blueprint_inventory.find_empty_stack()
+		-- state.blueprint.set_stack(blueprint)
+		state.cache = player_data.blueprints.cache[blueprint.item_number]
 	end
 
 	return state
@@ -88,19 +90,19 @@ end
 
 ---Filters resource entity list and returns patch coordinates and size
 ---@param entities LuaEntity[]
+---@param available_resource_categories table<string, true>
 ---@return Coords, LuaEntity[]
 ---@return table<string, string> @key:resource name; value:resource category
-local function process_entities(entities)
+local function process_entities(entities, available_resource_categories)
 	local filtered = {}
 	local found_resources = {} -- resource.name: resource_category
 	local x1, y1 = math.huge, math.huge
 	local x2, y2 = -math.huge, -math.huge
+	local _, cached_resource_categories = enums.get_available_miners()
 	for _, entity in pairs(entities) do
-		---@type LuaResourceCategoryPrototype
 		local category = entity.prototype.resource_category
-		local _, cached_resources = enums.get_available_miners()
-		if cached_resources[category] then
-			found_resources[entity.name] = category
+		found_resources[entity.name] = category
+		if cached_resource_categories[category] and available_resource_categories[category] then
 			filtered[#filtered+1] = entity
 			local x, y = entity.position.x, entity.position.y
 			if x < x1 then x1 = x end
@@ -119,9 +121,19 @@ local function process_entities(entities)
 	return coords, filtered, found_resources
 end
 
+---@param state State
+---@param layout Layout
+local function get_miner_categories(state, layout)
+	if layout.name == "blueprints" then
+		return state.cache:get_resource_categories()
+	else
+		return game.entity_prototypes[state.miner_choice].resource_categories or {}
+	end
+end
+
 --- Algorithm hook
 --- Returns nil if it fails
----@param event EventDataPlayerSelectedArea
+---@param event EventData.on_player_selected_area
 function algorithm.on_player_selected_area(event)
 	---@type PlayerData
 	local player_data = global.players[event.player_index]
@@ -129,27 +141,32 @@ function algorithm.on_player_selected_area(event)
 	if not state then return nil, err end
 	local layout = layouts[player_data.choices.layout_choice]
 
-	local coords, filtered, found_resources = process_entities(event.entities)
+	local layout_categories = get_miner_categories(state, layout)
+	local coords, filtered, found_resources = process_entities(event.entities, layout_categories)
 	state.coords = coords
 	state.resources = filtered
 	state.found_resources = found_resources
 
-	if #filtered == 0 then
+	if #state.resources == 0 then
+		for resource, category in pairs(state.found_resources) do
+			if not layout_categories[category] then
+				local miner_name = game.entity_prototypes[state.miner_choice].localised_name
+				if layout.name == "blueprints" then
+					miner_name = {"mpp.choice_none"}
+					for k, v in pairs(state.cache.miners) do
+						miner_name = game.entity_prototypes[k].localised_name
+						break
+					end
+				end
+				local resource_name = game.entity_prototypes[resource].localised_name
+				--player.print(("Can't build on this resource patch with selected miner \"%s\" because it can't mine resource \"%s\""):format())
+				return nil, {"", {"mpp.msg_miner_err_2_1"}, " \"", miner_name, "\" ", {"mpp.msg_miner_err_2_2"}, " \"", resource_name, "\""}
+			end
+		end
+
 		return nil, {"mpp.msg_miner_err_0"}
 	end
 
-	local cats = game.entity_prototypes[state.miner_choice].resource_categories
-
-	for k, v in pairs(found_resources) do
-		if not cats[v] then
-			local miner_name = game.entity_prototypes[state.miner_choice].localised_name
-			local resource_name = game.entity_prototypes[k].localised_name
-			--player.print(("Can't build on this resource patch with selected miner \"%s\" because it can't mine resource \"%s\""):format())
-			state.player.print{"", {"mpp.msg_miner_err_2_1"}, " \"", miner_name, "\" ", {"mpp.msg_miner_err_2_2"}, " \"", resource_name, "\""}
-			return
-		end
-	end
-	
 	local validation_result, error = layout:validate(state)
 	if validation_result then
 		layout:initialize(state)
@@ -163,7 +180,7 @@ function algorithm.on_player_selected_area(event)
 			filled=false, color={0, 0.8, 0.3, 1},
 			width = 8,
 			draw_on_ground = true,
-			time_to_live = 60*5,
+			time_to_live = 60*15,
 			players={state.player},
 		}
 

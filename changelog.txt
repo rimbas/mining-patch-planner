@@ -1,4 +1,15 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.3.1
+Date: 2022-11-04
+  Features:
+    - Moved all miscellaneous settings from being hidden behind advanced options
+  Bugfixes:
+    - Fixed crash because of a missing flags check in miner guard clause
+    - Fixed migration logic on mod changes
+    - Pyanodons compatibility (more so to support Py miners in custom blueprints)
+    - Fixed splitter settings in blueprints not being preserved
+    - Fixed Super Compact layout sometimes missing single resource tiles
+---------------------------------------------------------------------------------------------------
 Version: 1.3.0
 Date: 2022-10-11
   Features:
