@@ -1,3 +1,4 @@
+local mpp_util = require("mpp_util")
 
 ---@class GridRow: GridTile[]
 
@@ -199,6 +200,7 @@ end
 ---@param even boolean Is even width building
 ---@return boolean
 function grid_mt:find_thing_in(cx, cy, things, r, even)
+	things = mpp_util.list_to_keys(things)
 	local o = even and 1 or 0
 	for y = cy+o-r, cy+r do
 		local row = self[y]

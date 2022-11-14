@@ -256,6 +256,14 @@ function mpp_util.keys_to_set(...)
 	return set
 end
 
+function mpp_util.list_to_keys(t)
+	local temp = {}
+	for _, k in ipairs(t) do
+		temp[k] = true
+	end
+	return temp
+end
+
 ---@param bp LuaItemStack
 function mpp_util.blueprint_label(bp)
 	local label = bp.label
@@ -288,8 +296,18 @@ function table.map(t, func)
 	return new
 end
 
+---@class CollisionBoxProperties
+---@field w number
+---@field h number
+---@field near number
+---@field [1] number
+---@field [2] number
+
 -- LuaEntityPrototype#tile_height was added in 1.1.64, I'm developing on 1.1.61
 local even_width_memoize = {}
+---Gets properties of entity collision box
+---@param name string
+---@return CollisionBoxProperties
 function mpp_util.entity_even_width(name)
 	local check = even_width_memoize[name]
 	if check then return check end

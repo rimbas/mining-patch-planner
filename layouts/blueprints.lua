@@ -520,6 +520,9 @@ function layout:place_other(state)
 			output_priority=ent.output_priority,
 			input_priority=ent.input_priority,
 			filter=ent.filter,
+			filters=ent.filters,
+			filter_mode=ent.filter_mode,
+			override_stack_size=ent.override_stack_size,
 		}
 
 		if ent.items then
@@ -558,7 +561,7 @@ function layout:place_beacons(state)
 		
 		local even = mpp_util.entity_even_width(ent.name)
 		local range = floor(game.entity_prototypes[ent.name].supply_area_distance)
-		if grid:find_thing(center.x, center.y, "miner", range, even[1]) then
+		if grid:find_thing(center.x, center.y, "miner", range+even.near, even[1]) then
 			local ex, ey = fix_offgrid(center, ent)
 			local x, y = coord_revert[state.direction_choice](ex, ey, c.tw, c.th)
 			local target = surface.create_entity{
@@ -596,7 +599,7 @@ function layout:place_electricity(state)
 		
 		local even = mpp_util.entity_even_width(ent.name)
 		local range = floor(game.entity_prototypes[ent.name].supply_area_distance)
-		if grid:find_thing_in(center.x, center.y, {miner=true, beacon=true}, range, even[1]) then
+		if grid:find_thing_in(center.x, center.y, {"miner", "beacon"}, range, even[1]) then
 			local ex, ey = fix_offgrid(center, ent)
 			local x, y = coord_revert[state.direction_choice](ex, ey, c.tw, c.th)
 			local target = surface.create_entity{
@@ -616,6 +619,44 @@ function layout:place_electricity(state)
 		end
 	end
 	state.delegate = "finish"
+end
+
+---@param self BlueprintLayout
+---@param state BlueprintState
+function layout:debug_overlay(state)
+	local c = state.coords
+	local surface = state.surface
+	local grid = state.grid
+	state.delegate = "finish"
+
+	-- Draws built thing overlay
+
+	for iy, row in pairs(grid) do
+		if type(iy) ~= "number" then
+			game.print("asdf")
+			return
+		end
+		for ix, tile in pairs(row) do
+			local building = tile.built_on
+			if building then
+				local color = {0.3, 0.3, 0.3, 0.5}
+				if building == "miner" then
+					color = {0.1, 0.1, 0.8, 0.7}
+				elseif building == "beacon" then
+					color = {0.1, 0.8, 0.8, 0.7}
+				end
+
+				rendering.draw_circle{
+					surface=state.surface,
+					player=state.player,
+					filled=false,
+					radius=0.5,
+					color=color,
+					target={tile.gx-1, tile.gy-1},
+				}
+			end
+		end
+	end
 end
 
 ---@param self BlueprintLayout

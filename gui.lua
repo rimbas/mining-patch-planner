@@ -662,7 +662,7 @@ local function on_gui_click(event)
 				if v == bp.item_number then return true end
 			end
 		end
-		if check_existing(cursor_stack) then 
+		if check_existing(cursor_stack) then
 			player.print({"mpp.msg_blueprint_existing"})
 			return nil
 		end
@@ -680,6 +680,7 @@ local function on_gui_click(event)
 		local button = event.element
 		if button.style.name ~= "mpp_fake_blueprint_button_invalid" then
 			set_player_blueprint(player_data, button)
+			abort_blueprint_mode(player)
 		end
 	elseif evt_ele_tags["mpp_delete_blueprint_button"] then
 		local choices = player_data.choices
