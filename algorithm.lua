@@ -39,8 +39,8 @@ require_layout("blueprints")
 ---@field landfill_choice boolean
 ---@field start_choice boolean
 ---@field deconstruction_choice boolean
----@field pipe_choice boolean
----@field module_choice table<string, number>
+---@field pipe_choice string
+---@field module_choice string
 ---@field coords Coords
 ---@field grid Grid
 ---@field miner MinerStruct

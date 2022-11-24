@@ -64,5 +64,6 @@
 ---@field landfill_omit_available boolean
 ---@field start_alignment_tuning boolean
 ---@field deconstruction_omit_available boolean
+---@field module_available boolean
 
 table.deepcopy = function(t) end

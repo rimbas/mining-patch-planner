@@ -6,9 +6,8 @@ data:extend{
 		name="mining-patch-planner",
 		icon=graphics.."drill-icon.png",
 		icon_size = 64,
-		flags = {"only-in-cursor", "hidden", "spawnable"},
+		flags = {"only-in-cursor", "hidden", "spawnable", "not-stackable"},
         stack_size = 1,
-        stackable = false,
 		order="c[automated-construction]-e[miner-planner]",
 		draw_label_for_cursor_render = true,
 		selection_color = {r=0, g=0, b=1, a=0.5},
@@ -55,7 +54,7 @@ data:extend{
 		icon_size = 64,
 		item_to_spawn="mining-patch-planner",
 		style="blue",
-		associated_control_input="mining-patch-selector-keybind",
+		associated_control_input="mining-patch-planner-keybind",
 		technology_to_unlock="",
 	},
 	{
@@ -170,6 +169,14 @@ data:extend{
 		mipmap_count = 2,
 		flags = { "icon" },
 	},
+	{
+		type = "sprite",
+		name = "mpp_no_module",
+		filename = graphics.."no_module.png",
+		size = 64,
+		mipmap_count = 1,
+		flags = { "icon" },
+	},
 }
 
 local default_style = data.raw["gui-style"].default
@@ -214,6 +221,14 @@ default_style.mpp_blueprint_mode_button_active = {
 		base = {position = {352, 17}, corner_size = 8},
 		shadow = {position = {440, 24}, corner_size = 8, draw_type = "outer"},
 	}
+}
+
+default_style.mpp_fake_item_placeholder = {
+	type="image_style",
+	vertically_stretchable = "on",
+	horizontally_stretchable = "on",
+	stretch_image_to_widget_size = true,
+	size=32,
 }
 
 default_style.mpp_fake_blueprint_button = {

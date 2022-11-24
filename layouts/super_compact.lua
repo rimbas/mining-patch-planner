@@ -24,6 +24,7 @@ layout.restrictions.pole_length = {5, 10e3}
 layout.restrictions.pole_supply_area = {2.5, 10e3}
 layout.restrictions.coverage_tuning = true
 layout.restrictions.lamp_available = false
+layout.restrictions.module_available = true
 
 layout.on_load = simple.on_load
 
@@ -200,6 +201,7 @@ function layout:place_miners(state)
 	local g = state.grid
 	local surface = state.surface
 	local DIR = state.direction_choice
+	local module_inv_size = state.miner.module_inventory_size
 
 	for _, miner in ipairs(state.best_attempt.miners) do
 		local center = miner.center
@@ -215,7 +217,7 @@ function layout:place_miners(state)
 			end
 		end
 
-		surface.create_entity{
+		local ghost = surface.create_entity{
 			raise_built=true,
 			name="entity-ghost",
 			player=state.player,
@@ -224,6 +226,10 @@ function layout:place_miners(state)
 			direction = defines.direction[miner_dir],
 			inner_name = state.miner_choice,
 		}
+
+		if state.module_choice ~= "none" then
+			ghost.item_requests = {[state.module_choice] = module_inv_size}
+		end
 		
 		--[[ debug visualisation - miner placement
 		local color = {1, 0, 0}

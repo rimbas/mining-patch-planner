@@ -22,6 +22,7 @@ layout.restrictions.pole_width = {1, 1}
 layout.restrictions.pole_length = {7.5, 10e3}
 layout.restrictions.pole_supply_area = {2.5, 10e3}
 layout.restrictions.lamp_available = true
+layout.restrictions.module_available = true
 
 layout.on_load = simple.on_load
 layout.start = simple.start

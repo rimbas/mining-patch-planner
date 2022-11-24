@@ -38,6 +38,7 @@ layout.restrictions.pole_length = {5, 10e3}
 layout.restrictions.pole_supply_area = {2.5, 10e3}
 layout.restrictions.lamp_available = true
 layout.restrictions.coverage_tuning = true
+layout.restrictions.module_available = true
 
 ---Called from script.on_load
 ---@param self SimpleLayout
@@ -273,7 +274,7 @@ local function placement_attempt(state, shift_x, shift_y)
 		local column_index = 1
 		for x = 1 + shift_x, state.coords.tw + near, size do
 			local tile = grid:get_tile(x, y)
-			local center = grid:get_tile(x+near, y+near)
+			local center = grid:get_tile(x+near, y+near) --[[@as GridTile]]
 			local miner = {
 				tile = tile,
 				line = miner_index,
@@ -428,6 +429,7 @@ function layout:place_miners(state)
 	local c = state.coords
 	local g = state.grid
 	local surface = state.surface
+	local module_inv_size = state.miner.module_inventory_size
 	for _, miner in ipairs(state.best_attempt.miners) do
 		local center = miner.center
 		g:build_miner(center.x, center.y)
@@ -458,7 +460,7 @@ function layout:place_miners(state)
 		local direction = miner_direction[state.direction_choice]
 		if flip_lane then direction = opposite[direction] end
 
-		surface.create_entity{
+		local ghost = surface.create_entity{
 			raise_built=true,
 			name="entity-ghost",
 			player=state.player,
@@ -467,6 +469,10 @@ function layout:place_miners(state)
 			direction = defines.direction[direction],
 			inner_name = state.miner_choice,
 		}
+
+		if state.module_choice ~= "none" then
+			ghost.item_requests = {[state.module_choice] = module_inv_size}
+		end
 	end
 
 	state.delegate = "placement_belts"

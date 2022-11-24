@@ -64,6 +64,7 @@ end
 ---@field near number Close radius
 ---@field resource_categories table<string, boolean>
 ---@field full_size number Full span of the miner
+---@field module_inventory_size number
 
 ---@param miner_proto LuaEntityPrototype
 ---@return MinerStruct
@@ -79,6 +80,7 @@ function mpp_util.miner_struct(miner_proto)
 	miner.near =  floor(miner.size * 0.5)
 	miner.resource_categories = miner_proto.resource_categories
 	miner.name = miner_proto.name
+	miner.module_inventory_size = miner_proto.module_inventory_size
 
 	return miner
 end

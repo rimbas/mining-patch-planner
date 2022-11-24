@@ -14,6 +14,18 @@ local gui = {}
 	mpp_toggle - a toggle for a boolean "*_choice"
 ]]
 
+---@class SettingValueEntry
+---@field action string Action tag override
+---@field type string|nil Button type
+---@field value string Value name
+---@field tooltip LocalisedString
+---@field icon SpritePath
+---@field order string
+---@field default string
+---@field elem_type string
+---@field elem_filters PrototypeFilter?
+---@field elem_value string?
+
 ---Creates a setting section (label + table)
 ---Can be hidden
 ---@param player_data PlayerData
@@ -50,6 +62,8 @@ end
 
 ---@param player_data any global player GUI reference object
 ---@param root LuaGuiElement
+---@param action_type string Default action tag
+---@param values SettingValueEntry[]
 local function create_setting_selector(player_data, root, action_type, action, values)
 	local action_class = {}
 	player_data.gui.selections[action] = action_class
@@ -57,15 +71,36 @@ local function create_setting_selector(player_data, root, action_type, action, v
 	local selected = player_data.choices[action.."_choice"]
 
 	for _, value in ipairs(values) do
+		local action_type_override = value.action or action_type
 		local toggle_value = action_type == "mpp_toggle" and player_data.choices[value.value.."_choice"]
 		local style_check = value.value == selected or toggle_value
-		local button = root.add{
-			type="sprite-button",
-			style=style_helper_selection(style_check),
-			sprite=value.icon,
-			tags={[action_type]=action, value=value.value, default=value.default},
-			tooltip=value.tooltip,
-		}
+		local button
+		if value.type == "choose-elem-button" then
+			button = root.add{
+				type="choose-elem-button",
+				style=style_helper_selection(),
+				tooltip={"gui.module"},
+				elem_type=value.elem_type,
+				elem_filters=value.elem_filters,
+				item=value.elem_value,
+				tags={[action_type_override]=action, value=value.value, default=value.default},
+			}
+			local fake_placeholder = button.add{
+				type="sprite",
+				sprite=value.icon,
+				ignored_by_interaction=true,
+				style="mpp_fake_item_placeholder",
+				visible=not value.elem_value,
+			}
+		else
+			button = root.add{
+				type="sprite-button",
+				style=style_helper_selection(style_check),
+				sprite=value.icon,
+				tags={[action_type_override]=action, value=value.value, default=value.default},
+				tooltip=value.tooltip,
+			}
+		end
 		action_class[value.value] = button
 	end
 end
@@ -481,7 +516,28 @@ end
 local function update_misc_selection(player_data)
 	local choices = player_data.choices
 	local layout = layouts[choices.layout_choice]
+	---@type SettingValueEntry[]
 	local values = {}
+
+	if layout.restrictions.module_available then
+		local existing_choice = choices.module_choice
+		if not game.item_prototypes[existing_choice] then
+			existing_choice = nil
+			choices.module_choice = "none"
+		end
+
+		values[#values+1] = {
+			action="mpp_prototype",
+			value="module",
+			--tooltip={"gui.module"},
+			icon=("mpp_no_module"),
+			default="mining-patch-planner-module",
+			elem_type="item",
+			elem_filters={{filter="type", type="module"}},
+			elem_value = existing_choice,
+			type="choose-elem-button",
+		}
+	end
 
 	if layout.restrictions.lamp_available then
 		values[#values+1] = {
@@ -717,5 +773,23 @@ local function on_gui_selection_state_changed(event)
 	end
 end
 script.on_event(defines.events.on_gui_selection_state_changed, on_gui_selection_state_changed)
+
+---@param event EventData.on_gui_elem_changed
+local function on_gui_elem_changed(event)
+	local element = event.element
+	local player = game.players[event.player_index]
+	---@type PlayerData
+	local player_data = global.players[event.player_index]
+	local evt_ele_tags = element.tags
+	if evt_ele_tags["mpp_prototype"] then
+		local action = evt_ele_tags.value
+		local old_choice = player_data.choices[action.."_choice"]
+		local choice = element.elem_value
+		element.children[1].visible = not choice
+		player_data.choices[action.."_choice"] = choice or "none"
+	end
+end
+
+script.on_event(defines.events.on_gui_elem_changed, on_gui_elem_changed)
 
 return gui

@@ -32,6 +32,7 @@ layout.restrictions.logistics_available = false
 layout.restrictions.landfill_omit_available = true
 layout.restrictions.start_tuning = false
 layout.restrictions.deconstruction_omit_available = true
+layout.restrictions.module_available = false
 
 ---Called from script.on_load
 ---@param self Layout
