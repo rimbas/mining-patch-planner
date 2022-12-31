@@ -24,6 +24,7 @@ local conf = {}
 ---@field deconstruction_choice boolean
 ---@field pipe_choice string
 ---@field module_choice string
+---@field show_non_electric_miners_choice boolean
 
 ---@class PlayerGui
 ---@field section table<string, LuaGuiElement>
@@ -62,6 +63,9 @@ conf.default_config = {
 		deconstruction_choice = false,
 		pipe_choice = "none",
 		module_choice = "none",
+
+		-- non layout/convienence/advanced settings
+		show_non_electric_miners_choice = false,
 	},
 
 	gui = {

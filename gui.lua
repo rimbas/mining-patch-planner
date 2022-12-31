@@ -25,6 +25,7 @@ local gui = {}
 ---@field elem_type string
 ---@field elem_filters PrototypeFilter?
 ---@field elem_value string?
+---@field refresh boolean? Update selections?
 
 ---Creates a setting section (label + table)
 ---Can be hidden
@@ -97,7 +98,7 @@ local function create_setting_selector(player_data, root, action_type, action, v
 				type="sprite-button",
 				style=style_helper_selection(style_check),
 				sprite=value.icon,
-				tags={[action_type_override]=action, value=value.value, default=value.default},
+				tags={[action_type_override]=action, value=value.value, default=value.default, refresh=value.refresh},
 				tooltip=value.tooltip,
 			}
 		end
@@ -344,7 +345,8 @@ local function update_miner_selection(player_data)
 		if blacklist[miner_proto.name] then goto skip_miner end
 		local miner = mpp_util.miner_struct(miner_proto)
 
-		if not miner_proto.electric_energy_source_prototype then goto skip_miner end
+		if not player_data.choices.show_non_electric_miners_choice and not miner_proto.electric_energy_source_prototype then goto skip_miner end
+		if player_data.choices.show_non_electric_miners_choice and miner_proto.burner_prototype then goto skip_miner end
 		if miner.size % 2 == 0 then goto skip_miner end -- Algorithm doesn't support even size miners
 		if miner.near < near_radius_min or near_radius_max < miner.near then goto skip_miner end
 		if miner.far < far_radius_min or far_radius_max < miner.far then goto skip_miner end
@@ -360,12 +362,20 @@ local function update_miner_selection(player_data)
 		::skip_miner::
 	end
 
-	if not existing_choice_is_valid then
+	if not existing_choice_is_valid and #values > 0 then
 		if mpp_util.table_find(values, function(v) return v.value == layout.defaults.miner end) then
 			player_choices.miner_choice = layout.defaults.miner
 		else
 			player_choices.miner_choice = values[1].value
 		end
+	elseif #values == 0 then
+		player_choices.miner_choice = "none"
+		values[#values+1] = {
+			value="none",
+			tooltip={"mpp.msg_miner_err_3"},
+			icon="mpp_no_entity",
+			order="",
+		}
 	end
 
 	local table_root = player_data.gui.tables["miner"]
@@ -579,6 +589,15 @@ local function update_misc_selection(player_data)
 		}
 	end
 
+	if player_data.advanced then
+		values[#values+1] = {
+			value="show_non_electric_miners",
+			tooltip={"mpp.show_non_electric_miners"},
+			icon=("mpp_show_all_miners"),
+			refresh=true,
+		}
+	end
+
 	local misc_section = player_data.gui.section["misc"]
 	misc_section.visible = #values > 0
 
@@ -681,6 +700,7 @@ local function on_gui_click(event)
 		local last_value = player_data.choices[value.."_choice"]
 		player_data.choices[value.."_choice"] = not last_value
 		event.element.style = style_helper_selection(not last_value)
+		if evt_ele_tags.refresh then update_selections(player_data) end
 	elseif evt_ele_tags["mpp_blueprint_add_mode"] then
 		---@type PlayerData
 		local player_data = global.players[event.player_index]
@@ -708,7 +728,6 @@ local function on_gui_click(event)
 			return nil
 		end
 
-		
 		local player_blueprints = player_data.blueprint_items
 		local pending_slot = player_blueprints.find_empty_stack()
 		

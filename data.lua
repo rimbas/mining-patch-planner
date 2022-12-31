@@ -177,6 +177,14 @@ data:extend{
 		mipmap_count = 1,
 		flags = { "icon" },
 	},
+	{
+		type = "sprite",
+		name = "mpp_show_all_miners",
+		filename = graphics.."show_all_miners.png",
+		size = 64,
+		mipmap_count = 1,
+		flags = { "icon" },
+	}
 }
 
 local default_style = data.raw["gui-style"].default
@@ -225,8 +233,6 @@ default_style.mpp_blueprint_mode_button_active = {
 
 default_style.mpp_fake_item_placeholder = {
 	type="image_style",
-	vertically_stretchable = "on",
-	horizontally_stretchable = "on",
 	stretch_image_to_widget_size = true,
 	size=32,
 }

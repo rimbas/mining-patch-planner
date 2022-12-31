@@ -141,6 +141,10 @@ function algorithm.on_player_selected_area(event)
 	if not state then return nil, err end
 	local layout = layouts[player_data.choices.layout_choice]
 
+	if state.miner_choice == "none" then
+		return nil, {"msg_miner_err_3"}
+	end
+
 	local layout_categories = get_miner_categories(state, layout)
 	local coords, filtered, found_resources = process_entities(event.entities, layout_categories)
 	state.coords = coords
@@ -159,7 +163,6 @@ function algorithm.on_player_selected_area(event)
 					end
 				end
 				local resource_name = game.entity_prototypes[resource].localised_name
-				--player.print(("Can't build on this resource patch with selected miner \"%s\" because it can't mine resource \"%s\""):format())
 				return nil, {"", {"mpp.msg_miner_err_2_1"}, " \"", miner_name, "\" ", {"mpp.msg_miner_err_2_2"}, " \"", resource_name, "\""}
 			end
 		end
