@@ -169,6 +169,14 @@ function grid_mt:build_thing(cx, cy, thing, r, even)
 	end
 end
 
+function grid_mt:build_thing_simple(cx, cy, thing)
+	local row = self[cy]
+	if row then
+		row[cx] = thing
+		return true
+	end
+end
+
 ---Finds if an entity type is built near
 ---@param cx number x coord
 ---@param cy number y coord

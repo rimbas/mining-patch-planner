@@ -25,6 +25,7 @@ local conf = {}
 ---@field pipe_choice string
 ---@field module_choice string
 ---@field show_non_electric_miners_choice boolean
+---@field force_pipe_placement_choice boolean
 
 ---@class PlayerGui
 ---@field section table<string, LuaGuiElement>
@@ -50,7 +51,7 @@ conf.default_config = {
 
 	choices = {
 		layout_choice = "simple",
-		--blueprint_choice = nil,
+		--blueprint_choice = nil, -- nil by default, only used with blueprint option
 		direction_choice = "north",
 		miner_choice = "electric-mining-drill",
 		pole_choice = "medium-electric-pole",
@@ -61,11 +62,12 @@ conf.default_config = {
 		coverage_choice = false,
 		start_choice = false,
 		deconstruction_choice = false,
-		pipe_choice = "none",
+		pipe_choice = "pipe",
 		module_choice = "none",
 
 		-- non layout/convienence/advanced settings
 		show_non_electric_miners_choice = false,
+		force_pipe_placement_choice = false,
 	},
 
 	gui = {

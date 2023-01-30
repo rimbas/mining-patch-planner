@@ -14,6 +14,7 @@ layout.defaults.miner = "electric-mining-drill"
 layout.defaults.belt = "transport-belt"
 layout.defaults.pole = "medium-electric-pole"
 layout.defaults.logistics = "logistic-chest-passive-provider"
+layout.defaults.pipe = "pipe"
 
 layout.restrictions = {}
 layout.restrictions.miner_available = true
@@ -33,6 +34,7 @@ layout.restrictions.landfill_omit_available = true
 layout.restrictions.start_tuning = false
 layout.restrictions.deconstruction_omit_available = true
 layout.restrictions.module_available = false
+layout.restrictions.pipe_available = false
 
 ---Called from script.on_load
 ---@param self Layout

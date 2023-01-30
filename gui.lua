@@ -80,10 +80,11 @@ local function create_setting_selector(player_data, root, action_type, action, v
 			button = root.add{
 				type="choose-elem-button",
 				style=style_helper_selection(),
-				tooltip={"gui.module"},
+				tooltip=value.tooltip,
 				elem_type=value.elem_type,
 				elem_filters=value.elem_filters,
-				item=value.elem_value,
+				item=value.elem_value, -- duplicate them all;
+				entity=value.elem_value, -- and let Wube sort them out
 				tags={[action_type_override]=action, value=value.value, default=value.default},
 			}
 			local fake_placeholder = button.add{
@@ -539,21 +540,41 @@ local function update_misc_selection(player_data)
 		values[#values+1] = {
 			action="mpp_prototype",
 			value="module",
-			--tooltip={"gui.module"},
+			tooltip={"gui.module"},
 			icon=("mpp_no_module"),
-			default="mining-patch-planner-module",
+			--default="mining-patch-planner-module",
 			elem_type="item",
 			elem_filters={{filter="type", type="module"}},
 			elem_value = existing_choice,
 			type="choose-elem-button",
 		}
 	end
-
+	
 	if layout.restrictions.lamp_available then
 		values[#values+1] = {
 			value="lamp",
 			tooltip={"mpp.choice_lamp"},
 			icon=("entity/small-lamp"),
+		}
+	end
+	
+	if layout.restrictions.pipe_available then
+		local existing_choice = choices.pipe_choice
+		if not game.entity_prototypes[existing_choice] then
+			existing_choice = nil
+			choices.pipe_choice = "none"
+		end
+
+		values[#values+1] = {
+			action="mpp_prototype",
+			value="pipe",
+			tooltip={"entity-name.pipe"},
+			icon=("mpp_no_pipe"),
+			--default="mining-patch-planner-module",
+			elem_type="entity",
+			elem_filters={{filter="type", type="pipe"}},
+			elem_value = existing_choice,
+			type="choose-elem-button",
 		}
 	end
 
@@ -590,6 +611,12 @@ local function update_misc_selection(player_data)
 	end
 
 	if player_data.advanced then
+		values[#values+1] = {
+			value="force_pipe_placement",
+			tooltip={"mpp.force_pipe_placement"},
+			icon=("mpp_force_pipe")
+		}
+
 		values[#values+1] = {
 			value="show_non_electric_miners",
 			tooltip={"mpp.show_non_electric_miners"},

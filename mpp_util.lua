@@ -113,10 +113,19 @@ function mpp_util.pole_struct(pole_proto)
 	}
 end
 
-function mpp_util.map(t, key)
-	local new = {}
-	for _, v in pairs(t) do new[v[key]] = v end
-	return new
+local hardcoded_pipes = {}
+
+---@param pipe_name string Name of the normal pipe
+---@return string, LuaEntityPrototype
+function mpp_util.find_underground_pipe(pipe_name)
+	if hardcoded_pipes[pipe_name] then
+		return hardcoded_pipes[pipe_name], game.entity_prototypes[hardcoded_pipes[pipe_name]]
+	end
+	local ground_name = pipe_name.."-to-ground"
+	local ground_proto = game.entity_prototypes[ground_name]
+	if ground_proto then
+		return ground_name, ground_proto
+	end
 end
 
 function mpp_util.revert(gx, gy, direction, x, y, w, h)
@@ -296,6 +305,18 @@ function table.map(t, func)
 		new[k] = func(v)
 	end
 	return new
+end
+
+function table.mapkey(t, func)
+	local new = {}
+	for k, v in pairs(t) do
+		new[func(v)] = v
+	end
+	return new
+end
+
+function math.divmod(a, b)
+	return math.floor(a / b), a % b
 end
 
 ---@class CollisionBoxProperties

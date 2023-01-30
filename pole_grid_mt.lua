@@ -20,7 +20,7 @@ end
 
 ---@param x number
 ---@param y number
----@return GridPole
+---@return GridPole | nil
 function pole_grid_mt:get_pole(x, y)
 	if self[x] then return self[x][y] end
 end

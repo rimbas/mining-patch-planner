@@ -6,6 +6,7 @@ local base = require("layouts.base")
 local grid_mt = require("grid_mt")
 local pole_grid_mt = require("pole_grid_mt")
 local mpp_util = require("mpp_util")
+local builder = require("builder")
 local coord_convert, coord_revert = mpp_util.coord_convert, mpp_util.coord_revert
 local miner_direction, opposite = mpp_util.miner_direction, mpp_util.opposite
 local mpp_revert = mpp_util.revert
@@ -26,6 +27,7 @@ local layout = table.deepcopy(base)
 ---@field miner_lane_count number Miner lane count
 ---@field miner_max_column number Miner column span
 ---@field grid Grid
+---@field miner_lanes table<number, MinerPlacement[]>
 
 layout.name = "simple"
 layout.translation = {"mpp.settings_layout_choice_simple"}
@@ -39,6 +41,7 @@ layout.restrictions.pole_supply_area = {2.5, 10e3}
 layout.restrictions.lamp_available = true
 layout.restrictions.coverage_tuning = true
 layout.restrictions.module_available = true
+layout.restrictions.pipe_available = true
 
 ---Called from script.on_load
 ---@param self SimpleLayout
@@ -82,10 +85,11 @@ function layout:start(state)
 	c.th, c.tw = th, tw
 	local conv = coord_convert[state.direction_choice]
 
+	local x1, x2 = -1-miner.full_size, tw + miner.full_size+1
 	for y = -1-miner.full_size, th + miner.full_size+1 do
 		local row = {}
 		grid[y] = row
-		for x = -1-miner.full_size, tw + miner.full_size+1 do
+		for x = x1, x2 do
 			--local tx1, ty1 = conv(c.x1, c.y1, c.tw, c.th)
 			row[x] = {
 				contains_resource = false,
@@ -392,6 +396,7 @@ function layout:first_pass(state)
 		state.best_attempt_index = state.attempt_index
 		state.best_attempt = current_attempt
 		state.best_attempt_score = current_attempt_score
+		state.miner_lanes = current_attempt.miner_lanes
 	end
 
 	if state.attempt_index >= #state.attempts then
@@ -488,9 +493,10 @@ function layout:placement_belts(state)
 	local attempt = state.best_attempt
 
 	---@type table<number, MinerPlacement[]>
-	local miner_lanes = {{}}
+	local miner_lanes = state.miner_lanes
 	local miner_lane_number = 0 -- highest index of a lane, because using # won't do the job if a lane is missing
 	local miner_max_column = 0
+	state.miner_lanes = miner_lanes
 
 	for _, miner in ipairs(attempt.miners) do
 		local index = miner.line
@@ -651,7 +657,7 @@ end
 ---@param state SimpleState
 function layout:placement_lamp(state)
 	if not state.lamp_choice then
-		state.delegate = "placement_landfill"
+		state.delegate = "placement_pipes"
 		return
 	end
 
@@ -680,7 +686,117 @@ function layout:placement_lamp(state)
 		end
 	end
 
-	state.delegate = "placement_landfill"
+	state.delegate = "placement_pipes"
+end
+
+---@param self SimpleLayout
+---@param state SimpleState
+function layout:placement_pipes(state)
+	local _next_step = "placement_landfill"
+	if state.pipe_choice == "none" then
+		state.delegate = _next_step
+		return
+	end
+
+	if false and not state.force_pipe_placement_choice then
+		-- TODO: make a check to skip placing pipes if the resource doesn't need it
+		state.delegate = _next_step
+		return
+	end
+
+	local c = state.coords
+	local m = state.miner
+	local g = state.grid
+	local DIR = state.direction_choice
+	local create_entity = builder.create_entity_builder(state)
+	local attempt = state.best_attempt
+	local pipe = state.pipe_choice
+	local ground_pipe, ground_proto = mpp_util.find_underground_pipe(pipe)
+
+	local step, span
+	if ground_proto then
+		step = ground_proto.max_underground_distance
+		span = step + 1
+	end
+
+	for _, pre_lane in ipairs(state.miner_lanes) do
+		if not pre_lane[1] then goto continue_lanes end
+		local y = pre_lane[1].center.y
+		local sx = state.best_attempt.sx
+		local lane = table.mapkey(pre_lane, function(t) return t.column end) -- make array with intentional gaps between miners
+
+		-- Calculate a list of run-length gaps
+		-- start and length are in miner count
+		local gaps = {}
+		local current_start, current_length = nil, 0
+		for i = 1, state.miner_max_column do
+			local miner = lane[i]
+			if miner and current_start then
+				gaps[#gaps+1] = {start=current_start, length=current_length}
+				current_start, current_length = nil, 0
+			elseif not miner and not current_start then
+				current_start, current_length = i, 1
+			else
+				current_length = current_length + 1
+			end
+		end
+
+		local function make_filled(x1, length)
+			for x = x1, x1 + length do
+				g:build_thing_simple(x, y, "pipe")
+				create_entity{name=pipe, grid_x=x, grid_y=y}
+			end
+		end
+		local function make_underground(x1, length)
+			local x = x1
+			g:build_thing_simple(x, y, "pipe")
+			create_entity{
+				name=ground_pipe,
+				grid_x=x,
+				grid_y=y,
+				direction=defines.direction.west,
+			}
+
+			x = x + length
+			g:build_thing_simple(x, y, "pipe")
+			create_entity{
+				name=ground_pipe,
+				grid_x=x,
+				grid_y=y,
+				direction=defines.direction.east,
+			}
+		end
+
+		for i, gap in ipairs(gaps) do
+			local start, length = gap.start, gap.length
+			local gap_length = m.size * length
+			local gap_start = sx + (start-1) * m.size + 1
+			
+			if not ground_pipe then
+				make_filled(gap_start, gap_length-1)
+				goto continue_gap
+			end
+			local quotient, remainder = math.divmod(gap_length, span)
+
+			for j = 1, quotient do
+				local x = gap_start + (j-1) * span
+				make_underground(x, step)
+			end
+
+			local x = gap_start + quotient * span
+			if remainder > 2 then
+				make_underground(x, remainder-1)
+			else
+				make_filled(x, remainder-1)
+			end
+
+			::continue_gap::
+		end
+
+		::continue_lanes::
+	end
+
+	state.delegate = _next_step
 end
 
 ---@param self SimpleLayout

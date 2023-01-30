@@ -41,6 +41,7 @@ require_layout("blueprints")
 ---@field deconstruction_choice boolean
 ---@field pipe_choice string
 ---@field module_choice string
+---@field force_pipe_placement_choice boolean
 ---@field coords Coords
 ---@field grid Grid
 ---@field miner MinerStruct
