@@ -28,6 +28,7 @@ require_layout("blueprints")
 ---@field player LuaPlayer
 ---@field resources LuaEntity[] Filtered resources
 ---@field found_resources LuaEntity[] Found resource types
+---@field requires_fluid boolean
 ---@field layout_choice string
 ---@field direction_choice string
 ---@field miner_choice string
@@ -94,14 +95,23 @@ end
 ---@param available_resource_categories table<string, true>
 ---@return Coords, LuaEntity[]
 ---@return table<string, string> @key:resource name; value:resource category
+---@return boolean requires fluid
 local function process_entities(entities, available_resource_categories)
 	local filtered = {}
 	local found_resources = {} -- resource.name: resource_category
 	local x1, y1 = math.huge, math.huge
 	local x2, y2 = -math.huge, -math.huge
 	local _, cached_resource_categories = enums.get_available_miners()
+	local checked, requires_fluid = {}, false
 	for _, entity in pairs(entities) do
-		local category = entity.prototype.resource_category
+		local proto = entity.prototype
+		local category = proto.resource_category
+		if not checked[proto.name] then
+			checked[proto.name] = true
+			if proto.mineable_properties.required_fluid then
+				requires_fluid = true
+			end
+		end
 		found_resources[entity.name] = category
 		if cached_resource_categories[category] and available_resource_categories[category] then
 			filtered[#filtered+1] = entity
@@ -112,6 +122,7 @@ local function process_entities(entities, available_resource_categories)
 			if y2 < y then y2 = y end
 		end
 	end
+	
 	local coords = {
 		x1 = x1, y1 = y1, x2 = x2, y2 = y2,
 		ix1 = floor(x1), iy1 = floor(y1),
@@ -119,7 +130,7 @@ local function process_entities(entities, available_resource_categories)
 		gx = x1 - 1, gy = y1 - 1,
 	}
 	coords.w, coords.h = coords.ix2 - coords.ix1, coords.iy2 - coords.iy1
-	return coords, filtered, found_resources
+	return coords, filtered, found_resources, requires_fluid
 end
 
 ---@param state State
@@ -147,10 +158,11 @@ function algorithm.on_player_selected_area(event)
 	end
 
 	local layout_categories = get_miner_categories(state, layout)
-	local coords, filtered, found_resources = process_entities(event.entities, layout_categories)
+	local coords, filtered, found_resources, requires_fluid = process_entities(event.entities, layout_categories)
 	state.coords = coords
 	state.resources = filtered
 	state.found_resources = found_resources
+	state.requires_fluid = requires_fluid
 
 	if #state.resources == 0 then
 		for resource, category in pairs(state.found_resources) do
@@ -184,7 +196,6 @@ function algorithm.on_player_selected_area(event)
 			filled=false, color={0, 0.8, 0.3, 1},
 			width = 8,
 			draw_on_ground = true,
-			time_to_live = 60*15,
 			players={state.player},
 		}
 
