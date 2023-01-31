@@ -509,12 +509,12 @@ function layout:place_miners(state)
 		table.sort(lane, function(a, b) return a.center.x < b.center.x end)
 	end
 
-	state.delegate = "placement_pipes"
+	state.delegate = "place_pipes"
 end
 
 ---@param self SimpleLayout
 ---@param state SimpleState
-function layout:placement_pipes(state)
+function layout:place_pipes(state)
 	local _next_step = "placement_belts"
 	if state.pipe_choice == "none" then
 		state.delegate = _next_step

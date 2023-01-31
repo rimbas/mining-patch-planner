@@ -25,6 +25,7 @@ layout.restrictions.pole_supply_area = {2.5, 10e3}
 layout.restrictions.coverage_tuning = true
 layout.restrictions.lamp_available = true
 layout.restrictions.module_available = true
+layout.restrictions.pipe_available = true
 
 layout.on_load = simple.on_load
 layout.start = simple.start
@@ -64,19 +65,21 @@ local function placement_attempt(state, shift_x, shift_y)
 	local simple_density = 0
 	local real_density = 0
 	local miners, postponed = {}, {}
-	local miner_index = 1
+	local row_index = 1
+	local lane_layout = {}
 	
 	local heuristic = miner_heuristic(state.miner, state.coverage_choice)
 	
 	for ry = 1 + shift_y, state.coords.th + near, size + 0.5 do
 		local y = ceil(ry)
 		local column_index = 1
+		lane_layout[#lane_layout+1] = {y = y+near, row_index = row_index}
 		for x = 1 + shift_x, state.coords.tw, size do
 			local tile = grid:get_tile(x, y)
 			local center = grid:get_tile(x+near, y+near)
 			local miner = {
 				tile = tile,
-				line = miner_index,
+				line = row_index,
 				column = column_index,
 				center = center,
 			}
@@ -91,7 +94,7 @@ local function placement_attempt(state, shift_x, shift_y)
 			end
 			column_index = column_index + 1
 		end
-		miner_index = miner_index + 1
+		row_index = row_index + 1
 	end
 	
 	-- second pass
@@ -137,6 +140,7 @@ local function placement_attempt(state, shift_x, shift_y)
 	return {
 		sx=shift_x, sy=shift_y,
 		miners=miners,
+		lane_layout=lane_layout,
 		postponed=postponed,
 		postponed_count=postponed_count,
 		neighbor_sum=neighbor_sum,
@@ -230,11 +234,12 @@ function layout:first_pass(state)
 end
 
 layout.simple_deconstruct = simple.simple_deconstruct
+layout.place_miners = simple.place_miners
 
 ---@param self CompactLayout
 ---@param state SimpleState
-function layout:place_miners(state)
-	simple.place_miners(self, state)
+function layout:place_pipes(state)
+	simple.place_pipes(self, state)
 
 	local pole_proto = game.entity_prototypes[state.pole_choice] or {supply_area_distance=3, max_wire_distance=9}
 	local supply_area, wire_reach = 3.5, 9
