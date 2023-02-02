@@ -56,6 +56,7 @@ end
 -- Validate the selection
 ---@param self SimpleLayout
 ---@param state SimpleState
+---@return CallbackState
 function layout:validate(state)
 	local c = state.coords
 	-- if (state.direction_choice == "west" or state.direction_choice == "east") then
@@ -124,11 +125,12 @@ function layout:start(state)
 	--]]
 
 	state.grid = setmetatable(grid, grid_mt)
-	state.delegate = "process_grid"
+	return "process_grid"
 end
 
 ---@param self SimpleLayout
 ---@param state SimpleState
+---@return CallbackState
 function layout:process_grid(state)
 	local grid = state.grid
 	local DIR = state.direction_choice
@@ -188,8 +190,9 @@ function layout:process_grid(state)
 	end --]]
 	
 	if state.resource_iter >= #state.resources then
-		state.delegate = "init_first_pass"
+		return "init_first_pass"
 	end
+	return true
 end
 
 ---@class MinerPlacement
@@ -198,6 +201,7 @@ end
 ---@field line number lane index
 ---@field column number column index
 ---@field ent BlueprintEntity|nil
+---@field unconsumed number Unconsumed resource count for postponed miners
 
 ---@class PlacementAttempt
 ---@field sx number x shift
@@ -344,6 +348,7 @@ end
 
 ---@param attempt PlacementAttempt
 ---@param miner MinerStruct
+---@return CallbackState
 local function attempt_heuristic_coverage(attempt, miner)
 	local miner_count = #attempt.miners
 	local simple_density = attempt.simple_density
@@ -360,6 +365,7 @@ local fmt_str = "Attempt #%i (%i,%i) - miners:%i, density %.3f, score %.3f, unc 
 
 ---@param self SimpleLayout
 ---@param state SimpleState
+---@return CallbackState
 function layout:init_first_pass(state)
 	local m = state.miner
 	local attempts = {{-m.near, -m.near}}
@@ -386,12 +392,13 @@ function layout:init_first_pass(state)
 
 	--game.print(fmt_str:format(1, state.best_attempt.sx, state.best_attempt.sy, #state.best_attempt.miners, state.best_attempt.real_density, state.best_attempt_score, state.best_attempt.unconsumed_count))
 
-	state.delegate = "first_pass"
+	return "first_pass"
 end
 
 ---Bruteforce the best solution
 ---@param self SimpleLayout
 ---@param state SimpleState
+---@return CallbackState
 function layout:first_pass(state)
 	local attempt_state = state.attempts[state.attempt_index]
 	---@type PlacementAttempt
@@ -409,14 +416,15 @@ function layout:first_pass(state)
 
 	if state.attempt_index >= #state.attempts then
 		--game.print(("Chose attempt #%i, %i miners"):format(state.best_attempt_index, #state.best_attempt.miners))
-		state.delegate = "simple_deconstruct"
-	else
-		state.attempt_index = state.attempt_index + 1
+		return "simple_deconstruct"
 	end
+	state.attempt_index = state.attempt_index + 1
+	return true
 end
 
 ---@param self SimpleLayout
 ---@param state SimpleState
+---@return CallbackState
 function layout:simple_deconstruct(state)
 	local c = state.coords
 	local m = state.miner
@@ -433,11 +441,12 @@ function layout:simple_deconstruct(state)
 		},
 		item=deconstructor,
 	}
-	state.delegate = "place_miners"
+	return "place_miners"
 end
 
 ---@param self SimpleLayout
 ---@param state SimpleState
+---@return CallbackState
 function layout:place_miners(state)
 	local c = state.coords
 	local g = state.grid
@@ -509,21 +518,29 @@ function layout:place_miners(state)
 		table.sort(lane, function(a, b) return a.center.x < b.center.x end)
 	end
 
-	state.delegate = "place_pipes"
+	return "prepare_pipe_layout"
 end
+
+---@class PipePlacementSpecification
+---@field x number
+---@field x1 number
+---@field x2 number
+---@field y number
+---@field y1 number
+---@field y2 number
+---@field structure string
 
 ---@param self SimpleLayout
 ---@param state SimpleState
-function layout:place_pipes(state)
+function layout:prepare_pipe_layout(state)
 	local _next_step = "placement_belts"
 	if state.pipe_choice == "none" then
-		state.delegate = _next_step
-		return
+		return _next_step
 	elseif not state.requires_fluid and not state.force_pipe_placement_choice then
-		state.delegate = _next_step
-		return
+		return _next_step
 	end
 	state.place_pipes = true
+	state.pipe_layout_specification = {}
 
 	local m = state.miner
 	local g = state.grid
@@ -640,11 +657,21 @@ function layout:place_pipes(state)
 		}
 	end
 
-	state.delegate = _next_step
+	return "place_pipes"
 end
 
 ---@param self SimpleLayout
 ---@param state SimpleState
+---@return CallbackState
+function layout:place_pipes(state)
+
+
+	return "placement_belts"
+end
+
+---@param self SimpleLayout
+---@param state SimpleState
+---@return CallbackState
 function layout:placement_belts(state)
 	local c = state.coords
 	local m = state.miner
@@ -697,11 +724,12 @@ function layout:placement_belts(state)
 	end
 	state.longest_belt = longest_belt
 
-	state.delegate = "placement_poles"
+	return "placement_poles"
 end
 
 ---@param self SimpleLayout
 ---@param state SimpleState
+---@return CallbackState
 function layout:placement_poles(state)
 	local c = state.coords
 	local DIR = state.direction_choice
@@ -796,15 +824,15 @@ function layout:placement_poles(state)
 		end
 	end
 
-	state.delegate = "placement_lamp"
+	return "placement_lamp"
 end
 
 ---@param self SimpleLayout
 ---@param state SimpleState
+---@return CallbackState
 function layout:placement_lamp(state)
 	if not state.lamp_choice then
-		state.delegate = "placement_landfill"
-		return
+		return "placement_landfill"
 	end
 
 	local c = state.coords
@@ -832,11 +860,12 @@ function layout:placement_lamp(state)
 		end
 	end
 
-	state.delegate = "placement_landfill"
+	return "placement_landfill"
 end
 
 ---@param self SimpleLayout
 ---@param state SimpleState
+---@return CallbackState
 function layout:placement_landfill(state)
 	local c = state.coords
 	local m = state.miner
@@ -844,8 +873,7 @@ function layout:placement_landfill(state)
 	local surface = state.surface
 
 	if state.landfill_choice then
-		state.delegate = "finish"
-		return
+		return "finish"
 	end
 
 	local conv = coord_convert[state.direction_choice]
@@ -879,13 +907,14 @@ function layout:placement_landfill(state)
 		end
 	end
 
-	state.delegate = "finish"
+	return "finish"
 end
 
 ---@param self SimpleLayout
 ---@param state SimpleState
+---@return CallbackState
 function layout:finish(state)
-	state.finished = true
+	return false
 end
 
 return layout

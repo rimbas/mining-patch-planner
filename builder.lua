@@ -2,7 +2,8 @@ local mpp_util = require("mpp_util")
 local coord_revert = mpp_util.revert
 local builder = {}
 
----Entity placement function factory
+--- Builder for a convenience function that automatically translates
+--- internal grid state for a surface.create_entity call
 ---@param state State
 builder.create_entity_builder = function(state)
 	local c = state.coords

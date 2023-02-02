@@ -21,7 +21,7 @@ require_layout("compact_logistics")
 require_layout("blueprints")
 
 ---@class State
----@field delegate string
+---@field _callback string -- callback to be used in the tick
 ---@field finished boolean
 ---@field tick number
 ---@field surface LuaSurface
@@ -46,11 +46,18 @@ require_layout("blueprints")
 ---@field coords Coords
 ---@field grid Grid
 ---@field miner MinerStruct
----@field preview_rectangle nil|uint64 -- LuaRendering.draw_rectangle
+---@field preview_rectangle nil|uint64 LuaRendering.draw_rectangle
+---@field _render_objects uint64[] LuaRendering objects
 ---@field blueprint_choice LuaGuiElement
 ---@field blueprint_inventory LuaInventory
 ---@field blueprint LuaItemStack
 ---@field cache EvaluatedBlueprint
+
+--- Return value for layout callbacks
+--- string	- the name of next callback
+--- true	- repeat the current callback
+--- false	- job is finished and clean up state
+---@alias CallbackState string|boolean
 
 ---@param event EventData.on_player_selected_area
 ---@return State|nil
@@ -58,10 +65,11 @@ require_layout("blueprints")
 local function create_state(event)
 	---@type State
 	local state = {}
-	state.delegate = "start"
+	state._callback = "start"
 	state.finished = false
 	state.tick = 0
 	state.preview_rectangle = nil
+	state._render_objects = {}
 	
 	---@type PlayerData
 	local player_data = global.players[event.player_index]

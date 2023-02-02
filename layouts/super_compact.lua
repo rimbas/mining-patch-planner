@@ -9,7 +9,7 @@ local coord_convert, coord_revert = mpp_util.coord_convert, mpp_util.coord_rever
 local miner_direction, opposite = mpp_util.miner_direction, mpp_util.opposite
 local mpp_revert = mpp_util.revert
 
----@class CompactLayout : SimpleLayout
+---@class SuperCompactLayout : SimpleLayout
 local layout = table.deepcopy(base)
 
 layout.name = "super_compact"
@@ -29,7 +29,7 @@ layout.restrictions.module_available = true
 layout.on_load = simple.on_load
 
 -- Validate the selection
----@param self SimpleLayout
+---@param self SuperCompactLayout
 ---@param state SimpleState
 function layout:validate(state)
 	local c = state.coords
@@ -145,7 +145,7 @@ local function attempt_score_heuristic(state, miner, coverage)
 	return attempt_heuristic_economic(state, miner)
 end
 
----@param self CompactLayout
+---@param self SuperCompactLayout
 ---@param state SimpleState
 function layout:init_first_pass(state)
 	local m = state.miner
@@ -167,11 +167,11 @@ function layout:init_first_pass(state)
 	state.best_attempt = placement_attempt(state, attempts[1][1], attempts[1][2])
 	state.best_attempt_score = attempt_score_heuristic(state.best_attempt, state.miner, state.coverage_choice)
 
-	state.delegate = "first_pass"
+	return "first_pass"
 end
 
 ---Bruteforce the best solution
----@param self CompactLayout
+---@param self SuperCompactLayout
 ---@param state SimpleState
 function layout:first_pass(state)
 	local attempt_state = state.attempts[state.attempt_index]
@@ -186,15 +186,15 @@ function layout:first_pass(state)
 	end
 
 	if state.attempt_index >= #state.attempts then
-		state.delegate = "simple_deconstruct"
-	else
-		state.attempt_index = state.attempt_index + 1
+		return "simple_deconstruct"
 	end
+	state.attempt_index = state.attempt_index + 1
+	return true
 end
 
 layout.simple_deconstruct = simple.simple_deconstruct
 
----@param self CompactLayout
+---@param self SuperCompactLayout
 ---@param state SimpleState
 function layout:place_miners(state)
 	local c = state.coords
@@ -274,10 +274,10 @@ function layout:place_miners(state)
 		--]]
 	end
 
-	state.delegate = "placement_belts"
+	return "placement_belts"
 end
 
----@param self CompactLayout
+---@param self SuperCompactLayout
 ---@param state SimpleState
 function layout:placement_belts(state)
 	local c = state.coords
@@ -437,15 +437,14 @@ function layout:placement_belts(state)
 		stagger_shift = stagger_shift + 1
 	end
 
-	state.delegate = "placement_pole"
+	return "placement_pole"
 end
 
----@param self CompactLayout
+---@param self SuperCompactLayout
 ---@param state SimpleState
 function layout:placement_pole(state)
 	if state.pole_choice == "none" then
-		state.delegate = "placement_landfill"
-		return
+		return "placement_landfill"
 	end
 	local c = state.coords
 	local m = state.miner
@@ -468,7 +467,7 @@ function layout:placement_pole(state)
 		end
 	end
 
-	state.delegate = "placement_landfill"
+	return "placement_landfill"
 end
 
 layout.placement_landfill = simple.placement_landfill

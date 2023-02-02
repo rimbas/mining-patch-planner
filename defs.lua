@@ -37,6 +37,7 @@
 ---@field starting_state string Initial state
 ---@field defaults LayoutDefaults
 ---@field restrictions Restrictions
+---@field on_load function(state: State)
 ---@field validate function(state: State)
 ---@field initialize function(state: State)
 ---@field tick function(state: State)

@@ -90,7 +90,7 @@ function layout:start(state)
 	end
 
 	state.grid = setmetatable(grid, grid_mt)
-	state.delegate = "process_grid"
+	return "process_grid"
 end
 
 ---Called from script.on_load
@@ -147,8 +147,9 @@ function layout:process_grid(state)
 	state.resource_iter = i
 
 	if state.resource_iter >= #state.resources then
-		state.delegate = "init_first_pass"
+		return "init_first_pass"
 	end
+	return true
 end
 
 ---@param self BlueprintLayout
@@ -220,7 +221,7 @@ function layout:init_first_pass(state)
 	end
 	--]]
 
-	state.delegate = "first_pass"
+	return "first_pass"
 end
 
 ---@param miner MinerStruct
@@ -331,7 +332,7 @@ function layout:first_pass(state)
 				progress = progress + 1
 				if progress > progress_cap then
 					attempt.s_ix, attempt.s_iy, attempt.s_ie = ix, iy, ie
-					return
+					return true
 				end
 
 				::skip_ent::
@@ -340,7 +341,7 @@ function layout:first_pass(state)
 		end
 		s_ix = 0
 	end
-	state.delegate = "first_pass_finish"
+	return "first_pass_finish"
 end
 
 ---@param self BlueprintLayout
@@ -390,7 +391,7 @@ function layout:first_pass_finish(state)
 
 	state.best_attempt = attempt
 
-	state.delegate = "simple_deconstruct"
+	return "simple_deconstruct"
 end
 
 ---@param self BlueprintLayout
@@ -413,7 +414,7 @@ function layout:simple_deconstruct(state)
 		item=deconstructor,
 	}
 
-	state.delegate = "place_miners"
+	return "place_miners"
 end
 
 ---@param tile GridTile
@@ -477,7 +478,7 @@ function layout:place_miners(state)
 		end
 	end
 
-	state.delegate = "place_other"
+	return "place_other"
 end
 
 ---@param self BlueprintLayout
@@ -544,7 +545,7 @@ function layout:place_other(state)
 		::continue::
 	end
 
-	state.delegate = "place_beacons"
+	return "place_beacons"
 end
 
 ---@param self BlueprintLayout
@@ -582,7 +583,7 @@ function layout:place_beacons(state)
 
 	end
 
-	state.delegate = "place_electricity"
+	return "place_electricity"
 end
 
 ---@param self BlueprintLayout
@@ -618,7 +619,7 @@ function layout:place_electricity(state)
 			grid:build_thing(center.x, center.y, "electricity", even.near, even[1])
 		end
 	end
-	state.delegate = "finish"
+	return "finish"
 end
 
 ---@param self BlueprintLayout
@@ -627,7 +628,6 @@ function layout:debug_overlay(state)
 	local c = state.coords
 	local surface = state.surface
 	local grid = state.grid
-	state.delegate = "finish"
 
 	-- Draws built thing overlay
 
@@ -657,6 +657,8 @@ function layout:debug_overlay(state)
 			end
 		end
 	end
+
+	return "finish"
 end
 
 ---@param self BlueprintLayout

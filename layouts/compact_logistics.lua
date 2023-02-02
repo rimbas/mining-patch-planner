@@ -5,7 +5,7 @@ local compact = require("layouts.super_compact")
 local mpp_util = require("mpp_util")
 local mpp_revert = mpp_util.revert
 
----@class CompactLayout
+---@class CompactLogisticsLayout: SuperCompactLayout
 local layout = table.deepcopy(compact)
 
 layout.name = "compact_logistics"
@@ -70,9 +70,9 @@ function layout:placement_belts(state)
 		end
 
 		for x = belt_start, end_x, m.size * 2 do
-			local miner1 = g:get_tile(x, y-1)
-			local miner2 = g:get_tile(x, y+1)
-			local miner3 = g:get_tile(x+3, y)
+			local miner1 = g:get_tile(x, y-1) --[[@as GridTile]]
+			local miner2 = g:get_tile(x, y+1) --[[@as GridTile]]
+			local miner3 = g:get_tile(x+3, y) --[[@as GridTile]]
 			local built = miner1.built_on == "miner" or miner2.built_on == "miner"
 			local capped = miner3.built_on == "miner"
 			local pole_built = built or capped
@@ -118,7 +118,7 @@ function layout:placement_belts(state)
 		end
 		stagger_shift = stagger_shift + 1
 	end
-	state.delegate = "placement_pole"
+	return "placement_pole"
 end
 
 return layout

@@ -36,12 +36,13 @@ layout.restrictions.deconstruction_omit_available = true
 layout.restrictions.module_available = false
 layout.restrictions.pipe_available = false
 
----Called from script.on_load
+--- Called from script.on_load  
+--- ONLY FOR SETMETATABLE USE
 ---@param self Layout
 ---@param state State
 function layout:on_load(state) end
 
--- Validate the selection
+--- Validate the selection
 ---@param self Layout
 ---@param state State
 function layout:validate(state)
@@ -60,16 +61,17 @@ end
 ---Starting step
 ---@param self Layout
 ---@param state State
+---@return CallbackState
 function layout:start(state)
-	state.finished = true
+	return false
 end
 
 ---Probably too much indirection at this point
 ---@param self Layout
 ---@param state State
 function layout:tick(state)
-	self[state.delegate](self, state)
 	state.tick = state.tick + 1
+	return self[state._callback](self, state)
 end
 
 return layout

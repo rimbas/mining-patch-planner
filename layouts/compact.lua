@@ -207,7 +207,7 @@ function layout:init_first_pass(state)
 	state.best_attempt = placement_attempt(state, attempts[1][1], attempts[1][2])
 	state.best_attempt_score = attempt_score_heuristic(state.best_attempt, state.miner, state.coverage_choice)
 
-	state.delegate = "first_pass"
+	return "first_pass"
 end
 
 ---Bruteforce the best solution
@@ -227,10 +227,10 @@ function layout:first_pass(state)
 
 	if state.attempt_index >= #state.attempts then
 		--game.print(("Chose attempt #%i"):format(state.best_attempt_index))
-		state.delegate = "simple_deconstruct"
-	else
-		state.attempt_index = state.attempt_index + 1
+		return "simple_deconstruct"
 	end
+	state.attempt_index = state.attempt_index + 1
+	return true
 end
 
 layout.simple_deconstruct = simple.simple_deconstruct
@@ -249,10 +249,10 @@ function layout:place_pipes(state)
 
 	if supply_area < 3 or wire_reach < 9 then
 		state.pole_step = 6
-		state.delegate = "placement_belts_small"
+		return "placement_belts_small"
 	else
 		state.pole_step = 9
-		state.delegate = "placement_belts_large"
+		return "placement_belts_large"
 	end
 end
 
@@ -396,7 +396,7 @@ function layout:placement_belts_small(state)
 
 	end
 
-	state.delegate = "placement_pole"
+	return "placement_pole"
 end
 
 
@@ -554,15 +554,15 @@ function layout:placement_belts_large(state)
 
 	end
 
-	state.delegate = "placement_pole"
+	return "placement_pole"
 end
 
 ---@param self CompactLayout
 ---@param state SimpleState
 function layout:placement_pole(state)
+	local _next_step = "placement_lamp"
 	if state.pole_choice == "none" then
-		state.delegate = "placement_lamp"
-		return
+		return _next_step
 	end
 	local c = state.coords
 	local m = state.miner
@@ -583,15 +583,15 @@ function layout:placement_pole(state)
 		}
 	end
 
-	state.delegate = "placement_lamp"
+	return _next_step
 end
 
 ---@param self CompactLayout
 ---@param state SimpleState
 function layout:placement_lamp(state)
+	local _next_step = "placement_landfill"
 	if not state.lamp_choice then
-		state.delegate = "placement_landfill"
-		return
+		return _next_step
 	end
 
 	local c = state.coords
@@ -621,7 +621,7 @@ function layout:placement_lamp(state)
 		end
 	end
 
-	state.delegate = "placement_landfill"
+	return _next_step
 end
 
 layout.placement_landfill = simple.placement_landfill

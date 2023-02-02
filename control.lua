@@ -4,8 +4,12 @@ local gui = require("gui")
 local algorithm = require("algorithm")
 local bp_meta = require("blueprintmeta")
 
+---@class __MiningPatchPlanner__global
+---
+
 script.on_init(function()
 	global.players = {}
+	---@type State[]
 	global.tasks = {}
 	conf.initialize_deconstruction_filter()
 
@@ -17,31 +21,38 @@ end)
 ---@param event EventData
 local function task_runner(event)
 	if #global.tasks == 0 then
-		script.on_event(defines.events.on_tick, nil)
-		return
+		return script.on_event(defines.events.on_tick, nil)
 	end
 
-	---@type State
 	local state = global.tasks[1]
 	local layout = algorithm.layouts[state.layout_choice]
 
-	layout:tick(state)
-	if state.finished then
+	local tick_result = layout:tick(state)
+	if tick_result ~= true then
+		state._callback = tick_result
+	elseif tick_result == nil then
+		error("Layout "..state.layout_choice.." missing a callback name")
+	elseif tick_result == false then
 		if state.blueprint then state.blueprint.clear() end
 		if state.blueprint_inventory then state.blueprint_inventory.destroy() end
 		rendering.destroy(state.preview_rectangle)
+		for k, v in ipairs(state._render_objects) do
+			rendering.destroy(v)
+		end
 		table.remove(global.tasks, 1)
+		state.player.play_sound{path="utility/build_blueprint_medium"}
 	end
 end
 
 script.on_event(defines.events.on_player_selected_area, function(event)
 	---@cast event EventData.on_player_selected_area
 	local player = game.get_player(event.player_index)
+	if not player then return end
 	local cursor_stack = player.cursor_stack
 	if not cursor_stack or not cursor_stack.valid or not cursor_stack.valid_for_read then return end
 	if cursor_stack and cursor_stack.valid and cursor_stack.valid_for_read and cursor_stack.name ~= "mining-patch-planner" then return end
 
-	if #event.entities == 0 then return nil end
+	if #event.entities == 0 then return end
 
 	for _, task in ipairs(global.tasks) do
 		if task.player == player then
@@ -76,7 +87,9 @@ script.on_load(function()
 	if global.tasks and #global.tasks > 0 then
 		script.on_event(defines.events.on_tick, task_runner)
 		for _, task in ipairs(global.tasks) do
-			algorithm.layouts[task.layout_choice]:on_load(task)
+			---@type Layout
+			local layout = algorithm.layouts[task.layout_choice]
+			layout:on_load(task)
 		end
 	end
 end)
@@ -84,6 +97,7 @@ end)
 script.on_event(defines.events.on_player_cursor_stack_changed, function(e)
 	---@cast e EventData.on_player_cursor_stack_changed
 	local player = game.get_player(e.player_index)
+	if not player then return end
 	---@type PlayerData
 	local player_data = global.players[e.player_index]
 	local frame = player.gui.screen["mpp_settings_frame"]
