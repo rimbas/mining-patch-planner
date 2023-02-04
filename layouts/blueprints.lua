@@ -19,11 +19,17 @@ local layout = table.deepcopy(base)
 ---@field power_poles_all BpPlacementEnt[]
 ---@field lamps BpPlacementEnt[]
 
+--- Coordinate space for the attempt
 ---@class BpPlacementAttempt : PlacementAttempt
 ---@field other_ents BpPlacementEnt[]
 ---@field s_ix number Current blueprint metatile x
 ---@field s_iy number Current blueprint metatile y
 ---@field s_ie number Current entity index
+---@field x number x start
+---@field y number y start
+---@field cx number number of blueprint repetitions on x axis
+---@field cy number number of blueprint repetitions on y axis
+
 
 ---@class BpPlacementEnt
 ---@field ent BlueprintEntityEx
@@ -157,6 +163,7 @@ end
 function layout:init_first_pass(state)
 	local c = state.coords
 	local bp = state.cache
+	---@type BpPlacementAttempt[]
 	local attempts = {}
 	state.attempts = attempts
 	state.best_attempt_index = 1
@@ -266,7 +273,7 @@ function layout:first_pass(state)
 	local s_iy = attempt.s_iy or 0
 	local s_ie = attempt.s_ie or 1
 	local progress, progress_cap = 0, 64
-	local ix, iy, ie = s_ix, s_iy, s_ie
+	--local ix, iy, ie = s_ix, s_iy, s_ie
 	for iy = s_iy, county do
 	--while iy <= county do
 		local capstone_y = iy == county
@@ -664,7 +671,7 @@ end
 ---@param self BlueprintLayout
 ---@param state BlueprintState
 function layout:finish(state)
-	state.finished = true
+	return false
 end
 
 return layout

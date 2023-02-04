@@ -28,9 +28,7 @@ local function task_runner(event)
 	local layout = algorithm.layouts[state.layout_choice]
 
 	local tick_result = layout:tick(state)
-	if tick_result ~= true then
-		state._callback = tick_result
-	elseif tick_result == nil then
+	if tick_result == nil then
 		error("Layout "..state.layout_choice.." missing a callback name")
 	elseif tick_result == false then
 		if state.blueprint then state.blueprint.clear() end
@@ -41,6 +39,8 @@ local function task_runner(event)
 		end
 		table.remove(global.tasks, 1)
 		state.player.play_sound{path="utility/build_blueprint_medium"}
+	elseif tick_result ~= true then
+		state._callback = tick_result
 	end
 end
 

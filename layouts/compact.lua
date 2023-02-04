@@ -5,9 +5,11 @@ local common = require("layouts.common")
 local base = require("layouts.base")
 local simple = require("layouts.simple")
 local mpp_util = require("mpp_util")
+local builder = require("builder")
 local coord_convert, coord_revert = mpp_util.coord_convert, mpp_util.coord_revert
 local miner_direction, opposite = mpp_util.miner_direction, mpp_util.opposite
 local mpp_revert = mpp_util.revert
+local EAST, NORTH, SOUTH, WEST = mpp_util.directions()
 
 ---@class CompactLayout : SimpleLayout
 local layout = table.deepcopy(base)
@@ -196,8 +198,8 @@ function layout:init_first_pass(state)
 	state.attempt_index = 2 -- first attempt is used up
 	local ext_behind, ext_forward = -m.far, m.far-m.near
 	
-	for sy = ext_behind, ext_forward do
-		for sx = ext_behind, ext_forward do
+	for sy = ext_forward, ext_behind, -1 do
+		for sx = ext_forward, ext_behind, -1 do
 			if not (sx == -m.near and sy == -m.near) then
 				attempts[#attempts+1] = {sx, sy}
 			end
@@ -235,6 +237,7 @@ end
 
 layout.simple_deconstruct = simple.simple_deconstruct
 layout.place_miners = simple.place_miners
+layout.prepare_pipe_layout = simple.prepare_pipe_layout
 
 ---@param self CompactLayout
 ---@param state SimpleState
@@ -262,10 +265,12 @@ function layout:placement_belts_small(state)
 	local c = state.coords
 	local m = state.miner
 	local g = state.grid
+	local create_entity = builder.create_entity_builder(state)
 	local DIR = state.direction_choice
 	local surface = state.surface
 	local attempt = state.best_attempt
-	local underground_belt = game.entity_prototypes[state.belt_choice].related_underground_belt.name
+	local belt_choice = state.belt_choice
+	local underground_belt = game.entity_prototypes[belt_choice].related_underground_belt.name
 
 	local power_poles = {}
 	state.power_poles_all = power_poles
@@ -294,6 +299,14 @@ function layout:placement_belts_small(state)
 	local belts = {}
 	state.belts = belts
 
+	local function belts_filled(x1, y, w)
+		for x = x1, x1 + w do
+			create_entity{
+				name=belt_choice, direction=WEST, grid_x=x, grid_y=y, things="belt",
+			}
+		end
+	end
+
 	for i = 1, miner_lane_number, 2 do
 		local lane1 = miner_lanes[i]
 		local lane2 = miner_lanes[i+1]
@@ -302,98 +315,46 @@ function layout:placement_belts_small(state)
 		local x0 = attempt.sx + 1
 		
 		local column_count = max(get_lane_column(lane1), get_lane_column(lane2))
+		if column_count == 0 then goto continue_lane end
+
 		local indices = {}
 		if lane1 then for _, v in ipairs(lane1) do indices[v.column] = v end end
 		if lane2 then for _, v in ipairs(lane2) do indices[v.column] = v end end
 
-		if column_count > 0 then
-			for j = 1, column_count do
-				local x1 = x0 + (j-1) * m.size
-				if j % 2 == 1 then -- part one
-					if indices[j] or indices[j+1] then
-						g:get_tile(x1, y).built_on = "belt"
-						surface.create_entity{
-							raise_built=true,
-							name="entity-ghost",
-							player=state.player,
-							force=state.player.force,
-							position = mpp_revert(c.gx, c.gy, DIR, x1, y, c.tw, c.th),
-							direction=defines.direction[DIR],
-							inner_name=state.belt_choice,
-						}
-						g:get_tile(x1+1, y).built_on = "belt"
-						local stopper = (j+1 > column_count) and state.belt_choice or underground_belt
-						surface.create_entity{
-							raise_built=true,
-							name="entity-ghost",
-							player=state.player,
-							force=state.player.force,
-							position = mpp_revert(c.gx, c.gy, DIR, x1+1, y, c.tw, c.th),
-							direction=defines.direction[DIR],
-							inner_name=stopper,
-							type="output",
-						}
-						power_poles[#power_poles+1] = {
-							x=x1+3, y=y,
-							ix=1+floor(i/2), iy=1+floor(j/2),
-							built = true,
-						}
-					else -- just a passthrough belt
-						for x = x1, x1 + m.size - 1 do
-							g:get_tile(x, y).built_on = "belt"
-							surface.create_entity{
-								raise_built=true,
-								name="entity-ghost",
-								player=state.player,
-								force=state.player.force,
-								position = mpp_revert(c.gx, c.gy, DIR, x, y, c.tw, c.th),
-								direction=defines.direction[DIR],
-								inner_name=state.belt_choice,
-							}
-						end
-					end
-				elseif j % 2 == 0 then -- part two
-					if indices[j-1] or indices[j] then
-						g:get_tile(x1+2, y).built_on = "belt"
-						surface.create_entity{
-							raise_built=true,
-							name="entity-ghost",
-							player=state.player,
-							force=state.player.force,
-							position = mpp_revert(c.gx, c.gy, DIR, x1+2, y, c.tw, c.th),
-							direction=defines.direction[DIR],
-							inner_name=state.belt_choice,
-						}
-						g:get_tile(x1+1, y).built_on = "belt"
-						surface.create_entity{
-							raise_built=true,
-							name="entity-ghost",
-							player=state.player,
-							force=state.player.force,
-							position = mpp_revert(c.gx, c.gy, DIR, x1+1, y, c.tw, c.th),
-							direction=defines.direction[DIR],
-							inner_name=underground_belt,
-							type="input",
-						}
-					else -- just a passthrough belt
-						for x = x1, x1 + m.size - 1 do
-							local tx, ty = coord_revert[DIR](x, y, c.tw, c.th)
-							g:get_tile(x, y).built_on = "belt"
-							surface.create_entity{
-								raise_built=true,
-								name="entity-ghost",
-								player=state.player,
-								force=state.player.force,
-								position={c.gx + tx, c.gy + ty},
-								direction=defines.direction[DIR],
-								inner_name=state.belt_choice,
-							}
-						end
-					end
+		for j = 1, column_count do
+			local x1 = x0 + (j-1) * m.size
+			if j % 2 == 1 then -- part one
+				if indices[j] or indices[j+1] then
+					create_entity{
+						name=state.belt_choice, thing="belt", grid_x=x1, grid_y=y, direction=WEST,
+					}
+					local stopper = (j+1 > column_count) and state.belt_choice or underground_belt
+					create_entity{
+						name=stopper, thing="belt", grid_x=x1+1, grid_y=y, direction=WEST, type="output",
+					}
+					power_poles[#power_poles+1] = {
+						x=x1+3, y=y,
+						ix=1+floor(i/2), iy=1+floor(j/2),
+						built = true,
+					}
+				else -- just a passthrough belt
+					belts_filled(x1, m.size - 1)
+				end
+			elseif j % 2 == 0 then -- part two
+				if indices[j-1] or indices[j] then
+					create_entity{
+						name=belt_choice, thing="belt", grid_x=x1+2, grid_y=y, direction=WEST,
+					}
+					create_entity{
+						name=underground_belt, thing="belt", grid_x=x1+1, grid_y=y, direction=WEST,
+					}
+				else -- just a passthrough belt
+					belts_filled(x1, m.size - 1)
 				end
 			end
 		end
-
+		
+		::continue_lane::
 	end
 
 	return "placement_pole"
@@ -406,10 +367,12 @@ function layout:placement_belts_large(state)
 	local c = state.coords
 	local m = state.miner
 	local g = state.grid
+	local create_entity = builder.create_entity_builder(state)
 	local DIR = state.direction_choice
 	local surface = state.surface
 	local attempt = state.best_attempt
-	local underground_belt = game.entity_prototypes[state.belt_choice].related_underground_belt.name
+	local belt_choice = state.belt_choice
+	local underground_belt = game.entity_prototypes[belt_choice].related_underground_belt.name
 
 	local power_poles = {}
 	state.power_poles_all = power_poles
@@ -438,6 +401,14 @@ function layout:placement_belts_large(state)
 	local belts = {}
 	state.belts = belts
 
+	local function belts_filled(x1, y, w)
+		for x = x1, x1 + w do
+			create_entity{
+				name=belt_choice, direction=WEST, grid_x=x, grid_y=y, things="belt",
+			}
+		end
+	end
+
 	for i = 1, miner_lane_number, 2 do
 		local lane1 = miner_lanes[i]
 		local lane2 = miner_lanes[i+1]
@@ -446,112 +417,51 @@ function layout:placement_belts_large(state)
 		local x0 = attempt.sx + 1
 		
 		local column_count = max(get_lane_column(lane1), get_lane_column(lane2))
+		if column_count == 0 then goto continue_lane end
+
 		local indices = {}
 		if lane1 then for _, v in ipairs(lane1) do indices[v.column] = v end end
 		if lane2 then for _, v in ipairs(lane2) do indices[v.column] = v end end
 
-		if column_count > 0 then
-			for j = 1, column_count do
-				local x1 = x0 + (j-1) * m.size
-				if j % 3 == 1 then -- part one
-					if indices[j] or indices[j+1] or indices[j+2] then
-						g:get_tile(x1, y).built_on = "belt"
-						surface.create_entity{
-							raise_built=true,
-							name="entity-ghost",
-							player=state.player,
-							force=state.player.force,
-							position = mpp_revert(c.gx, c.gy, DIR, x1, y, c.tw, c.th),
-							direction=defines.direction[DIR],
-							inner_name=state.belt_choice,
-						}
-						g:get_tile(x1+1, y).built_on = "belt"
-						local stopper = (j+1 > column_count) and state.belt_choice or underground_belt
-						surface.create_entity{
-							raise_built=true,
-							name="entity-ghost",
-							player=state.player,
-							force=state.player.force,
-							position = mpp_revert(c.gx, c.gy, DIR, x1+1, y, c.tw, c.th),
-							direction=defines.direction[DIR],
-							inner_name=stopper,
-							type="output",
-						}
-						power_poles[#power_poles+1] = {
-							x=x1+3, y=y,
-							ix=1+floor(i/2), iy=1+floor(j/2),
-							built = true,
-						}
-					else -- just a passthrough belt
-						for x = x1, x1 + m.size - 1 do
-							g:get_tile(x, y).built_on = "belt"
-							surface.create_entity{
-								raise_built=true,
-								name="entity-ghost",
-								player=state.player,
-								force=state.player.force,
-								position = mpp_revert(c.gx, c.gy, DIR, x, y, c.tw, c.th),
-								direction=defines.direction[DIR],
-								inner_name=state.belt_choice,
-							}
-						end
-					end
-				elseif j % 3 == 2 then -- part two
-					if indices[j-1] or indices[j] or indices[j+1] then
-						g:get_tile(x1+1, y).built_on = "belt"
-						surface.create_entity{
-							raise_built=true,
-							name="entity-ghost",
-							player=state.player,
-							force=state.player.force,
-							position = mpp_revert(c.gx, c.gy, DIR, x1+1, y, c.tw, c.th),
-							direction=defines.direction[DIR],
-							inner_name=underground_belt,
-							type="input",
-						}
-						g:get_tile(x1+2, y).built_on = "belt"
-						surface.create_entity{
-							raise_built=true,
-							name="entity-ghost",
-							player=state.player,
-							force=state.player.force,
-							position = mpp_revert(c.gx, c.gy, DIR, x1+2, y, c.tw, c.th),
-							direction=defines.direction[DIR],
-							inner_name=state.belt_choice,
-						}
-					else -- just a passthrough belt
-						for x = x1, x1 + m.size - 1 do
-							local tx, ty = coord_revert[DIR](x, y, c.tw, c.th)
-							g:get_tile(x, y).built_on = "belt"
-							surface.create_entity{
-								raise_built=true,
-								name="entity-ghost",
-								player=state.player,
-								force=state.player.force,
-								position={c.gx + tx, c.gy + ty},
-								direction=defines.direction[DIR],
-								inner_name=state.belt_choice,
-							}
-						end
-					end
-				elseif j % 3 == 0 then
-					for x = x1, x1 + m.size - 1 do
-						local tx, ty = coord_revert[DIR](x, y, c.tw, c.th)
-						g:get_tile(x, y).built_on = "belt"
-						surface.create_entity{
-							raise_built=true,
-							name="entity-ghost",
-							player=state.player,
-							force=state.player.force,
-							position={c.gx + tx, c.gy + ty},
-							direction=defines.direction[DIR],
-							inner_name=state.belt_choice,
-						}
-					end
+		for j = 1, column_count do
+			local x1 = x0 + (j-1) * m.size
+			if j % 3 == 1 then -- part one
+				if indices[j] or indices[j+1] or indices[j+2] then
+					create_entity{
+						name=belt_choice, grid_x=x1, grid_y=y, things="belt", direction=WEST,
+					}
+
+					local stopper = (j+1 > column_count) and state.belt_choice or underground_belt
+					create_entity{
+						name=stopper, grid_x=x1+1, grid_y=y, things="belt", direction=WEST,
+						type="output",
+					}
+					power_poles[#power_poles+1] = {
+						x=x1+3, y=y,
+						ix=1+floor(i/2), iy=1+floor(j/2),
+						built = true,
+					}
+				else -- just a passthrough belt
+					belts_filled(x1, y, m.size - 1)
 				end
+			elseif j % 3 == 2 then -- part two
+				if indices[j-1] or indices[j] or indices[j+1] then
+					create_entity{
+						name=underground_belt, grid_x=x1+1, grid_y=y, things="belt", direction=WEST,
+						type="input",
+					}
+					create_entity{
+						name=belt_choice, grid_x=x1+2, grid_y=y, things="belt", direction=WEST,
+					}
+				else -- just a passthrough belt
+					belts_filled(x1, y, m.size - 1)
+				end
+			elseif j % 3 == 0 then
+				belts_filled(x1, y, m.size - 1)
 			end
 		end
-
+		
+		::continue_lane::
 	end
 
 	return "placement_pole"

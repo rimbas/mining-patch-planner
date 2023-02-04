@@ -29,6 +29,7 @@ local layout = table.deepcopy(base)
 ---@field grid Grid
 ---@field miner_lanes table<number, MinerPlacement[]>
 ---@field place_pipes boolean
+---@field pipe_layout_specification PlacementSpecification[]
 
 layout.name = "simple"
 layout.translation = {"mpp.settings_layout_choice_simple"}
@@ -216,6 +217,7 @@ end
 ---@field simple_density number
 ---@field real_density number
 ---@field leech_sum number
+---@field postponed_count number
 
 ---@class LaneInfo
 ---@field y number
@@ -348,7 +350,6 @@ end
 
 ---@param attempt PlacementAttempt
 ---@param miner MinerStruct
----@return CallbackState
 local function attempt_heuristic_coverage(attempt, miner)
 	local miner_count = #attempt.miners
 	local simple_density = attempt.simple_density
@@ -521,40 +522,30 @@ function layout:place_miners(state)
 	return "prepare_pipe_layout"
 end
 
----@class PipePlacementSpecification
+---@class PlacementSpecification
 ---@field x number
----@field x1 number
----@field x2 number
+---@field w number
 ---@field y number
----@field y1 number
----@field y2 number
+---@field h number
 ---@field structure string
+---@field entity string
 
+--- Process gaps between miners in "miner space" and translate them to grid specification
 ---@param self SimpleLayout
 ---@param state SimpleState
 function layout:prepare_pipe_layout(state)
-	local _next_step = "placement_belts"
-	if state.pipe_choice == "none" then
-		return _next_step
-	elseif not state.requires_fluid and not state.force_pipe_placement_choice then
-		return _next_step
+	if state.pipe_choice == "none"
+		or (not state.requires_fluid and not state.force_pipe_placement_choice)
+	then
+		return "placement_belts"
 	end
 	state.place_pipes = true
-	state.pipe_layout_specification = {}
+	local pipe_layout = {}
+	state.pipe_layout_specification = pipe_layout
 
 	local m = state.miner
 	local g = state.grid
-	local DIR = state.direction_choice
-	local create_entity = builder.create_entity_builder(state)
 	local attempt = state.best_attempt
-	local pipe = state.pipe_choice
-	local ground_pipe, ground_proto = mpp_util.find_underground_pipe(pipe)
-
-	local step, span
-	if ground_proto then
-		step = ground_proto.max_underground_distance
-		span = step + 1
-	end
 
 	for _, pre_lane in ipairs(state.miner_lanes) do
 		if not pre_lane[1] then goto continue_lanes end
@@ -578,56 +569,17 @@ function layout:prepare_pipe_layout(state)
 			end
 		end
 
-		local function make_filled(x1, length)
-			for x = x1, x1 + length do
-				g:build_thing_simple(x, y, "pipe")
-				create_entity{name=pipe, grid_x=x, grid_y=y}
-			end
-		end
-		local function make_underground(x1, length)
-			local x = x1
-			g:build_thing_simple(x, y, "pipe")
-			create_entity{
-				name=ground_pipe,
-				grid_x=x,
-				grid_y=y,
-				direction=defines.direction.west,
-			}
-
-			x = x + length
-			g:build_thing_simple(x, y, "pipe")
-			create_entity{
-				name=ground_pipe,
-				grid_x=x,
-				grid_y=y,
-				direction=defines.direction.east,
-			}
-		end
-
 		for i, gap in ipairs(gaps) do
 			local start, length = gap.start, gap.length
 			local gap_length = m.size * length
 			local gap_start = sx + (start-1) * m.size + 1
 			
-			if not ground_pipe then
-				make_filled(gap_start, gap_length-1)
-				goto continue_gap
-			end
-			local quotient, remainder = math.divmod(gap_length, span)
-
-			for j = 1, quotient do
-				local x = gap_start + (j-1) * span
-				make_underground(x, step)
-			end
-
-			local x = gap_start + quotient * span
-			if remainder > 2 then
-				make_underground(x, remainder-1)
-			else
-				make_filled(x, remainder-1)
-			end
-
-			::continue_gap::
+			pipe_layout[#pipe_layout+1] = {
+				structure="horizontal",
+				x = gap_start,
+				w = gap_length-1,
+				y = y,
+			}
 		end
 
 		::continue_lanes::
@@ -635,36 +587,116 @@ function layout:prepare_pipe_layout(state)
 
 	for i = 1, state.miner_lane_count do
 		local lane = attempt.lane_layout[i]
-		local y = lane.y
-		local x = attempt.sx
-		g:build_thing_simple(x, y, "pipe")
-		create_entity{name=pipe, grid_x=x, grid_y=y}
-
-		g:build_thing_simple(x, y-1, "pipe")
-		create_entity{
-			name=ground_pipe,
-			grid_x=x,
-			grid_y=y-1,
-			direction=defines.direction.south,
-		}
-
-		g:build_thing_simple(x, y+1, "pipe")
-		create_entity{
-			name=ground_pipe,
-			grid_x=x,
-			grid_y=y+1,
-			direction=defines.direction.north,
+		pipe_layout[#pipe_layout+1] = {
+			structure="cap_vertical",
+			x=attempt.sx,
+			y=lane.y,
+			skip_up=i == 1,
+			skip_down=i == state.miner_lane_count,
 		}
 	end
 
 	return "place_pipes"
 end
 
+--- Pipe placement deals in tile grid space with spectifications from previous step
 ---@param self SimpleLayout
 ---@param state SimpleState
 ---@return CallbackState
 function layout:place_pipes(state)
+	local create_entity = builder.create_entity_builder(state)
+	local g = state.grid
+	local pipe = state.pipe_choice
+	
+	local ground_pipe, ground_proto = mpp_util.find_underground_pipe(pipe)
 
+	local step, span
+	if ground_proto then
+		step = ground_proto.max_underground_distance
+		span = step + 1
+	end
+
+	local function horizontal_underground(x1, y, w)
+		local x = x1
+		create_entity{
+			name=ground_pipe,
+			thing="pipe",
+			grid_x=x,
+			grid_y=y,
+			direction=defines.direction.west,
+		}
+		create_entity{
+			name=ground_pipe,
+			thing="pipe",
+			grid_x=x+w,
+			grid_y=y,
+			direction=defines.direction.east,
+		}
+	end
+	local function horizontal_filled(x1, y, w)
+		for x = x1, x1+w do
+			create_entity{
+				name=pipe,
+				thing="pipe",
+				grid_x=x,
+				grid_y=y,
+			}
+		end
+	end
+	local function cap_vertical(x, y, skip_up, skip_down)
+		create_entity{
+			name=pipe,
+			thing="pipe",
+			grid_x=x,
+			grid_y=y,
+		}
+
+		if not ground_pipe then return end
+		if not skip_up then
+			create_entity{
+				name=ground_pipe,
+				thing="pipe",
+				grid_x=x,
+				grid_y=y-1,
+				direction=defines.direction.south,
+			}
+		end
+		if not skip_down then
+			create_entity{
+				name=ground_pipe,
+				thing="pipe",
+				grid_x=x,
+				grid_y=y+1,
+				direction=defines.direction.north,
+			}
+		end
+	end
+
+	for i, p in ipairs(state.pipe_layout_specification) do
+		local structure, thing = p.structure, p.name
+		local x1, w, y1, h = p.x, p.w, p.y, p.h
+		if structure == "horizontal" then
+			if not ground_pipe then
+				horizontal_filled(x1, y1, w)
+				goto continue_pipe
+			end
+
+			local quotient, remainder = math.divmod(w, span)
+			for j = 1, quotient do
+				local x = x1 + (j-1)*span
+				horizontal_underground(x, y1, step)
+			end
+			local x = x1 + quotient * span
+			if remainder >= 2 then
+				horizontal_underground(x, y1, remainder)
+			else
+				horizontal_filled(x, y1, w)
+			end
+		elseif structure == "cap_vertical" then
+			cap_vertical(x1, y1, p.skip_up, p.skip_down)
+		end
+		::continue_pipe::
+	end
 
 	return "placement_belts"
 end

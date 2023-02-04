@@ -172,8 +172,11 @@ end
 function grid_mt:build_thing_simple(cx, cy, thing)
 	local row = self[cy]
 	if row then
-		row[cx] = thing
-		return true
+		local tile = row[cx]
+		if tile then
+			tile.built_on = thing
+			return true
+		end
 	end
 end
 

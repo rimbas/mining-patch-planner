@@ -116,7 +116,7 @@ end
 local hardcoded_pipes = {}
 
 ---@param pipe_name string Name of the normal pipe
----@return string, LuaEntityPrototype
+---@return string|nil, LuaEntityPrototype|nil
 function mpp_util.find_underground_pipe(pipe_name)
 	if hardcoded_pipes[pipe_name] then
 		return hardcoded_pipes[pipe_name], game.entity_prototypes[hardcoded_pipes[pipe_name]]
@@ -126,6 +126,7 @@ function mpp_util.find_underground_pipe(pipe_name)
 	if ground_proto then
 		return ground_name, ground_proto
 	end
+	return nil, nil
 end
 
 function mpp_util.revert(gx, gy, direction, x, y, w, h)
@@ -323,8 +324,8 @@ end
 ---@field w number
 ---@field h number
 ---@field near number
----@field [1] number
----@field [2] number
+---@field [1] boolean
+---@field [2] boolean
 
 -- LuaEntityPrototype#tile_height was added in 1.1.64, I'm developing on 1.1.61
 local even_width_memoize = {}
@@ -342,6 +343,15 @@ function mpp_util.entity_even_width(name)
 	local res = {w % 2 ~= 1, h % 2 ~= 1, w=w, h=h, near=floor(w/2)}
 	even_width_memoize[name] = res
 	return res
+end
+
+--- local EAST, NORTH, SOUTH, WEST = mpp_util.directions()
+function mpp_util.directions()
+	return
+		defines.direction.east,
+		defines.direction.north,
+		defines.direction.south,
+		defines.direction.west
 end
 
 return mpp_util

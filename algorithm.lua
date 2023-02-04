@@ -22,7 +22,6 @@ require_layout("blueprints")
 
 ---@class State
 ---@field _callback string -- callback to be used in the tick
----@field finished boolean
 ---@field tick number
 ---@field surface LuaSurface
 ---@field player LuaPlayer
@@ -54,9 +53,9 @@ require_layout("blueprints")
 ---@field cache EvaluatedBlueprint
 
 --- Return value for layout callbacks
---- string	- the name of next callback
+--- string	- name of next callback
 --- true	- repeat the current callback
---- false	- job is finished and clean up state
+--- false	- job is finished
 ---@alias CallbackState string|boolean
 
 ---@param event EventData.on_player_selected_area
@@ -66,7 +65,6 @@ local function create_state(event)
 	---@type State
 	local state = {}
 	state._callback = "start"
-	state.finished = false
 	state.tick = 0
 	state.preview_rectangle = nil
 	state._render_objects = {}
@@ -194,6 +192,7 @@ function algorithm.on_player_selected_area(event)
 	local validation_result, error = layout:validate(state)
 	if validation_result then
 		layout:initialize(state)
+		state.player.play_sound{path="utility/blueprint_selection_ended"}
 
 		-- "Progress" bar
 		local c = state.coords
