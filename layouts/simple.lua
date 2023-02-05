@@ -544,7 +544,6 @@ function layout:prepare_pipe_layout(state)
 	state.pipe_layout_specification = pipe_layout
 
 	local m = state.miner
-	local g = state.grid
 	local attempt = state.best_attempt
 
 	for _, pre_lane in ipairs(state.miner_lanes) do
@@ -673,7 +672,7 @@ function layout:place_pipes(state)
 	end
 
 	for i, p in ipairs(state.pipe_layout_specification) do
-		local structure, thing = p.structure, p.name
+		local structure = p.structure
 		local x1, w, y1, h = p.x, p.w, p.y, p.h
 		if structure == "horizontal" then
 			if not ground_pipe then
