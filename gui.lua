@@ -20,6 +20,7 @@ local gui = {}
 ---@field value string Value name
 ---@field tooltip LocalisedString
 ---@field icon SpritePath
+---@field icon_enabled SpritePath
 ---@field order string
 ---@field default string
 ---@field elem_type string
@@ -95,11 +96,20 @@ local function create_setting_selector(player_data, root, action_type, action, v
 				visible=not value.elem_value,
 			}
 		else
+			local icon = value.icon
+			if style_check and value.icon_enabled then icon = value.icon_enabled end
 			button = root.add{
 				type="sprite-button",
 				style=style_helper_selection(style_check),
-				sprite=value.icon,
-				tags={[action_type_override]=action, value=value.value, default=value.default, refresh=value.refresh},
+				sprite=icon,
+				tags={
+					[action_type_override]=action,
+					value=value.value,
+					default=value.default,
+					refresh=value.refresh,
+					mpp_icon_default=value.icon,
+					mpp_icon_enabled=value.icon_enabled,
+				},
 				tooltip=value.tooltip,
 			}
 		end
@@ -554,7 +564,8 @@ local function update_misc_selection(player_data)
 		values[#values+1] = {
 			value="lamp",
 			tooltip={"mpp.choice_lamp"},
-			icon=("entity/small-lamp"),
+			icon=("mpp_no_lamp"),
+			icon_enabled=("entity/small-lamp"),
 		}
 	end
 	
@@ -582,7 +593,8 @@ local function update_misc_selection(player_data)
 		values[#values+1] = {
 			value="deconstruction",
 			tooltip={"mpp.choice_deconstruction"},
-			icon=("mpp_omit_deconstruct"),
+			icon=("mpp_deconstruct"),
+			icon_enabled=("mpp_omit_deconstruct"),
 		}
 	end
 
@@ -590,7 +602,8 @@ local function update_misc_selection(player_data)
 		values[#values+1] = {
 			value="landfill",
 			tooltip={"mpp.choice_landfill"},
-			icon=("mpp_omit_landfill")
+			icon=("item/landfill"),
+			icon_enabled=("mpp_omit_landfill")
 		}
 	end
 
@@ -614,7 +627,8 @@ local function update_misc_selection(player_data)
 		values[#values+1] = {
 			value="force_pipe_placement",
 			tooltip={"mpp.force_pipe_placement"},
-			icon=("mpp_force_pipe")
+			icon=("mpp_force_pipe_disabled"),
+			icon_enabled=("mpp_force_pipe_enabled"),
 		}
 
 		values[#values+1] = {
@@ -725,6 +739,15 @@ local function on_gui_click(event)
 		local action = evt_ele_tags["mpp_toggle"]
 		local value = evt_ele_tags["value"]
 		local last_value = player_data.choices[value.."_choice"]
+
+		if evt_ele_tags.mpp_icon_enabled then
+			if not last_value then
+				event.element.sprite = evt_ele_tags.mpp_icon_enabled
+			else
+				event.element.sprite = evt_ele_tags.mpp_icon_default
+			end
+		end
+
 		player_data.choices[value.."_choice"] = not last_value
 		event.element.style = style_helper_selection(not last_value)
 		if evt_ele_tags.refresh then update_selections(player_data) end
