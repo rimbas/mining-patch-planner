@@ -689,7 +689,7 @@ function layout:place_pipes(state)
 			if remainder >= 2 then
 				horizontal_underground(x, y1, remainder)
 			else
-				horizontal_filled(x, y1, w)
+				horizontal_filled(x, y1, remainder)
 			end
 		elseif structure == "cap_vertical" then
 			cap_vertical(x1, y1, p.skip_up, p.skip_down)

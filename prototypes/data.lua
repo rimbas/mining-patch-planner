@@ -13,11 +13,11 @@ data:extend{
 		selection_color = {r=0, g=0, b=1, a=0.5},
 		selection_cursor_box_type="entity",
 		selection_mode={"any-entity"},
+		entity_filter_mode="whitelist",
+		entity_type_filters = {"resource"},
 		alt_selection_color = {r=0, g=0, b=1, a=0.5},
 		alt_selection_cursor_box_type="entity",
 		alt_selection_mode={"any-entity"},
-		entity_filter_mode="whitelist",
-		entity_type_filters = {"resource"},
 	},
 	{
 		type="custom-input",

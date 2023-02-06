@@ -234,7 +234,7 @@ function gui.create_interface(player)
 	titlebar.add{type="empty-widget", name="mpp_titlebar_spacer", horizontally_strechable=true}
 	player_gui.advanced_settings = titlebar.add{
 		type="sprite-button",
-		style="frame_action_button",
+		style=style_helper_advanced_toggle(player_data.advanced),
 		sprite="mpp_advanced_settings",
 		tooltip={"mpp.advanced_settings"},
 		tags={mpp_advanced_settings=true},
@@ -404,11 +404,53 @@ local function update_belt_selection(player)
 	local choices = player_data.choices
 	local layout = layouts[choices.layout_choice]
 	local restrictions = layout.restrictions
+	
+	local is_space = compatibility.is_space(player.surface.index)
+	player_data.gui.section["belt"].visible = restrictions.belt_available and not is_space
+	if not restrictions.belt_available or is_space then return end
+
+	local values = {}
+	local existing_choice_is_valid = false
+
+	local belts = game.get_filtered_entity_prototypes{{filter="type", type="transport-belt"}}
+	for _, belt in pairs(belts) do
+		if blacklist[belt.name] then goto skip_belt end
+		if belt.flags and belt.flags.hidden then goto skip_belt end
+		if layout.restrictions.uses_underground_belts and belt.related_underground_belt == nil then goto skip_belt end
+
+		values[#values+1] = {
+			value=belt.name,
+			tooltip=belt.localised_name,
+			icon=("entity/"..belt.name),
+			order=belt.order,
+		}
+		if belt.name == choices.belt_choice then existing_choice_is_valid = true end
+
+		::skip_belt::
+	end
+
+	if not existing_choice_is_valid then
+		if mpp_util.table_find(values, function(v) return v.value == layout.defaults.belt end) then
+			choices.belt_choice = layout.defaults.belt
+		else
+			choices.belt_choice = values[1].value
+		end
+	end
+
+	local table_root = player_data.gui.tables["belt"]
+	create_setting_selector(player_data, table_root, "mpp_action", "belt", values)
+end
+
+---@param player LuaPlayer
+local function update_space_belt_selection(player)
+	local player_data = global.players[player.index]
+	local choices = player_data.choices
+	local layout = layouts[choices.layout_choice]
+	local restrictions = layout.restrictions
 
 	local is_space = compatibility.is_space(player.surface.index)
-	
-	player_data.gui.section["belt"].visible = restrictions.belt_available
-	if not restrictions.belt_available then return end
+	player_data.gui.section["space_belt"].visible = restrictions.belt_available and is_space
+	if not restrictions.belt_available or not is_space then return end
 
 	local values = {}
 	local existing_choice_is_valid = false
@@ -426,26 +468,23 @@ local function update_belt_selection(player)
 			icon=("entity/"..belt.name),
 			order=belt.order,
 		}
-		if belt.name == choices.belt_choice then existing_choice_is_valid = true end
+		if belt.name == choices.space_belt_choice then existing_choice_is_valid = true end
 
 		::skip_belt::
 	end
 
 	if not existing_choice_is_valid then
 		if mpp_util.table_find(values, function(v) return v.value == layout.defaults.belt end) then
-			if is_space then
-				choices.belt_choice = "se-space-transport-belt"
-			else
-				choices.belt_choice = layout.defaults.belt
-			end
+			choices.space_belt_choice = "se-space-transport-belt"
 		else
-			choices.belt_choice = values[1].value
+			choices.space_belt_choice = values[1].value
 		end
 	end
 
-	local table_root = player_data.gui.tables["belt"]
-	create_setting_selector(player_data, table_root, "mpp_action", "belt", values)
+	local table_root = player_data.gui.tables["space_belt"]
+	create_setting_selector(player_data, table_root, "mpp_action", "space_belt", values)
 end
+
 
 ---@param player_data PlayerData
 local function update_logistics_selection(player_data)
@@ -554,6 +593,7 @@ local function update_misc_selection(player_data)
 	local values = {}
 
 	if layout.restrictions.module_available then
+		---@type string|nil
 		local existing_choice = choices.module_choice
 		if not game.item_prototypes[existing_choice] then
 			existing_choice = nil
@@ -705,6 +745,7 @@ local function update_selections(player)
 	player_data.gui.blueprint_add_button.visible = player_data.choices.layout_choice == "blueprints"
 	update_miner_selection(player_data)
 	update_belt_selection(player)
+	update_space_belt_selection(player)
 	update_logistics_selection(player_data)
 	update_pole_selection(player_data)
 	update_blueprint_selection(player_data)
@@ -770,7 +811,6 @@ local function on_gui_click(event)
 		local value = evt_ele_tags["value"]
 		local last_value = player_data.choices[action.."_choice"]
 
-		---@type LuaGuiElement
 		player_data.gui.selections[action][last_value].style = style_helper_selection(false)
 		event.element.style = style_helper_selection(true)
 		player_data.choices[action.."_choice"] = value
@@ -783,9 +823,9 @@ local function on_gui_click(event)
 
 		if evt_ele_tags.mpp_icon_enabled then
 			if not last_value then
-				event.element.sprite = evt_ele_tags.mpp_icon_enabled
+				event.element.sprite = evt_ele_tags.mpp_icon_enabled --[[@as string]]
 			else
-				event.element.sprite = evt_ele_tags.mpp_icon_default
+				event.element.sprite = evt_ele_tags.mpp_icon_default --[[@as string]]
 			end
 		end
 
@@ -811,7 +851,7 @@ local function on_gui_click(event)
 			not cursor_stack.valid_for_read or
 			not cursor_stack.is_blueprint
 		) then
-			if not cursor_stack.is_blueprint then
+			if cursor_stack and not cursor_stack.is_blueprint then
 				player.print({"mpp.msg_blueprint_valid"})
 			end
 			return nil

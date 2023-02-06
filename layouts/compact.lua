@@ -238,12 +238,11 @@ end
 layout.simple_deconstruct = simple.simple_deconstruct
 layout.place_miners = simple.place_miners
 layout.prepare_pipe_layout = simple.prepare_pipe_layout
+layout.place_pipes = simple.place_pipes
 
 ---@param self CompactLayout
 ---@param state SimpleState
-function layout:place_pipes(state)
-	simple.place_pipes(self, state)
-
+function layout:placement_belts(state)
 	local pole_proto = game.entity_prototypes[state.pole_choice] or {supply_area_distance=3, max_wire_distance=9}
 	local supply_area, wire_reach = 3.5, 9
 	if pole_proto then
@@ -301,9 +300,7 @@ function layout:placement_belts_small(state)
 
 	local function belts_filled(x1, y, w)
 		for x = x1, x1 + w do
-			create_entity{
-				name=belt_choice, direction=WEST, grid_x=x, grid_y=y, things="belt",
-			}
+			create_entity{name=belt_choice, direction=WEST, grid_x=x, grid_y=y, things="belt"}
 		end
 	end
 
@@ -338,7 +335,7 @@ function layout:placement_belts_small(state)
 						built = true,
 					}
 				else -- just a passthrough belt
-					belts_filled(x1, m.size - 1)
+					belts_filled(x1, y, m.size - 1)
 				end
 			elseif j % 2 == 0 then -- part two
 				if indices[j-1] or indices[j] then
@@ -349,7 +346,7 @@ function layout:placement_belts_small(state)
 						name=underground_belt, thing="belt", grid_x=x1+1, grid_y=y, direction=WEST,
 					}
 				else -- just a passthrough belt
-					belts_filled(x1, m.size - 1)
+					belts_filled(x1, y, m.size - 1)
 				end
 			end
 		end
@@ -403,9 +400,7 @@ function layout:placement_belts_large(state)
 
 	local function belts_filled(x1, y, w)
 		for x = x1, x1 + w do
-			create_entity{
-				name=belt_choice, direction=WEST, grid_x=x, grid_y=y, things="belt",
-			}
+			create_entity{name=belt_choice, direction=WEST, grid_x=x, grid_y=y, things="belt"}
 		end
 	end
 

@@ -120,7 +120,7 @@ function conf.initialize_deconstruction_filter()
 		local ghosts = inventory[2]
 		ghosts.set_stack("deconstruction-planner")
 		ghosts.entity_filter_mode = defines.deconstruction_item.entity_filter_mode.whitelist
-		ghosts.entity_filters = {"entity-ghost"}
+		ghosts.entity_filters = {"entity-ghost", "tile-ghost"}
 	end
 
 	global.script_inventory = inventory

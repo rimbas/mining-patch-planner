@@ -3,6 +3,9 @@ local enums = require("enums")
 
 local current_version = 010400 -- 1.4.0
 
+-- resetting a GUI manually from console
+-- /c __mining-patch-planner__ game.player.gui.screen.mpp_settings_frame.destroy()
+
 ---@param player LuaPlayer
 local function reset_gui(player)
 	local root = player.gui.left["mpp_settings_frame"] or player.gui.screen["mpp_settings_frame"]

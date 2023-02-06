@@ -93,6 +93,8 @@ local function create_state(event)
 		else
 			state.pipe_choice = "none"
 		end
+
+		state.belt_choice = state.space_belt_choice
 	end
 
 	if state.layout_choice == "blueprints" then
