@@ -913,16 +913,18 @@ function layout:placement_landfill(state)
 	local resource_tiles = {}
 	state.resource_tiles = resource_tiles
 
-	local water_tiles = surface.find_tiles_filtered{
-		area={
-			left_top={c.x1-m.w-1, c.y1-m.h-1},
-			right_bottom={c.x2+m.w+1, c.y2+m.h+1}
-		},
-		collision_mask="water-tile"
-	}
+	local fill_tiles, landfill
+	local area = {left_top={c.x1-m.full_size-1, c.y1-m.full_size-1}, right_bottom={c.x2+m.full_size+1, c.y2+m.full_size+1}}
+	if state.is_space then
+		fill_tiles = surface.find_tiles_filtered{area=area, name="se-space"}
+		landfill = state.space_landfill_choice
+	else
+		fill_tiles = surface.find_tiles_filtered{area=area, collision_mask="water-tile"}
+		landfill = "landfill"
+	end
 
-	for _, water in ipairs(water_tiles) do
-		local x, y = water.position.x, water.position.y
+	for _, fill in ipairs(fill_tiles) do
+		local x, y = fill.position.x, fill.position.y
 		x, y = conv(x-gx, y-gy, c.w, c.h)
 		local tile = grid:get_tile(x, y)
 
@@ -932,8 +934,8 @@ function layout:placement_landfill(state)
 				name="tile-ghost",
 				player=state.player,
 				force=state.player.force,
-				position=water.position,
-				inner_name="landfill",
+				position=fill.position --[[@as MapPosition]],
+				inner_name=landfill,
 			}
 		end
 	end

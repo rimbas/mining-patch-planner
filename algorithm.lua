@@ -1,4 +1,5 @@
 local enums = require("enums")
+local compatibility = require("compatibility")
 
 local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
@@ -24,6 +25,7 @@ require_layout("blueprints")
 ---@field _callback string -- callback to be used in the tick
 ---@field tick number
 ---@field surface LuaSurface
+---@field is_space boolean
 ---@field player LuaPlayer
 ---@field resources LuaEntity[] Filtered resources
 ---@field found_resources LuaEntity[] Found resource types
@@ -33,10 +35,12 @@ require_layout("blueprints")
 ---@field miner_choice string
 ---@field pole_choice string
 ---@field belt_choice string Belt name
+---@field space_belt_choice string
 ---@field lamp_choice boolean Lamp placement
 ---@field coverage_choice boolean
 ---@field logistics_choice string
 ---@field landfill_choice boolean
+---@field space_landfill_choice string
 ---@field start_choice boolean
 ---@field deconstruction_choice boolean
 ---@field pipe_choice string
@@ -74,12 +78,21 @@ local function create_state(event)
 
 	-- game state properties
 	state.surface = event.surface
+	state.is_space = compatibility.is_space(event.surface.index)
 	state.player = game.players[event.player_index]
 
-	-- player option properties
+	-- fill in player option properties
 	local player_choices = player_data.choices
 	for k, v in pairs(player_choices) do
 		state[k] = util.copy(v)
+	end
+
+	if state.is_space then
+		if game.entity_prototypes["se-space-pipe"] then
+			state.pipe_choice = "se-space-pipe"
+		else
+			state.pipe_choice = "none"
+		end
 	end
 
 	if state.layout_choice == "blueprints" then

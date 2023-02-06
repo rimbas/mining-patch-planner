@@ -94,8 +94,7 @@ script.on_load(function()
 	end
 end)
 
-script.on_event(defines.events.on_player_cursor_stack_changed, function(e)
-	---@cast e EventData.on_player_cursor_stack_changed
+local function cursor_stack_check(e)
 	local player = game.get_player(e.player_index)
 	if not player then return end
 	---@type PlayerData
@@ -115,4 +114,12 @@ script.on_event(defines.events.on_player_cursor_stack_changed, function(e)
 	else
 		gui.hide_interface(player)
 	end
-end)
+end
+
+script.on_event(defines.events.on_player_cursor_stack_changed, cursor_stack_check)
+
+script.on_event(defines.events.on_player_changed_surface, cursor_stack_check)
+
+-- script.on_event(defines.events.on_player_main_inventory_changed, function(e)
+-- 	--change_handler(e)
+-- end)

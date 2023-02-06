@@ -121,4 +121,11 @@ function enums.get_available_miners()
 	return enums.get_available_miners()
 end
 
+enums.space_surfaces = {
+	["asteroid-belt"] = true,
+	["asteroid-field"] = true,
+	["orbit"] = true,
+	["anomaly"] = true,
+}
+
 return enums

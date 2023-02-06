@@ -3,6 +3,7 @@ local mpp_util = require("mpp_util")
 local enums = require("enums")
 local blueprint_meta = require("blueprintmeta")
 local blacklist = require("blacklist")
+local compatibility = require("compatibility")
 
 local layouts = algorithm.layouts
 
@@ -289,6 +290,10 @@ function gui.create_interface(player)
 		local table_root, section = create_setting_section(player_data, frame, "belt")
 	end
 
+	do -- Space belt selection
+		local table_root, section = create_setting_section(player_data, frame, "space_belt")
+	end
+
 	do -- Logistics selection
 		local table_root, section = create_setting_section(player_data, frame, "logistics")
 	end
@@ -393,11 +398,14 @@ local function update_miner_selection(player_data)
 	create_setting_selector(player_data, table_root, "mpp_action", "miner", values)
 end
 
----@param player_data PlayerData
-local function update_belt_selection(player_data)
+---@param player LuaPlayer
+local function update_belt_selection(player)
+	local player_data = global.players[player.index]
 	local choices = player_data.choices
 	local layout = layouts[choices.layout_choice]
 	local restrictions = layout.restrictions
+
+	local is_space = compatibility.is_space(player.surface.index)
 	
 	player_data.gui.section["belt"].visible = restrictions.belt_available
 	if not restrictions.belt_available then return end
@@ -410,6 +418,7 @@ local function update_belt_selection(player_data)
 		if blacklist[belt.name] then goto skip_belt end
 		if belt.flags and belt.flags.hidden then goto skip_belt end
 		if layout.restrictions.uses_underground_belts and belt.related_underground_belt == nil then goto skip_belt end
+		if is_space and not string.match(belt.name, "^se%-") then goto skip_belt end
 
 		values[#values+1] = {
 			value=belt.name,
@@ -424,7 +433,11 @@ local function update_belt_selection(player_data)
 
 	if not existing_choice_is_valid then
 		if mpp_util.table_find(values, function(v) return v.value == layout.defaults.belt end) then
-			choices.belt_choice = layout.defaults.belt
+			if is_space then
+				choices.belt_choice = "se-space-transport-belt"
+			else
+				choices.belt_choice = layout.defaults.belt
+			end
 		else
 			choices.belt_choice = values[1].value
 		end
@@ -598,6 +611,29 @@ local function update_misc_selection(player_data)
 		}
 	end
 
+	if compatibility.is_space_exploration_active() and layout.restrictions.landfill_omit_available then
+		local existing_choice = choices.space_landfill_choice
+		if not game.entity_prototypes[existing_choice] then
+			existing_choice = "se-space-platform-scaffold"
+			choices.space_landfill_choice = existing_choice
+		end
+
+		values[#values+1] = {
+			action="mpp_prototype",
+			value="space_landfill",
+			tooltip={"mpp.choice_landfill"},
+			icon=("item/"..existing_choice),
+			elem_type="item",
+			elem_filters={
+				{filter="name", name="se-space-platform-scaffold"},
+				{filter="name", name="se-space-platform-plating", mode="or"},
+				{filter="name", name="se-spaceship-floor", mode="or"},
+			},
+			elem_value = choices.space_landfill_choice,
+			type="choose-elem-button",
+		}
+	end
+
 	if layout.restrictions.landfill_omit_available then
 		values[#values+1] = {
 			value="landfill",
@@ -624,19 +660,23 @@ local function update_misc_selection(player_data)
 	end
 
 	if player_data.advanced then
-		values[#values+1] = {
-			value="force_pipe_placement",
-			tooltip={"mpp.force_pipe_placement"},
-			icon=("mpp_force_pipe_disabled"),
-			icon_enabled=("mpp_force_pipe_enabled"),
-		}
+		if layout.restrictions.pipe_available then
+			values[#values+1] = {
+				value="force_pipe_placement",
+				tooltip={"mpp.force_pipe_placement"},
+				icon=("mpp_force_pipe_disabled"),
+				icon_enabled=("mpp_force_pipe_enabled"),
+			}
+		end
 
-		values[#values+1] = {
-			value="show_non_electric_miners",
-			tooltip={"mpp.show_non_electric_miners"},
-			icon=("mpp_show_all_miners"),
-			refresh=true,
-		}
+		if layout.restrictions.miner_available then
+			values[#values+1] = {
+				value="show_non_electric_miners",
+				tooltip={"mpp.show_non_electric_miners"},
+				icon=("mpp_show_all_miners"),
+				refresh=true,
+			}
+		end
 	end
 
 	local misc_section = player_data.gui.section["misc"]
@@ -659,11 +699,12 @@ local function update_blueprint_selection(player_data)
 	end
 end
 
----@param player_data PlayerData
-local function update_selections(player_data)
+---@param player LuaPlayer
+local function update_selections(player)
+	local player_data = global.players[player.index]
 	player_data.gui.blueprint_add_button.visible = player_data.choices.layout_choice == "blueprints"
 	update_miner_selection(player_data)
-	update_belt_selection(player_data)
+	update_belt_selection(player)
 	update_logistics_selection(player_data)
 	update_pole_selection(player_data)
 	update_blueprint_selection(player_data)
@@ -681,7 +722,7 @@ function gui.show_interface(player)
 	else
 		gui.create_interface(player)
 	end
-	update_selections(player_data)
+	update_selections(player)
 end
 
 ---@param player LuaPlayer
@@ -719,7 +760,7 @@ local function on_gui_click(event)
 		local value = not last_value
 		player_data.advanced = value
 
-		update_selections(player_data)
+		update_selections(player)
 
 		player_data.gui["advanced_settings"].style = style_helper_advanced_toggle(value)
 	elseif evt_ele_tags["mpp_action"] then
@@ -750,7 +791,7 @@ local function on_gui_click(event)
 
 		player_data.choices[value.."_choice"] = not last_value
 		event.element.style = style_helper_selection(not last_value)
-		if evt_ele_tags.refresh then update_selections(player_data) end
+		if evt_ele_tags.refresh then update_selections(player) end
 	elseif evt_ele_tags["mpp_blueprint_add_mode"] then
 		---@type PlayerData
 		local player_data = global.players[event.player_index]
@@ -838,7 +879,7 @@ local function on_gui_selection_state_changed(event)
 		local action = event.element.tags["mpp_drop_down"]
 		local value = layouts[event.element.selected_index].name
 		player_data.choices.layout_choice = value
-		update_selections(player_data)
+		update_selections(player)
 	end
 end
 script.on_event(defines.events.on_gui_selection_state_changed, on_gui_selection_state_changed)

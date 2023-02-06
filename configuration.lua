@@ -17,8 +17,10 @@ local conf = {}
 ---@field pole_choice string
 ---@field lamp_choice boolean
 ---@field belt_choice string
+---@field space_belt_choice string
 ---@field logistics_choice string
 ---@field landfill_choice boolean
+---@field space_landfill_choice string
 ---@field coverage_choice boolean
 ---@field start_choice boolean
 ---@field deconstruction_choice boolean
@@ -56,9 +58,11 @@ conf.default_config = {
 		miner_choice = "electric-mining-drill",
 		pole_choice = "medium-electric-pole",
 		belt_choice = "transport-belt",
+		space_belt_choice = "se-space-transport-belt",
 		lamp_choice = false,
 		logistics_choice = "logistic-chest-passive-provider",
 		landfill_choice = false,
+		space_landfill_choice = "se-space-platform-scaffold",
 		coverage_choice = false,
 		start_choice = false,
 		deconstruction_choice = false,
