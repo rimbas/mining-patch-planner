@@ -28,7 +28,8 @@ script.on_configuration_changed(function(config_changed_data)
 			---@type LuaPlayer
 			local player = game.players[player_index]
 			reset_gui(player)
-			conf.initialize_global(player_index, data)
+			--conf.initialize_global(player_index)
+			conf.update_player_data(player_index)
 		end
 	else
 		for player_index, data in ipairs(global.players) do

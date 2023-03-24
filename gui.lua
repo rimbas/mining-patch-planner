@@ -661,7 +661,6 @@ local function update_misc_selection(player_data)
 		values[#values+1] = {
 			action="mpp_prototype",
 			value="space_landfill",
-			tooltip={"mpp.choice_landfill"},
 			icon=("item/"..existing_choice),
 			elem_type="item",
 			elem_filters={
@@ -833,8 +832,6 @@ local function on_gui_click(event)
 		event.element.style = style_helper_selection(not last_value)
 		if evt_ele_tags.refresh then update_selections(player) end
 	elseif evt_ele_tags["mpp_blueprint_add_mode"] then
-		---@type PlayerData
-		local player_data = global.players[event.player_index]
 		player_data.blueprint_add_mode = not player_data.blueprint_add_mode
 		player.clear_cursor()
 		if not player_data.blueprint_add_mode then

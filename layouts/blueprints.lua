@@ -46,7 +46,7 @@ layout.restrictions.belt_available = false
 layout.restrictions.pole_available = false
 layout.restrictions.lamp_available = false
 layout.restrictions.coverage_tuning = true
-layout.restrictions.landfill_omit_available = false
+layout.restrictions.landfill_omit_available = true
 layout.restrictions.start_alignment_tuning = true
 
 ---Called from script.on_load

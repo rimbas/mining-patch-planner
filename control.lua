@@ -99,6 +99,7 @@ local function cursor_stack_check(e)
 	if not player then return end
 	---@type PlayerData
 	local player_data = global.players[e.player_index]
+	if not player_data then return end
 	local frame = player.gui.screen["mpp_settings_frame"]
 	if player_data.blueprint_add_mode and frame and frame.visible then
 		return

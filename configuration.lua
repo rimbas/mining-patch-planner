@@ -90,9 +90,33 @@ conf.default_config = {
 	}
 }
 
+local function pass_same_type(old, new)
+	if type(old) == type(new) then
+		return old
+	end
+	return new
+end
+
+function conf.update_player_data(player_index)
+	---@type PlayerData
+	local old_config = global.players[player_index]
+	local new_config = table.deepcopy(conf.default_config) --[[@as PlayerData]]
+
+	new_config.advanced = pass_same_type(old_config.advanced, new_config.advanced)
+	new_config.blueprint_add_mode = pass_same_type(old_config.blueprint_add_mode, new_config.blueprint_add_mode)
+	new_config.blueprint_items = old_config.blueprint_items
+
+
+	for key, old_choice in pairs(old_config.choices) do
+		new_config.choices[key] = pass_same_type(old_choice, new_config.choices[key])
+	end
+
+	global.players[player_index] = new_config
+end
+
 ---@param player_index number
----@param old_data PlayerData|nil
-function conf.initialize_global(player_index, old_data)
+function conf.initialize_global(player_index)
+	local old_data = global.players[player_index]
 	global.players[player_index] = table.deepcopy(conf.default_config)
 	if old_data and old_data.blueprint_items then
 		global.players[player_index].blueprint_items = old_data.blueprint_items
