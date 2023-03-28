@@ -29,6 +29,10 @@ compatibility.is_space = function(surface_identification)
 
 	if game.active_mods["space-exploration"] then
 		local zone = remote.call("space-exploration", "get_zone_from_surface_index", {surface_index = surface_index})
+		if not zone then
+			memoize_space_surfaces[surface_index] = false
+			return false
+		end
 		local result = remote.call("space-exploration", "get_zone_is_space", {zone_index = zone.index})
 		memoize_space_surfaces[surface_index] = result
 		return result

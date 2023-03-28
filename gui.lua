@@ -585,8 +585,9 @@ local function update_pole_selection(player_data)
 	create_setting_selector(player_data, table_root, "mpp_action", "pole", values)
 end
 
----@param player_data PlayerData
-local function update_misc_selection(player_data)
+---@param player LuaPlayer
+local function update_misc_selection(player)
+	local player_data = global.players[player.index]
 	local choices = player_data.choices
 	local layout = layouts[choices.layout_choice]
 	---@type SettingValueEntry[]
@@ -651,7 +652,7 @@ local function update_misc_selection(player_data)
 		}
 	end
 
-	if compatibility.is_space_exploration_active() and layout.restrictions.landfill_omit_available then
+	if compatibility.is_space(player.surface_index) and layout.restrictions.landfill_omit_available then
 		local existing_choice = choices.space_landfill_choice
 		if not game.entity_prototypes[existing_choice] then
 			existing_choice = "se-space-platform-scaffold"
@@ -748,7 +749,7 @@ local function update_selections(player)
 	update_logistics_selection(player_data)
 	update_pole_selection(player_data)
 	update_blueprint_selection(player_data)
-	update_misc_selection(player_data)
+	update_misc_selection(player)
 end
 
 ---@param player LuaPlayer
