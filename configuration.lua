@@ -91,7 +91,7 @@ conf.default_config = {
 }
 
 local function pass_same_type(old, new)
-	if type(old) == type(new) then
+	if old and type(old) == type(new) then
 		return old
 	end
 	return new
@@ -104,11 +104,11 @@ function conf.update_player_data(player_index)
 
 	new_config.advanced = pass_same_type(old_config.advanced, new_config.advanced)
 	new_config.blueprint_add_mode = pass_same_type(old_config.blueprint_add_mode, new_config.blueprint_add_mode)
-	new_config.blueprint_items = old_config.blueprint_items
+	new_config.blueprint_items = old_config.blueprint_items or game.create_inventory(1)
 
-
-	for key, old_choice in pairs(old_config.choices) do
-		new_config.choices[key] = pass_same_type(old_choice, new_config.choices[key])
+	local old_choices = old_config.choices or {}
+	for key, new_choice in pairs(new_config.choices) do
+		new_config.choices[key] = pass_same_type(old_choices[key], new_choice)
 	end
 
 	global.players[player_index] = new_config
