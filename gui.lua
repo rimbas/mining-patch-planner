@@ -686,7 +686,8 @@ local function update_misc_selection(player)
 		values[#values+1] = {
 			value="coverage",
 			tooltip={"mpp.choice_coverage"},
-			icon=("mpp_miner_coverage"),
+			icon=("mpp_miner_coverage_disabled"),
+			icon_enabled=("mpp_miner_coverage"),
 		}
 	end
 
@@ -695,6 +696,24 @@ local function update_misc_selection(player)
 			value="start",
 			tooltip={"mpp.choice_start"},
 			icon=("mpp_align_start"),
+		}
+	end
+
+	if layout.restrictions.placement_info_available then
+		values[#values+1] = {
+			value="print_placement_info",
+			tooltip={"mpp.print_placement_info"},
+			icon=("mpp_print_placement_info_disabled"),
+			icon_enabled=("mpp_print_placement_info_enabled"),
+		}
+	end
+
+	if layout.restrictions.lane_filling_info_available then
+		values[#values+1] = {
+			value="display_lane_filling",
+			tooltip={"mpp.display_lane_filling"},
+			icon=("mpp_display_lane_filling_disabled"),
+			icon_enabled=("mpp_display_lane_filling_enabled"),
 		}
 	end
 
@@ -772,6 +791,7 @@ local function abort_blueprint_mode(player)
 	player_data.blueprint_add_mode = false
 	update_blueprint_selection(player_data)
 	local cursor_stack = player.cursor_stack
+	if cursor_stack == nil then return end
 	player.clear_cursor()
 	cursor_stack.set_stack("mining-patch-planner")
 end
@@ -870,15 +890,19 @@ local function on_gui_click(event)
 			return nil
 		end
 
-		if not pending_slot then
+		if pending_slot == nil then
 			player_blueprints.resize(#player_blueprints+1--[[@as uint16]])
 			pending_slot = player_blueprints.find_empty_stack()
 		end
-		pending_slot.set_stack(cursor_stack)
 		
-		local blueprint_table = player_data.gui.tables["blueprints"]
+		if pending_slot then
+			pending_slot.set_stack(cursor_stack)
+			local blueprint_table = player_data.gui.tables["blueprints"]
+			create_blueprint_entry(player_data, blueprint_table, pending_slot, cursor_stack)
+		else
+			player.print({"mpp.msg_blueprint_fatal_error"}, {r=1,g=0,b=0})
+		end
 
-		create_blueprint_entry(player_data, blueprint_table, pending_slot, cursor_stack)
 	elseif evt_ele_tags["mpp_fake_blueprint_button"] then
 		local button = event.element
 		if button.style.name ~= "mpp_fake_blueprint_button_invalid" then

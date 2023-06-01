@@ -33,29 +33,6 @@ layout.on_load = simple.on_load
 layout.start = simple.start
 layout.process_grid = simple.process_grid
 
----@param miner MinerStruct
-local function miner_heuristic(miner, coverage)
-	local near, far = miner.near, miner.far
-	local full, size = miner.full_size, miner.size
-	local neighbor_cap = ceil((size ^ 2) * 0.5)
-	if coverage then
-		---@param tile GridTile
-		return function(tile)
-			local nearc, farc = tile.neighbor_count, tile.far_neighbor_count
-			return nearc and (nearc > 0 or
-				(farc and farc > neighbor_cap and nearc > (size * near))
-			)
-		end
-	end
-	---@param tile GridTile
-	return function(tile)
-		local nearc, farc = tile.neighbor_count, tile.far_neighbor_count
-		return nearc and (nearc > neighbor_cap or
-			(farc and farc > neighbor_cap and nearc > (size * near))
-		)
-	end
-end
-
 ---@param state SimpleState
 ---@return PlacementAttempt
 local function placement_attempt(state, shift_x, shift_y)
@@ -70,7 +47,13 @@ local function placement_attempt(state, shift_x, shift_y)
 	local row_index = 1
 	local lane_layout = {}
 	
-	local heuristic = miner_heuristic(state.miner, state.coverage_choice)
+	local heuristic
+	if state.coverage_choice then
+		heuristic = common.overfill_miner_placement(state.miner)
+	else
+		heuristic = common.simple_miner_placement(state.miner)
+	end
+
 	
 	for ry = 1 + shift_y, state.coords.th + near, size + 0.5 do
 		local y = ceil(ry)
@@ -181,13 +164,6 @@ local function attempt_heuristic_coverage(attempt, miner)
 	return simple_density - miner_count
 end
 
-local function attempt_score_heuristic(state, miner, coverage)
-	if coverage then
-		return attempt_heuristic_coverage(state, miner)
-	end
-	return attempt_heuristic_economic(state, miner)
-end
-
 ---@param self CompactLayout
 ---@param state SimpleState
 function layout:init_first_pass(state)
@@ -206,8 +182,10 @@ function layout:init_first_pass(state)
 		end
 	end
 
+	local attempt_heuristic = state.coverage_choice and common.overfill_layout_heuristic or common.simple_layout_heuristic
+
 	state.best_attempt = placement_attempt(state, attempts[1][1], attempts[1][2])
-	state.best_attempt_score = attempt_score_heuristic(state.best_attempt, state.miner, state.coverage_choice)
+	state.best_attempt_score = attempt_heuristic(state.best_attempt)
 
 	return "first_pass"
 end
@@ -217,9 +195,11 @@ end
 ---@param state SimpleState
 function layout:first_pass(state)
 	local attempt_state = state.attempts[state.attempt_index]
+
+	local attempt_heuristic = state.coverage_choice and common.overfill_layout_heuristic or common.simple_layout_heuristic
 	---@type PlacementAttempt
 	local current_attempt = placement_attempt(state, attempt_state[1], attempt_state[2])
-	local current_attempt_score = attempt_score_heuristic(current_attempt, state.miner, state.coverage_choice)
+	local current_attempt_score = attempt_heuristic(current_attempt)
 
 	if current_attempt_score < state.best_attempt_score  then
 		state.best_attempt_index = state.attempt_index
@@ -297,6 +277,7 @@ function layout:placement_belts_small(state)
 
 	local belts = {}
 	state.belts = belts
+	state.belt_count = 0
 
 	local function belts_filled(x1, y, w)
 		for x = x1, x1 + w do
@@ -313,6 +294,8 @@ function layout:placement_belts_small(state)
 		
 		local column_count = max(get_lane_column(lane1), get_lane_column(lane2))
 		if column_count == 0 then goto continue_lane end
+
+		state.belt_count = state.belt_count + 1
 
 		local indices = {}
 		if lane1 then for _, v in ipairs(lane1) do indices[v.column] = v end end

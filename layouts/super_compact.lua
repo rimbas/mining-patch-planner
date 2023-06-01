@@ -60,13 +60,22 @@ local function placement_attempt(state, shift_x, shift_y)
 	local simple_density = 0
 	local real_density = 0
 	local leech_sum = 0
+	local lane_layout = {}
 	
-	---@param tile GridTile
-	local function heuristic(tile) return tile.neighbor_count > 2 end
+	--@param tile GridTile
+	--local function heuristic(tile) return tile.neighbor_count > 2 end
+
+	local heuristic
+	if state.coverage_choice then
+		heuristic = common.overfill_miner_placement(state.miner)
+	else
+		heuristic = common.simple_miner_placement(state.miner)
+	end
 	
-	local function miner_stagger(start_x, start_y, direction, stagger_step)
+	local function miner_stagger(start_x, start_y, direction, stagger_step, mark_lane)
 		local miner_index = 1
 		for y = 1 + shift_y + start_y, state.coords.th + 2, size * 3 + 1 do
+			if mark_lane then lane_layout[#lane_layout+1] = {y=y} end
 			for x = 1 + shift_x + start_x, state.coords.tw + 2, size * 2 do
 				local tile = grid:get_tile(x, y)
 				local center = grid:get_tile(x+near, y+near)
@@ -95,17 +104,18 @@ local function placement_attempt(state, shift_x, shift_y)
 	end
 
 	miner_stagger(0, -2, "south", 1)
-	miner_stagger(3, 0, "west", 1)
+	miner_stagger(3, 0, "west", 1, true)
 	miner_stagger(0, 2, "north", 1)
 
 	-- the redundant calculation makes it easier to find the stagger offset
 	miner_stagger(0+size, -2+size+2, "south", 2)
-	miner_stagger(3-size, 0+size+2, "west", 2)
+	miner_stagger(3-size, 0+size+2, "west", 2, true)
 	miner_stagger(0+size, 2+size+2, "north", 2)
 
 	local result = {
 		sx=shift_x, sy=shift_y,
 		miners = miners,
+		lane_layout=lane_layout,
 		postponed = {},
 		neighbor_sum = neighbor_sum,
 		far_neighbor_sum = far_neighbor_sum,
@@ -120,29 +130,6 @@ local function placement_attempt(state, shift_x, shift_y)
 	common.process_postponed(state, result, miners, postponed)
 
 	return result
-end
-
----@param attempt PlacementAttempt
----@param miner MinerStruct
-local function attempt_heuristic_economic(attempt, miner)
-	local miner_count = #attempt.miners
-	local simple_density = attempt.simple_density
-	return miner_count - simple_density
-end
-
----@param attempt PlacementAttempt
----@param miner MinerStruct
-local function attempt_heuristic_coverage(attempt, miner)
-	local miner_count = #attempt.miners
-	local simple_density = attempt.simple_density
-	return simple_density - miner_count
-end
-
-local function attempt_score_heuristic(state, miner, coverage)
-	if coverage then
-		return attempt_heuristic_coverage(state, miner)
-	end
-	return attempt_heuristic_economic(state, miner)
 end
 
 ---@param self SuperCompactLayout
@@ -164,8 +151,26 @@ function layout:init_first_pass(state)
 		end
 	end
 
+	rendering.draw_circle{
+		players={state.player}, surface=state.surface,
+		radius=0.4, color={1, 0, 0}, filled=true,
+		target={state.coords.gx+ext_behind, state.coords.gy+ext_behind},
+	}
+	rendering.draw_circle{
+		players={state.player}, surface=state.surface,
+		radius=0.4, color={1, 1, 1}, filled=true,
+		target={state.coords.gx, state.coords.gy},
+	}
+	rendering.draw_circle{
+		players={state.player}, surface=state.surface,
+		radius=0.4, color={1, 1, 0}, filled=true,
+		target={state.coords.gx+ext_forward, state.coords.gy+ext_forward},
+	}
+
+
+	local attempt_heuristic = state.coverage_choice and common.overfill_layout_heuristic or common.simple_layout_heuristic
 	state.best_attempt = placement_attempt(state, attempts[1][1], attempts[1][2])
-	state.best_attempt_score = attempt_score_heuristic(state.best_attempt, state.miner, state.coverage_choice)
+	state.best_attempt_score = attempt_heuristic(state.best_attempt)
 
 	return "first_pass"
 end
@@ -175,9 +180,10 @@ end
 ---@param state SimpleState
 function layout:first_pass(state)
 	local attempt_state = state.attempts[state.attempt_index]
+	local attempt_heuristic = state.coverage_choice and common.overfill_layout_heuristic or common.simple_layout_heuristic
 	---@type PlacementAttempt
 	local current_attempt = placement_attempt(state, attempt_state[1], attempt_state[2])
-	local current_attempt_score = attempt_score_heuristic(current_attempt, state.miner, state.coverage_choice)
+	local current_attempt_score = attempt_heuristic(current_attempt)
 
 	if current_attempt_score < state.best_attempt_score  then
 		state.best_attempt_index = state.attempt_index
@@ -294,6 +300,8 @@ function layout:placement_belts(state)
 	---@type table<number, MinerPlacement[]>
 	local miner_lanes = {}
 	local miner_lane_number = 0 -- highest index of a lane, because using # won't do the job if a lane is missing
+
+	state.belt_count = 0
 
 	for _, miner in ipairs(attempt.miners) do
 		local index = miner.lane * 2 + miner.stagger - 2
@@ -433,6 +441,7 @@ function layout:placement_belts(state)
 			local y = m.size + shift_y - 1 + (m.size + 2) * (i-1)
 			local x_start = stagger_shift % 2 == 0 and 3 or 0
 			place_belts(x_start, lane.last_x, y)
+			state.belt_count = state.belt_count + 1
 		end
 		stagger_shift = stagger_shift + 1
 	end

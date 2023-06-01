@@ -3,6 +3,45 @@ local common = {}
 local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
 
+---@param miner MinerStruct
+function common.simple_miner_placement(miner)
+	local near, far, size, fullsize = miner.near, miner.far, miner.size, miner.full_size
+	local neighbor_cap = (near + 1) ^ 2
+	local leech = (far + 1) ^ 2
+
+	---@param center GridTile
+	return function(center)
+		return center.neighbor_count > neighbor_cap
+		-- return center.neighbor_count > neighbor_cap or center.far_neighbor_count > leech
+	end
+end
+
+---@param miner MinerStruct
+function common.overfill_miner_placement(miner)
+	local near, far, size, fullsize = miner.near, miner.far, miner.size, miner.full_size
+	local neighbor_cap = (near + 1) ^ 2 - 1
+	local leech = (far + 1) ^ 2 - 1
+
+	---@param center GridTile
+	return function(center)
+		return center.neighbor_count > 0 or center.far_neighbor_count > neighbor_cap
+	end
+end
+
+local int = 0
+
+---@param attempt PlacementAttempt
+function common.simple_layout_heuristic(attempt)
+	game.print(int.." "..#attempt.lane_layout.." "..attempt.real_density * math.log(#attempt.lane_layout))
+	int = int + 1
+	return attempt.real_density * math.log(#attempt.lane_layout)
+end
+
+---@param attempt PlacementAttempt
+function common.overfill_layout_heuristic(attempt)
+	return -attempt.simple_density * math.log(#attempt.lane_layout)
+end
+
 ---Utility to fill in postponed miners on unconsumed resources
 ---@param state SimpleState
 ---@param heuristics PlacementAttempt
@@ -23,7 +62,11 @@ function common.process_postponed(state, heuristics, miners, postponed)
 
 	table.sort(postponed, function(a, b)
 		if a.unconsumed == b.unconsumed then
-			return a.center.far_neighbor_count > b.center.far_neighbor_count
+			local a_center, b_center = a.center, b.center
+			if a_center.neighbor_count == b_center.neighbor_count then
+				return a_center.far_neighbor_count > b_center.far_neighbor_count
+			end
+			return a_center.neighbor_count > b_center.neighbor_count
 		end
 		return a.unconsumed > b.unconsumed
 	end)

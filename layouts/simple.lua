@@ -19,6 +19,7 @@ local layout = table.deepcopy(base)
 ---@field attempts PlacementAttempt[]
 ---@field attempt_index number
 ---@field best_attempt PlacementAttempt
+---@field best_attempt_score number Heuristic value
 ---@field resourcs LuaEntity[]
 ---@field resource_tiles GridTile
 ---@field longest_belt number For pole alignment information
@@ -30,6 +31,7 @@ local layout = table.deepcopy(base)
 ---@field miner_lanes table<number, MinerPlacement[]>
 ---@field place_pipes boolean
 ---@field pipe_layout_specification PlacementSpecification[]
+---@field belt_count number For info printout
 
 layout.name = "simple"
 layout.translation = {"mpp.settings_layout_choice_simple"}
@@ -44,8 +46,23 @@ layout.restrictions.lamp_available = true
 layout.restrictions.coverage_tuning = true
 layout.restrictions.module_available = true
 layout.restrictions.pipe_available = true
+layout.restrictions.placement_info_available = true
+layout.restrictions.lane_filling_info_available = true
 
----Called from script.on_load
+--[[-----------------------------------
+
+	Basic rundown:
+	* Create a virtual grid from resources
+	* Run calculations on grid tiles according to resource values
+	* _brute_ force several miner layouts on the grid and find the best one
+	* Mark the area around for deconstruction
+	* Place the mining drills and save parameters for pipe layout
+	* Place the pipes
+
+--]]-----------------------------------
+
+--- Called from script.on_load
+--- ONLY FOR SETMETATABLE USE
 ---@param self SimpleLayout
 ---@param state SimpleState
 function layout:on_load(state)
@@ -107,7 +124,7 @@ function layout:start(state)
 		end
 	end
 
-	--[[ debug rendering - bounds
+	--[[ debug rendering - bounds ]]
 	rendering.draw_rectangle{
 		surface=state.surface,
 		left_top={state.coords.ix1, state.coords.iy1},
@@ -208,6 +225,7 @@ end
 ---@field sx number x shift
 ---@field sy number y shift
 ---@field miners MinerPlacement[]
+---@field miner_count number
 ---@field postponed MinerPlacement[]
 ---@field neighbor_sum number
 ---@field lane_layout LaneInfo
@@ -222,48 +240,6 @@ end
 ---@class LaneInfo
 ---@field y number
 ---@field row_index number
-
----@param miner MinerStruct
-local function miner_heuristic(miner, variant)
-	local near, far, size, fullsize = miner.near, miner.far, miner.size, miner.full_size
-
-	if variant == "coverage" then
-		local neighbor_cap = floor((size ^ 2) * 0.8)
-		local leech = (far - near) * fullsize
-		---@param center GridTile
-		return function(center)
-			if center.neighbor_count >= neighbor_cap then return true end
-			if center.far_neighbor_count >= leech and center.neighbor_count >= (size * near) then return true end
-		end
-	elseif variant == "coverage2" then
-		local neighbor_cap = floor((size ^ 2) * 0.5)
-		local leech = fullsize ^ 2 * 0.5
-		---@param center GridTile
-		return function(center)
-			if center.neighbor_count > 1 then return true end
-			--if center.neighbor_count >= neighbor_cap then return true end
-			--if center.far_neighbor_count >= leech then return true end
-		end
-	elseif variant == "coverage3" then
-		local neighbor_mult = size ^ 2
-		local leech_mult = (fullsize ^ 2 - size ^ 2)
-		---@param center GridTile
-		return function(center)
-			return center.neighbor_count / neighbor_mult >= center.far_neighbor_count / leech_mult
-		end
-	else
-		local neighbor_cap = ceil((size ^ 2) * 0.5)
-		local leech = (far - near) * fullsize
-		---@param center GridTile
-		return function(center)
-			if center.neighbor_count > neighbor_cap then return true end
-			--if center.far_neighbor_count > leech then return true end
-			if center.far_neighbor_count > leech and center.neighbor_count > (size * near) then
-				return true
-			end
-		end
-	end
-end
 
 ---@param state SimpleState
 ---@return PlacementAttempt
@@ -282,9 +258,9 @@ local function placement_attempt(state, shift_x, shift_y)
 
 	local heuristic
 	if state.coverage_choice then
-		heuristic = miner_heuristic(state.miner, "coverage2")
+		heuristic = common.overfill_miner_placement(state.miner)
 	else
-		heuristic = miner_heuristic(state.miner)
+		heuristic = common.simple_miner_placement(state.miner)
 	end
 
 	for y = 1 + shift_y, state.coords.th + near, size + 1 do
@@ -317,6 +293,7 @@ local function placement_attempt(state, shift_x, shift_y)
 	local result = {
 		sx=shift_x, sy=shift_y,
 		miners=miners,
+		miner_count=#miners,
 		lane_layout=lane_layout,
 		--postponed=postponed,
 		postponed={},
@@ -335,34 +312,6 @@ local function placement_attempt(state, shift_x, shift_y)
 
 	return result
 end
-
----@param attempt PlacementAttempt
----@param miner MinerStruct
-local function attempt_heuristic_economic(attempt, miner)
-	local miner_count = #attempt.miners
-	local simple_density = attempt.simple_density
-	local real_density = attempt.real_density
-	local density_score = attempt.density
-	local neighbor_score = attempt.neighbor_sum / (miner.size ^ 2) / 7
-	local far_neighbor_score = attempt.far_neighbor_sum / (miner.full_size ^ 2) / 7
-	return miner_count - simple_density + attempt.postponed_count
-end
-
----@param attempt PlacementAttempt
----@param miner MinerStruct
-local function attempt_heuristic_coverage(attempt, miner)
-	local miner_count = #attempt.miners
-	local simple_density = attempt.simple_density
-	local real_density = attempt.real_density
-	local density_score = attempt.density
-	local neighbor_score = attempt.neighbor_sum / (miner.size ^ 2)
-	local far_neighbor_score = attempt.far_neighbor_sum / (miner.full_size ^ 2)
-	local leech_score = attempt.leech_sum / (miner.full_size ^ 2 - miner.size ^ 2)
-	--return real_density - miner_count
-	return simple_density - miner_count + real_density
-end
-
-local fmt_str = "Attempt #%i (%i,%i) - miners:%i, density %.3f, score %.3f, unc %i"
 
 ---@param self SimpleLayout
 ---@param state SimpleState
@@ -386,12 +335,10 @@ function layout:init_first_pass(state)
 		end
 	end
 
-	local attempt_heuristic = state.coverage_choice and attempt_heuristic_coverage or attempt_heuristic_economic
+	local attempt_heuristic = state.coverage_choice and common.overfill_layout_heuristic or common.simple_layout_heuristic
 
 	state.best_attempt = placement_attempt(state, attempts[1][1], attempts[1][2])
-	state.best_attempt_score = attempt_heuristic(state.best_attempt, state.miner)
-
-	--game.print(fmt_str:format(1, state.best_attempt.sx, state.best_attempt.sy, #state.best_attempt.miners, state.best_attempt.real_density, state.best_attempt_score, state.best_attempt.unconsumed_count))
+	state.best_attempt_score = attempt_heuristic(state.best_attempt)
 
 	return "first_pass"
 end
@@ -404,8 +351,8 @@ function layout:first_pass(state)
 	local attempt_state = state.attempts[state.attempt_index]
 	---@type PlacementAttempt
 	local current_attempt = placement_attempt(state, attempt_state[1], attempt_state[2])
-	local attempt_heuristic = state.coverage_choice and attempt_heuristic_coverage or attempt_heuristic_economic
-	local current_attempt_score = attempt_heuristic(current_attempt, state.miner)
+	local attempt_heuristic = state.coverage_choice and common.overfill_layout_heuristic or common.simple_layout_heuristic
+	local current_attempt_score = attempt_heuristic(current_attempt)
 
 	--game.print(fmt_str:format(state.attempt_index, attempt_state[1], attempt_state[2], #current_attempt.miners, current_attempt.real_density, current_attempt_score, current_attempt.unconsumed_count))
 
@@ -529,6 +476,8 @@ end
 ---@field h number
 ---@field structure string
 ---@field entity string
+---@field skip_up boolean
+---@field skip_down boolean
 
 --- Process gaps between miners in "miner space" and translate them to grid specification
 ---@param self SimpleLayout
@@ -722,6 +671,7 @@ function layout:placement_belts(state)
 
 	local belts = {}
 	state.belts = belts
+	state.belt_count = 0
 	local longest_belt = 0
 	for i = 1, miner_lane_count, 2 do
 		local lane1 = miner_lanes[i]
@@ -733,6 +683,7 @@ function layout:placement_belts(state)
 		belts[#belts+1] = belt
 		
 		if lane1 or lane2 then
+			state.belt_count = state.belt_count + 1
 			local x1 = attempt.sx + 1
 			local x2 = max(get_lane_length(lane1), get_lane_length(lane2)) + m.near
 			longest_belt = max(longest_belt, x2 - x1 + 1)
@@ -947,6 +898,9 @@ end
 ---@param state SimpleState
 ---@return CallbackState
 function layout:finish(state)
+	if state.print_placement_info_choice and state.player.valid then
+		state.player.print({"mpp.msg_print_info_miner_placement", #state.best_attempt.miners, state.belt_count, #state.resources})
+	end
 	return false
 end
 

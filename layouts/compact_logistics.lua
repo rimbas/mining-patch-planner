@@ -2,6 +2,7 @@ local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
 
 local compact = require("layouts.super_compact")
+local logistics =require("layouts.logistics")
 local mpp_util = require("mpp_util")
 local mpp_revert = mpp_util.revert
 
@@ -120,5 +121,7 @@ function layout:placement_belts(state)
 	end
 	return "placement_pole"
 end
+
+layout.finish = logistics.finish
 
 return layout

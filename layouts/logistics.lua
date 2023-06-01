@@ -87,4 +87,14 @@ function layout:placement_belts(state)
 	return "placement_poles"
 end
 
+---@param self SimpleLayout
+---@param state SimpleState
+---@return CallbackState
+function layout:finish(state)
+	if state.print_placement_info_choice and state.player.valid then
+		state.player.print({"mpp.msg_print_info_miner_placement_no_lanes", #state.best_attempt.miners, #state.resources})
+	end
+	return false
+end
+
 return layout

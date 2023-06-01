@@ -67,5 +67,7 @@
 ---@field deconstruction_omit_available boolean
 ---@field module_available boolean
 ---@field pipe_available boolean
+---@field placement_info_available boolean
+---@field lane_filling_info_available boolean
 
 table.deepcopy = function(t) end

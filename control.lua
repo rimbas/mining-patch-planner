@@ -63,7 +63,7 @@ script.on_event(defines.events.on_player_selected_area, function(event)
 
 	local state, error = algorithm.on_player_selected_area(event)
 
-	--rendering.clear("mining-patch-planner")
+	rendering.clear("mining-patch-planner")
 
 	if state then
 		table.insert(global.tasks, state)

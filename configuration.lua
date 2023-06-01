@@ -28,6 +28,8 @@ local conf = {}
 ---@field module_choice string
 ---@field show_non_electric_miners_choice boolean
 ---@field force_pipe_placement_choice boolean
+---@field print_debug_info_choice boolean
+---@field display_lane_filling_choice boolean
 
 ---@class PlayerGui
 ---@field section table<string, LuaGuiElement>
@@ -68,10 +70,12 @@ conf.default_config = {
 		deconstruction_choice = false,
 		pipe_choice = "pipe",
 		module_choice = "none",
-
+		
 		-- non layout/convienence/advanced settings
 		show_non_electric_miners_choice = false,
 		force_pipe_placement_choice = false,
+		print_debug_info_choice = false,
+		display_lane_filling_choice = false,
 	},
 
 	gui = {

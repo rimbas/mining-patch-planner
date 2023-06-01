@@ -30,6 +30,7 @@ require_layout("blueprints")
 ---@field resources LuaEntity[] Filtered resources
 ---@field found_resources LuaEntity[] Found resource types
 ---@field requires_fluid boolean
+---
 ---@field layout_choice string
 ---@field direction_choice string
 ---@field miner_choice string
@@ -46,6 +47,9 @@ require_layout("blueprints")
 ---@field pipe_choice string
 ---@field module_choice string
 ---@field force_pipe_placement_choice boolean
+---@field print_placement_info_choice boolean
+---@field display_lane_filling_choice boolean
+---
 ---@field coords Coords
 ---@field grid Grid
 ---@field miner MinerStruct

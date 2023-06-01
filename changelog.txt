@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.4.4
+Date: 2023-05-07
+  Features:
+    - Improved Pyanodons compatibility
+    - Improved Space Exploration SatView compatibility 
+---------------------------------------------------------------------------------------------------
 Version: 1.4.3
 Date: 2023-04-02
   Bugfixes:

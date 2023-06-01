@@ -35,8 +35,10 @@ layout.restrictions.start_tuning = false
 layout.restrictions.deconstruction_omit_available = true
 layout.restrictions.module_available = false
 layout.restrictions.pipe_available = false
+layout.restrictions.placement_info_available = false
+layout.restrictions.lane_filling_info_available = false
 
---- Called from script.on_load  
+--- Called from script.on_load
 --- ONLY FOR SETMETATABLE USE
 ---@param self Layout
 ---@param state State

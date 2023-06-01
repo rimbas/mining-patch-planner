@@ -9,7 +9,7 @@ data:extend{
 		flags = {"only-in-cursor", "hidden", "spawnable", "not-stackable"},
         stack_size = 1,
 		order="c[automated-construction]-e[miner-planner]",
-		draw_label_for_cursor_render = true,
+		draw_label_for_cursor_render = false,
 		selection_color = {r=0, g=0, b=1, a=0.5},
 		selection_cursor_box_type="entity",
 		selection_mode={"any-entity"},
