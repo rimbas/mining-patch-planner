@@ -1,4 +1,5 @@
 local conf = require("configuration")
+local compatibility = require("compatibility")
 require("migration")
 local gui = require("gui")
 local algorithm = require("algorithm")
@@ -120,6 +121,13 @@ end
 script.on_event(defines.events.on_player_cursor_stack_changed, cursor_stack_check)
 
 script.on_event(defines.events.on_player_changed_surface, cursor_stack_check)
+
+do
+	local events = compatibility.get_se_events()
+	for k, v in pairs(events) do
+		script.on_event(v, cursor_stack_check)
+	end
+end
 
 -- script.on_event(defines.events.on_player_main_inventory_changed, function(e)
 -- 	--change_handler(e)
