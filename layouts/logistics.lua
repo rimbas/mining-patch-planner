@@ -2,7 +2,6 @@ local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
 
 local simple = require("layouts.simple")
-local compact = require("layouts.compact")
 local mpp_util = require("mpp_util")
 local mpp_revert = mpp_util.revert
 local pole_grid_mt = require("pole_grid_mt")

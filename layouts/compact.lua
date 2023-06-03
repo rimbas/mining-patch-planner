@@ -2,7 +2,6 @@ local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
 
 local common = require("layouts.common")
-local base = require("layouts.base")
 local simple = require("layouts.simple")
 local mpp_util = require("mpp_util")
 local builder = require("builder")
@@ -12,7 +11,7 @@ local mpp_revert = mpp_util.revert
 local EAST, NORTH, SOUTH, WEST = mpp_util.directions()
 
 ---@class CompactLayout : SimpleLayout
-local layout = table.deepcopy(base)
+local layout = table.deepcopy(simple)
 
 layout.name = "compact"
 layout.translation = {"mpp.settings_layout_choice_compact"}
@@ -29,13 +28,9 @@ layout.restrictions.lamp_available = true
 layout.restrictions.module_available = true
 layout.restrictions.pipe_available = true
 
-layout.on_load = simple.on_load
-layout.start = simple.start
-layout.process_grid = simple.process_grid
-
 ---@param state SimpleState
 ---@return PlacementAttempt
-local function placement_attempt(state, shift_x, shift_y)
+function layout:_placement_attempt(state, shift_x, shift_y)
 	local grid = state.grid
 	local size, near, far = state.miner.size, state.miner.near, state.miner.far
 	local fullsize = state.miner.full_size
@@ -137,33 +132,7 @@ local function placement_attempt(state, shift_x, shift_y)
 	}
 end
 
----@param attempt PlacementAttempt
----@param miner MinerStruct
-local function attempt_heuristic_economic(attempt, miner)
-	local miner_count = #attempt.miners
-	local simple_density = attempt.simple_density
-	local real_density = attempt.real_density
-	local density_score = attempt.density
-	local neighbor_score = attempt.neighbor_sum / (miner.size ^ 2) / 7
-	local far_neighbor_score = attempt.far_neighbor_sum / (miner.full_size ^ 2) / 7
-	return miner_count - simple_density
-end
-
----@param attempt PlacementAttempt
----@param miner MinerStruct
-local function attempt_heuristic_coverage(attempt, miner)
-	local miner_count = #attempt.miners
-	local simple_density = attempt.simple_density
-	local real_density = attempt.real_density
-	local density_score = attempt.density
-	local neighbor_score = attempt.neighbor_sum / (miner.size ^ 2)
-	local far_neighbor_score = attempt.far_neighbor_sum / (miner.full_size ^ 2)
-	--local leech_score = attempt.leech_sum / (miner.full_size ^ 2 - miner.size ^ 2)
-	--return real_density - miner_count
-	--return simple_density + real_density - miner_count
-	return simple_density - miner_count
-end
-
+--[[
 ---@param self CompactLayout
 ---@param state SimpleState
 function layout:init_first_pass(state)
@@ -189,7 +158,9 @@ function layout:init_first_pass(state)
 
 	return "first_pass"
 end
+]]
 
+--[[
 ---Bruteforce the best solution
 ---@param self CompactLayout
 ---@param state SimpleState
@@ -214,11 +185,7 @@ function layout:first_pass(state)
 	state.attempt_index = state.attempt_index + 1
 	return true
 end
-
-layout.simple_deconstruct = simple.simple_deconstruct
-layout.place_miners = simple.place_miners
-layout.prepare_pipe_layout = simple.prepare_pipe_layout
-layout.place_pipes = simple.place_pipes
+]]
 
 ---@param self CompactLayout
 ---@param state SimpleState
@@ -511,8 +478,5 @@ function layout:placement_lamp(state)
 
 	return _next_step
 end
-
-layout.placement_landfill = simple.placement_landfill
-layout.finish = simple.finish
 
 return layout

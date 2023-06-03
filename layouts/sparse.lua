@@ -1,7 +1,6 @@
 local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
 
-local base = require("layouts.base")
 local simple = require("layouts.simple")
 local mpp_util = require("mpp_util")
 local coord_convert, coord_revert = mpp_util.coord_convert, mpp_util.coord_revert
@@ -10,7 +9,7 @@ local belt_direction = mpp_util.belt_direction
 local mpp_revert = mpp_util.revert
 
 
-local layout = table.deepcopy(base) --[[@as Layout]]
+local layout = table.deepcopy(simple) --[[@as Layout]]
 
 layout.name = "sparse"
 layout.translation = {"mpp.settings_layout_choice_sparse"}
@@ -24,14 +23,11 @@ layout.restrictions.pole_supply_area = {2.5, 10e3}
 layout.restrictions.lamp_available = true
 layout.restrictions.module_available = true
 layout.restrictions.pipe_available = true
-
-layout.on_load = simple.on_load
-layout.start = simple.start
-layout.process_grid = simple.process_grid
+layout.restrictions.coverage_tuning = false
 
 ---@param state SimpleState
 ---@return PlacementAttempt
-local function placement_attempt(state, shift_x, shift_y)
+function layout:_placement_attempt(state, shift_x, shift_y)
 	local grid = state.grid
 	local size, near, far = state.miner.size, state.miner.near, state.miner.far
 	local full_size = far * 2 + 1
@@ -62,6 +58,7 @@ local function placement_attempt(state, shift_x, shift_y)
 		sx=shift_x, sy=shift_y,
 		miners=miners,
 		lane_layout=lane_layout,
+		real_den
 	}
 end
 
@@ -94,7 +91,7 @@ function layout:init_first_pass(state)
 		end
 	end
 
-	state.best_attempt = placement_attempt(state, attempts[1][1], attempts[1][2])
+	state.best_attempt = self:_placement_attempt(state, attempts[1][1], attempts[1][2])
 	state.best_attempt_score = #state.best_attempt.miners
 
 	if #attempts > 1 then
@@ -102,6 +99,10 @@ function layout:init_first_pass(state)
 	else
 		return "simple_deconstruct"
 	end
+end
+
+function layout:_get_layout_heuristic(state)
+	return function(attempt) return #attempt.miners end
 end
 
 ---Bruteforce the best solution
@@ -197,7 +198,6 @@ function layout:prepare_pipe_layout(state)
 	return "place_pipes"
 end
 
-layout.place_pipes = simple.place_pipes
 
 ---@param self SimpleLayout
 ---@param state SimpleState
@@ -383,9 +383,5 @@ function layout:placement_poles(state)
 
 	return "placement_lamp"
 end
-
-layout.placement_lamp = simple.placement_lamp
-layout.placement_landfill = simple.placement_landfill
-layout.finish = simple.finish
 
 return layout

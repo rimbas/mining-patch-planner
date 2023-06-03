@@ -28,18 +28,14 @@ function common.overfill_miner_placement(miner)
 	end
 end
 
-local int = 0
-
 ---@param attempt PlacementAttempt
 function common.simple_layout_heuristic(attempt)
-	game.print(int.." "..#attempt.lane_layout.." "..attempt.real_density * math.log(#attempt.lane_layout))
-	int = int + 1
-	return attempt.real_density * math.log(#attempt.lane_layout)
+	return (attempt.real_density - attempt.simple_density) * math.log(#attempt.lane_layout)
 end
 
 ---@param attempt PlacementAttempt
 function common.overfill_layout_heuristic(attempt)
-	return -attempt.simple_density * math.log(#attempt.lane_layout)
+	return attempt.simple_density - attempt.real_density -- * math.log(#attempt.lane_layout)
 end
 
 ---Utility to fill in postponed miners on unconsumed resources

@@ -1,13 +1,13 @@
 local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
 
-local compact = require("layouts.super_compact")
+local super_compact = require("layouts.super_compact")
 local logistics =require("layouts.logistics")
 local mpp_util = require("mpp_util")
 local mpp_revert = mpp_util.revert
 
 ---@class CompactLogisticsLayout: SuperCompactLayout
-local layout = table.deepcopy(compact)
+local layout = table.deepcopy(super_compact)
 
 layout.name = "compact_logistics"
 layout.translation = {"mpp.settings_layout_choice_compact_logistics"}

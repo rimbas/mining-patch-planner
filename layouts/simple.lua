@@ -208,7 +208,7 @@ function layout:process_grid(state)
 	end --]]
 	
 	if state.resource_iter >= #state.resources then
-		return "init_first_pass"
+		return "init_layout_attempt"
 	end
 	return true
 end
@@ -241,9 +241,25 @@ end
 ---@field y number
 ---@field row_index number
 
+function layout:_get_miner_placement_heuristic(state)
+	if state.coverage_choice then
+		return common.overfill_miner_placement(state.miner)
+	else
+		return common.simple_miner_placement(state.miner)
+	end
+end
+
+function layout:_get_layout_heuristic(state)
+	if state.coverage_choice then
+		return common.overfill_layout_heuristic
+	else
+		return common.simple_layout_heuristic
+	end
+end
+
 ---@param state SimpleState
 ---@return PlacementAttempt
-local function placement_attempt(state, shift_x, shift_y)
+function layout:_placement_attempt(state, shift_x, shift_y)
 	local c = state.coords
 	local grid = state.grid
 	local size, near, far, fullsize = state.miner.size, state.miner.near, state.miner.far, state.miner.full_size
@@ -256,12 +272,7 @@ local function placement_attempt(state, shift_x, shift_y)
 	local leech_sum = 0
 	local lane_layout = {}
 
-	local heuristic
-	if state.coverage_choice then
-		heuristic = common.overfill_miner_placement(state.miner)
-	else
-		heuristic = common.simple_miner_placement(state.miner)
-	end
+	local heuristic = self:_get_miner_placement_heuristic(state)
 
 	for y = 1 + shift_y, state.coords.th + near, size + 1 do
 		local column_index = 1
@@ -316,45 +327,42 @@ end
 ---@param self SimpleLayout
 ---@param state SimpleState
 ---@return CallbackState
-function layout:init_first_pass(state)
+function layout:init_layout_attempt(state)
 	local m = state.miner
-	local attempts = {{-m.near, -m.near}}
+	--local init_pos_x, init_pos_y = -m.near, -m.near
+	local init_pos_x, init_pos_y = 1, 1
+	local attempts = {{init_pos_x, init_pos_y}}
 	state.attempts = attempts
 	state.best_attempt_index = 1
 	state.attempt_index = 2 -- first attempt is used up
 	--local ext_behind, ext_forward = -m.far, m.far - m.near
-	local ext_behind, ext_forward = -m.far, m.far-m.near
+	local ext_behind, ext_forward = -m.far, m.near*2
 	
 	--for sy = ext_behind, ext_forward do
 	--	for sx = ext_behind, ext_forward do
 	for sy = ext_forward, ext_behind, -1 do
 		for sx = ext_forward, ext_behind, -1 do
-			if not (sx == -m.near and sy == -m.near) then
+			if not (sx == init_pos_x and sy == init_pos_y) then
 				attempts[#attempts+1] = {sx, sy}
 			end
 		end
 	end
 
-	local attempt_heuristic = state.coverage_choice and common.overfill_layout_heuristic or common.simple_layout_heuristic
+	state.best_attempt = self:_placement_attempt(state, attempts[1][1], attempts[1][2])
+	state.best_attempt_score = self:_get_layout_heuristic(state)(state.best_attempt)
 
-	state.best_attempt = placement_attempt(state, attempts[1][1], attempts[1][2])
-	state.best_attempt_score = attempt_heuristic(state.best_attempt)
-
-	return "first_pass"
+	return "layout_attempt"
 end
 
 ---Bruteforce the best solution
 ---@param self SimpleLayout
 ---@param state SimpleState
 ---@return CallbackState
-function layout:first_pass(state)
+function layout:layout_attempt(state)
 	local attempt_state = state.attempts[state.attempt_index]
 	---@type PlacementAttempt
-	local current_attempt = placement_attempt(state, attempt_state[1], attempt_state[2])
-	local attempt_heuristic = state.coverage_choice and common.overfill_layout_heuristic or common.simple_layout_heuristic
-	local current_attempt_score = attempt_heuristic(current_attempt)
-
-	--game.print(fmt_str:format(state.attempt_index, attempt_state[1], attempt_state[2], #current_attempt.miners, current_attempt.real_density, current_attempt_score, current_attempt.unconsumed_count))
+	local current_attempt = self:_placement_attempt(state, attempt_state[1], attempt_state[2])
+	local current_attempt_score = self:_get_layout_heuristic(state)(current_attempt)
 
 	if current_attempt.unconsumed_count == 0 and current_attempt_score < state.best_attempt_score  then
 		state.best_attempt_index = state.attempt_index
@@ -379,15 +387,28 @@ function layout:simple_deconstruct(state)
 	local player = state.player
 	local surface = state.surface
 
+	local left_top = {
+		c.x1+state.best_attempt.sx-.5,
+		c.y1+state.best_attempt.sy-.5,
+	}
+	local right_bottom = {
+		c.x2+state.best_attempt.sx+.5,
+		c.y2+state.best_attempt.sy+.5,
+	}
+
 	local deconstructor = global.script_inventory[state.deconstruction_choice and 2 or 1]
 	surface.deconstruct_area{
 		force=player.force,
 		player=player.index,
-		area={
-			left_top={c.x1-m.size-1, c.y1-m.size-1},
-			right_bottom={c.x2+m.size+1, c.y2+m.size+1}
-		},
+		area={left_top=left_top, right_bottom=right_bottom},
 		item=deconstructor,
+	}
+
+	rendering.draw_rectangle{
+		surface=state.surface, players={state.player},
+		width=4, color={1, 0, 0}, filled=false,
+		left_top=left_top,
+		right_bottom=right_bottom,
 	}
 	return "place_miners"
 end

@@ -2,7 +2,6 @@ local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
 
 local common = require("layouts.common")
-local base = require("layouts.base")
 local simple = require("layouts.simple")
 local mpp_util = require("mpp_util")
 local coord_convert, coord_revert = mpp_util.coord_convert, mpp_util.coord_revert
@@ -10,7 +9,7 @@ local miner_direction, opposite = mpp_util.miner_direction, mpp_util.opposite
 local mpp_revert = mpp_util.revert
 
 ---@class SuperCompactLayout : SimpleLayout
-local layout = table.deepcopy(base)
+local layout = table.deepcopy(simple)
 
 layout.name = "super_compact"
 layout.translation = {"mpp.settings_layout_choice_super_compact"}
@@ -25,8 +24,7 @@ layout.restrictions.pole_supply_area = {2.5, 10e3}
 layout.restrictions.coverage_tuning = true
 layout.restrictions.lamp_available = false
 layout.restrictions.module_available = true
-
-layout.on_load = simple.on_load
+layout.restrictions.pipe_available = false
 
 -- Validate the selection
 ---@param self SuperCompactLayout
@@ -45,12 +43,9 @@ function layout:validate(state)
 	return true
 end
 
-layout.start = simple.start
-layout.process_grid = simple.process_grid
-
 ---@param state SimpleState
 ---@return PlacementAttempt
-local function placement_attempt(state, shift_x, shift_y)
+function layout:_placement_attempt(state, shift_x, shift_y)
 	local grid = state.grid
 	local size, near, fullsize = state.miner.size, state.miner.near, state.miner.full_size
 	local neighbor_sum = 0
@@ -132,6 +127,7 @@ local function placement_attempt(state, shift_x, shift_y)
 	return result
 end
 
+--[[
 ---@param self SuperCompactLayout
 ---@param state SimpleState
 function layout:init_first_pass(state)
@@ -151,30 +147,15 @@ function layout:init_first_pass(state)
 		end
 	end
 
-	rendering.draw_circle{
-		players={state.player}, surface=state.surface,
-		radius=0.4, color={1, 0, 0}, filled=true,
-		target={state.coords.gx+ext_behind, state.coords.gy+ext_behind},
-	}
-	rendering.draw_circle{
-		players={state.player}, surface=state.surface,
-		radius=0.4, color={1, 1, 1}, filled=true,
-		target={state.coords.gx, state.coords.gy},
-	}
-	rendering.draw_circle{
-		players={state.player}, surface=state.surface,
-		radius=0.4, color={1, 1, 0}, filled=true,
-		target={state.coords.gx+ext_forward, state.coords.gy+ext_forward},
-	}
-
-
 	local attempt_heuristic = state.coverage_choice and common.overfill_layout_heuristic or common.simple_layout_heuristic
 	state.best_attempt = placement_attempt(state, attempts[1][1], attempts[1][2])
 	state.best_attempt_score = attempt_heuristic(state.best_attempt)
 
 	return "first_pass"
 end
+]]
 
+--[[
 ---Bruteforce the best solution
 ---@param self SuperCompactLayout
 ---@param state SimpleState
@@ -197,8 +178,7 @@ function layout:first_pass(state)
 	state.attempt_index = state.attempt_index + 1
 	return true
 end
-
-layout.simple_deconstruct = simple.simple_deconstruct
+]]
 
 ---@param self SuperCompactLayout
 ---@param state SimpleState
@@ -478,8 +458,5 @@ function layout:placement_pole(state)
 
 	return "placement_landfill"
 end
-
-layout.placement_landfill = simple.placement_landfill
-layout.finish = simple.finish
 
 return layout
