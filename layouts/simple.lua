@@ -15,11 +15,14 @@ local mpp_revert = mpp_util.revert
 local layout = table.deepcopy(base)
 
 ---@class SimpleState : State
+---@field debug_dump boolean
+---@field saved_attempts PlacementAttempt[]
 ---@field first_pass any
----@field attempts PlacementAttempt[]
+---@field attempts PlacementCoords[]
 ---@field attempt_index number
 ---@field best_attempt PlacementAttempt
 ---@field best_attempt_score number Heuristic value
+---@field best_attempt_index number
 ---@field resourcs LuaEntity[]
 ---@field resource_tiles GridTile
 ---@field longest_belt number For pole alignment information
@@ -208,7 +211,8 @@ function layout:process_grid(state)
 	end --]]
 	
 	if state.resource_iter >= #state.resources then
-		return "init_layout_attempt"
+		return "prepare_layout_attempts"
+		--return "init_layout_attempt"
 	end
 	return true
 end
@@ -221,21 +225,26 @@ end
 ---@field ent BlueprintEntity|nil
 ---@field unconsumed number Unconsumed resource count for postponed miners
 
+---@class PlacementCoords
+---@field sx number x shift
+---@field sy number y shift
+
 ---@class PlacementAttempt
 ---@field sx number x shift
 ---@field sy number y shift
 ---@field miners MinerPlacement[]
 ---@field miner_count number
 ---@field postponed MinerPlacement[]
+---@field heuristic_score number
 ---@field neighbor_sum number
 ---@field lane_layout LaneInfo
 ---@field far_neighbor_sum number
----@field density number
 ---@field unconsumed_count number
 ---@field simple_density number
 ---@field real_density number
 ---@field leech_sum number
 ---@field postponed_count number
+---@field empty_space number
 
 ---@class LaneInfo
 ---@field y number
@@ -270,6 +279,7 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 	local simple_density = 0
 	local real_density = 0
 	local leech_sum = 0
+	local empty_space = 0
 	local lane_layout = {}
 
 	local heuristic = self:_get_miner_placement_heuristic(state)
@@ -290,6 +300,7 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 				miners[#miners+1] = miner
 				neighbor_sum = neighbor_sum + center.neighbor_count
 				far_neighbor_sum = far_neighbor_sum + center.far_neighbor_count
+				empty_space = empty_space + (size^2) - center.neighbor_count
 				simple_density = simple_density + center.neighbor_count / (size ^ 2)
 				real_density = real_density + center.far_neighbor_count / (fullsize ^ 2)
 				leech_sum = leech_sum + max(0, center.far_neighbor_count - center.neighbor_count)
@@ -311,10 +322,9 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 		neighbor_sum=neighbor_sum,
 		far_neighbor_sum=far_neighbor_sum,
 		leech_sum=leech_sum,
-		density=neighbor_sum / #miners,
 		simple_density=simple_density,
 		real_density=real_density,
-		far_density=far_neighbor_sum / #miners,
+		empty_space=empty_space,
 		unconsumed_count=0,
 		postponed_count=0,
 	}
@@ -324,19 +334,17 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 	return result
 end
 
----@param self SimpleLayout
----@param state SimpleState
----@return CallbackState
-function layout:init_layout_attempt(state)
+
+function layout:prepare_layout_attempts(state)
 	local m = state.miner
 	--local init_pos_x, init_pos_y = -m.near, -m.near
-	local init_pos_x, init_pos_y = 1, 1
+	local init_pos_x, init_pos_y = 0, 0
 	local attempts = {{init_pos_x, init_pos_y}}
 	state.attempts = attempts
 	state.best_attempt_index = 1
-	state.attempt_index = 2 -- first attempt is used up
+	state.attempt_index = 1 -- first attempt is used up
 	--local ext_behind, ext_forward = -m.far, m.far - m.near
-	local ext_behind, ext_forward = -m.far, m.near*2
+	local ext_behind, ext_forward = -m.far, m.far - m.near
 	
 	--for sy = ext_behind, ext_forward do
 	--	for sx = ext_behind, ext_forward do
@@ -348,9 +356,26 @@ function layout:init_layout_attempt(state)
 		end
 	end
 
-	state.best_attempt = self:_placement_attempt(state, attempts[1][1], attempts[1][2])
-	state.best_attempt_score = self:_get_layout_heuristic(state)(state.best_attempt)
+	return "init_layout_attempt"
+end
 
+---@param self SimpleLayout
+---@param state SimpleState
+---@return CallbackState
+function layout:init_layout_attempt(state)
+
+	local attempt = state.attempts[state.attempt_index]
+
+	state.best_attempt = self:_placement_attempt(state, attempt[1], attempt[2])
+	state.best_attempt_score = self:_get_layout_heuristic(state)(state.best_attempt)
+	
+	if state.debug_dump then
+		state.best_attempt.heuristic_score = state.best_attempt_score
+		state.saved_attempts = {}
+		state.saved_attempts[#state.saved_attempts+1] = state.best_attempt
+	end
+
+	state.attempt_index = state.attempt_index + 1
 	return "layout_attempt"
 end
 
@@ -364,6 +389,11 @@ function layout:layout_attempt(state)
 	local current_attempt = self:_placement_attempt(state, attempt_state[1], attempt_state[2])
 	local current_attempt_score = self:_get_layout_heuristic(state)(current_attempt)
 
+	if state.debug_dump then
+		current_attempt.heuristic_score = current_attempt_score
+		state.saved_attempts[#state.saved_attempts+1] = current_attempt
+	end
+
 	if current_attempt.unconsumed_count == 0 and current_attempt_score < state.best_attempt_score  then
 		state.best_attempt_index = state.attempt_index
 		state.best_attempt = current_attempt
@@ -372,6 +402,8 @@ function layout:layout_attempt(state)
 
 	if state.attempt_index >= #state.attempts then
 		--game.print(("Chose attempt #%i, %i miners"):format(state.best_attempt_index, #state.best_attempt.miners))
+		local grid_backup = table.deepcopy(state.grid)
+		state.grid_backup = grid_backup
 		return "simple_deconstruct"
 	end
 	state.attempt_index = state.attempt_index + 1
@@ -404,12 +436,12 @@ function layout:simple_deconstruct(state)
 		item=deconstructor,
 	}
 
-	rendering.draw_rectangle{
+	--[[rendering.draw_rectangle{
 		surface=state.surface, players={state.player},
 		width=4, color={1, 0, 0}, filled=false,
 		left_top=left_top,
 		right_bottom=right_bottom,
-	}
+	}]]
 	return "place_miners"
 end
 
@@ -922,6 +954,11 @@ function layout:finish(state)
 	if state.print_placement_info_choice and state.player.valid then
 		state.player.print({"mpp.msg_print_info_miner_placement", #state.best_attempt.miners, state.belt_count, #state.resources})
 	end
+
+	if mpp_util.get_dump_state(state.player.index) then
+		common.save_state_to_file(state, "json")
+	end
+
 	return false
 end
 

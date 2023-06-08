@@ -354,4 +354,10 @@ function mpp_util.directions()
 		defines.direction.west
 end
 
+---@param player_index uint
+---@return boolean
+function mpp_util.get_dump_state(player_index)
+	return settings.get_player_settings(player_index)["mpp-dump-heuristics-data"].value --[[@as boolean]]
+end
+
 return mpp_util

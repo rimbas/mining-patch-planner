@@ -1,4 +1,5 @@
 local enums = require("enums")
+local mpp_util = require("mpp_util")
 local compatibility = require("compatibility")
 
 local floor, ceil = math.floor, math.ceil
@@ -30,6 +31,7 @@ require_layout("blueprints")
 ---@field resources LuaEntity[] Filtered resources
 ---@field found_resources LuaEntity[] Found resource types
 ---@field requires_fluid boolean
+---@field mod_version string
 ---
 ---@field layout_choice string
 ---@field direction_choice string
@@ -74,6 +76,7 @@ local function create_state(event)
 	local state = {}
 	state._callback = "start"
 	state.tick = 0
+	state.mod_version = game.active_mods["mining-patch-planner"]
 	state.preview_rectangle = nil
 	state._render_objects = {}
 	
@@ -100,6 +103,8 @@ local function create_state(event)
 
 		state.belt_choice = state.space_belt_choice
 	end
+
+	state.debug_dump = mpp_util.get_dump_state(event.player_index)
 
 	if state.layout_choice == "blueprints" then
 		if not player_data.choices.blueprint_choice then

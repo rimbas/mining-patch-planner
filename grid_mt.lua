@@ -3,7 +3,6 @@ local mpp_util = require("mpp_util")
 ---@class GridRow: GridTile[]
 
 ---@class Grid
----@field data GridRow[]
 ---@field coords Coords
 ---@field resource_tiles GridTile[]
 ---@field miner MinerStruct
@@ -292,6 +291,5 @@ function grid_mt:get_unconsumed_custom(mx, my, w)
 	end
 	return count
 end
-
 
 return grid_mt

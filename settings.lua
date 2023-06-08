@@ -5,4 +5,10 @@ data:extend{
 		setting_type="runtime-per-user",
 		default_value=30,
 	},
+	{
+		type="bool-setting",
+		name="mpp-dump-heuristics-data",
+		setting_type="runtime-per-user",
+		default_value=false,
+	},
 }

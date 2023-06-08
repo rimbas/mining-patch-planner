@@ -70,4 +70,10 @@
 ---@field placement_info_available boolean
 ---@field lane_filling_info_available boolean
 
+---@class DeconstructSpecification
+---@field x number
+---@field y number
+---@field width number
+---@field height number
+
 table.deepcopy = function(t) end
