@@ -32,6 +32,7 @@ require_layout("blueprints")
 ---@field found_resources LuaEntity[] Found resource types
 ---@field requires_fluid boolean
 ---@field mod_version string
+---@field _collected_ghosts LuaEntity[]
 ---
 ---@field layout_choice string
 ---@field direction_choice string
@@ -54,6 +55,8 @@ require_layout("blueprints")
 ---
 ---@field coords Coords
 ---@field grid Grid
+---@field grid_backup Grid
+---@field deconstruct_specification DeconstructSpecification
 ---@field miner MinerStruct
 ---@field preview_rectangle nil|uint64 LuaRendering.draw_rectangle
 ---@field _render_objects uint64[] LuaRendering objects
@@ -78,6 +81,7 @@ local function create_state(event)
 	state.tick = 0
 	state.mod_version = game.active_mods["mining-patch-planner"]
 	state.preview_rectangle = nil
+	state._collected_ghosts = {}
 	state._render_objects = {}
 	
 	---@type PlayerData

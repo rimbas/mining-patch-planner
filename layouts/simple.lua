@@ -9,7 +9,6 @@ local mpp_util = require("mpp_util")
 local builder = require("builder")
 local coord_convert, coord_revert = mpp_util.coord_convert, mpp_util.coord_revert
 local miner_direction, opposite = mpp_util.miner_direction, mpp_util.opposite
-local mpp_revert = mpp_util.revert
 
 ---@class SimpleLayout : Layout
 local layout = table.deepcopy(base)
@@ -31,6 +30,7 @@ local layout = table.deepcopy(base)
 ---@field miner_lane_count number Miner lane count
 ---@field miner_max_column number Miner column span
 ---@field grid Grid
+---@field belts BeltSpecification[]
 ---@field miner_lanes table<number, MinerPlacement[]>
 ---@field place_pipes boolean
 ---@field pipe_layout_specification PlacementSpecification[]
@@ -56,11 +56,11 @@ layout.restrictions.lane_filling_info_available = true
 
 	Basic rundown:
 	* Create a virtual grid from resources
-	* Run calculations on grid tiles according to resource values
+	* Run calculations on grid tiles to 
 	* _brute_ force several miner layouts on the grid and find the best one
 	* Mark the area around for deconstruction
-	* Place the mining drills and save parameters for pipe layout
-	* Place the pipes
+	* Place the entity ghosts and mark built-on tiles
+	* Place landfill
 
 --]]-----------------------------------
 
@@ -106,7 +106,6 @@ function layout:start(state)
 		th, tw = tw, th
 	end
 	c.th, c.tw = th, tw
-	local conv = coord_convert[state.direction_choice]
 
 	local x1, x2 = -1-miner.full_size, tw + miner.full_size+1
 	for y = -1-miner.full_size, th + miner.full_size+1 do
@@ -211,6 +210,8 @@ function layout:process_grid(state)
 	end --]]
 	
 	if state.resource_iter >= #state.resources then
+		state.grid_backup = table.deepcopy(state.grid) --[[@as Grid]]
+
 		return "prepare_layout_attempts"
 		--return "init_layout_attempt"
 	end
@@ -275,15 +276,15 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 	local miners, postponed = {}, {}
 	local neighbor_sum = 0
 	local far_neighbor_sum = 0
-	local row_index = 1
 	local simple_density = 0
 	local real_density = 0
 	local leech_sum = 0
 	local empty_space = 0
 	local lane_layout = {}
-
+	
 	local heuristic = self:_get_miner_placement_heuristic(state)
-
+	
+	local row_index = 1
 	for y = 1 + shift_y, state.coords.th + near, size + 1 do
 		local column_index = 1
 		lane_layout[#lane_layout+1] = {y = y+near, row_index = row_index}
@@ -317,8 +318,7 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 		miners=miners,
 		miner_count=#miners,
 		lane_layout=lane_layout,
-		--postponed=postponed,
-		postponed={},
+		postponed=postponed,
 		neighbor_sum=neighbor_sum,
 		far_neighbor_sum=far_neighbor_sum,
 		leech_sum=leech_sum,
@@ -402,9 +402,7 @@ function layout:layout_attempt(state)
 
 	if state.attempt_index >= #state.attempts then
 		--game.print(("Chose attempt #%i, %i miners"):format(state.best_attempt_index, #state.best_attempt.miners))
-		local grid_backup = table.deepcopy(state.grid)
-		state.grid_backup = grid_backup
-		return "simple_deconstruct"
+		return "prepare_miner_layout"
 	end
 	state.attempt_index = state.attempt_index + 1
 	return true
@@ -442,22 +440,19 @@ function layout:simple_deconstruct(state)
 		left_top=left_top,
 		right_bottom=right_bottom,
 	}]]
-	return "place_miners"
+	return "prepare_miner_layout"
 end
 
 ---@param self SimpleLayout
 ---@param state SimpleState
 ---@return CallbackState
-function layout:place_miners(state)
+function layout:prepare_miner_layout(state)
 	local c = state.coords
 	local g = state.grid
-	local surface = state.surface
-	local module_inv_size = state.miner.module_inventory_size
-	local attempt = state.best_attempt
 
 	---@type table<number, MinerPlacement[]>
 	local miner_lanes = {}
-	local miner_lane_number = 0 -- highest index of a lane, because using # won't do the job if a lane is missing
+	local miner_lane_count = 0 -- highest index of a lane, because using # won't do the job if a lane is missing
 	local miner_max_column = 0
 	state.miner_lanes = miner_lanes
 
@@ -487,32 +482,14 @@ function layout:place_miners(state)
 		}
 		--]]
 
-		local flip_lane = miner.line % 2 ~= 1
-		local direction = miner_direction[state.direction_choice]
-		if flip_lane then direction = opposite[direction] end
-
-		local ghost = surface.create_entity{
-			raise_built=true,
-			name="entity-ghost",
-			player=state.player,
-			force = state.player.force,
-			position = {c.gx + x, c.gy + y},
-			direction = defines.direction[direction],
-			inner_name = state.miner_choice,
-		}
-
-		if state.module_choice ~= "none" then
-			ghost.item_requests = {[state.module_choice] = module_inv_size}
-		end
-
 		local index = miner.line
-		miner_lane_number = max(miner_lane_number, index)
+		miner_lane_count = max(miner_lane_count, index)
 		if not miner_lanes[index] then miner_lanes[index] = {} end
 		local line = miner_lanes[index]
 		line[#line+1] = miner
 		miner_max_column = max(miner_max_column, miner.column)
 	end
-	state.miner_lane_count = miner_lane_number
+	state.miner_lane_count = miner_lane_count
 	state.miner_max_column = miner_max_column
 
 	for _, lane in pairs(miner_lanes) do
@@ -536,14 +513,15 @@ end
 ---@param self SimpleLayout
 ---@param state SimpleState
 function layout:prepare_pipe_layout(state)
+	local next_step = "prepare_belt_layout"
 	if state.pipe_choice == "none"
-		or (not state.requires_fluid and not state.force_pipe_placement_choice)
+	or (not state.requires_fluid and not state.force_pipe_placement_choice)
 	then
-		return "placement_belts"
+		return next_step
 	end
-	state.place_pipes = true
 	local pipe_layout = {}
 	state.pipe_layout_specification = pipe_layout
+	state.place_pipes = true
 
 	local m = state.miner
 	local attempt = state.best_attempt
@@ -597,14 +575,226 @@ function layout:prepare_pipe_layout(state)
 		}
 	end
 
-	return "place_pipes"
+	return next_step
 end
+
+---@param self SimpleLayout
+---@param state SimpleState
+---@return CallbackState
+function layout:prepare_belt_layout(state)
+	local c = state.coords
+	local m = state.miner
+	local g = state.grid
+	local surface = state.surface
+	local attempt = state.best_attempt
+
+	---@type table<number, MinerPlacement[]>
+	local miner_lanes = state.miner_lanes
+	local miner_lane_count = state.miner_lane_count -- highest index of a lane, because using # won't do the job if a lane is missing
+	local miner_max_column = state.miner_max_column
+
+	---@param lane MinerPlacement[]
+	local function get_lane_length(lane) if lane and lane[#lane] then return lane[#lane].center.x end return 0 end
+
+	local pipe_adjust = state.place_pipes and -1 or 0
+
+	local belts = {}
+	state.belts = belts
+	state.belt_count = 0
+	local longest_belt = 0
+	for i = 1, miner_lane_count, 2 do
+		local lane1 = miner_lanes[i]
+		local lane2 = miner_lanes[i+1]
+
+		local y = attempt.sy + (m.size + 1) * i
+
+		local belt = {x1=attempt.sx + 1 + pipe_adjust, x2=attempt.sx + 1, y=y, built=false}
+		belts[#belts+1] = belt
+		
+		if lane1 or lane2 then
+			state.belt_count = state.belt_count + 1
+			local x1 = attempt.sx + 1
+			local x2 = max(get_lane_length(lane1), get_lane_length(lane2)) + m.near
+			longest_belt = max(longest_belt, x2 - x1 + 1)
+			belt.x1, belt.x2, belt.built = x1, x2, true
+		end
+	end
+	state.longest_belt = longest_belt
+
+	return "prepare_pole_layout"
+end
+
+---@param self SimpleLayout
+---@param state SimpleState
+---@return CallbackState
+function layout:prepare_pole_layout(state)
+	local c = state.coords
+	local DIR = state.direction_choice
+	local m = state.miner
+	local g = state.grid
+	local surface = state.surface
+	local attempt = state.best_attempt
+
+	local pole_proto = game.entity_prototypes[state.pole_choice] or {supply_area_distance=3, max_wire_distance=9}
+	local supply_area, wire_reach = 3, 9
+	if pole_proto then
+		supply_area, wire_reach = floor(pole_proto.supply_area_distance), pole_proto.max_wire_distance
+	end
+
+	--TODO: figure out double lane coverage with insane supply areas
+	local function get_covered_miners(ix, iy)
+		--for sy = -supply_radius, supply_radius do
+		for sy = -supply_area, supply_area, 1 do
+			for sx = -supply_area, supply_area, 1 do
+				local tile = g:get_tile(ix+sx, iy+sy)
+				if tile and tile.built_on == "miner" then
+					return true
+				end
+			end
+		end
+	end
+
+	---@type PowerPoleGrid
+	local power_poles_grid = setmetatable({}, pole_grid_mt)
+	local power_poles_all = {}
+	state.power_poles_all = power_poles_all
+
+	local coverage = mpp_util.calculate_pole_coverage(state, state.miner_max_column, state.miner_lane_count)
+
+	-- rendering.draw_circle{
+	-- 	surface = state.surface,
+	-- 	player = state.player,
+	-- 	filled = true,
+	-- 	color = {1, 1, 1},
+	-- 	radius = 0.5,
+	-- 	target = mpp_revert(c.gx, c.gy, DIR, attempt.sx, attempt.sy, c.tw, c.th),
+	-- }
+
+	local iy = 1
+	for y = attempt.sy + coverage.lane_start, c.th + m.size, coverage.lane_step do
+		local ix, pole_lane = 1, {}
+		for x = 1 + attempt.sx + coverage.pole_start, attempt.sx + coverage.full_miner_width + 1, coverage.pole_step do
+			local built = false
+			---@type LuaEntity
+			local ghost
+			if get_covered_miners(x, y) then
+				built = true
+				g:get_tile(x, y).built_on = "pole"
+			end
+			local pole = {x=x, y=y, ix=ix, iy=iy, built=built, ghost=ghost}
+			power_poles_grid:set_pole(ix, iy, pole)
+			power_poles_all[#power_poles_all+1] = pole
+			pole_lane[ix] = pole
+
+			if built and ix > 1 and pole_lane[ix-1] then
+				for bx = ix - 1, 1, -1 do
+					local backtrack_pole = pole_lane[bx]
+					if not backtrack_pole.built then
+						backtrack_pole.built = true
+					else
+						break
+					end
+				end
+			end
+
+			ix = ix + 1
+		end
+		iy = iy + 1
+	end
+
+	return "unagressive_deconstruct"
+end
+
+function layout:_prepare_deconstruct_specification(state)
+	state.deconstruct_specification = {
+		x = state.best_attempt.sx - 1,
+		y = state.best_attempt.sy - 1,
+		width = state.miner_max_column * state.miner.size + 1,
+		height = state.miner_lane_count * (state.miner.size + 1) + 1,
+	}
+
+	return state.deconstruct_specification
+end
+
+---@param self SimpleLayout
+---@param state SimpleState
+---@return CallbackState
+function layout:unagressive_deconstruct(state)
+	local c = state.coords
+	local m = state.miner
+	local player = state.player
+	local surface = state.surface
+	local spec = self:_prepare_deconstruct_specification(state)
+
+	local left_top = {
+		c.x1+spec.x-.5,
+		c.y1+spec.y-.5,
+	}
+	local right_bottom = {
+		left_top[1]+spec.width,
+		left_top[2]+spec.height,
+	}
+
+	local deconstructor = global.script_inventory[state.deconstruction_choice and 2 or 1]
+	surface.deconstruct_area{
+		force=player.force,
+		player=player.index,
+		area={left_top=left_top, right_bottom=right_bottom},
+		item=deconstructor,
+	}
+
+	--[[]]
+	rendering.draw_rectangle{
+		surface=state.surface, players={state.player},
+		width=4, color={1, 0, 0}, filled=false,
+		left_top=left_top,
+		right_bottom=right_bottom,
+	} -- ]]
+	return "placement_miners"
+end
+
+---@param self SimpleLayout
+---@param state SimpleState
+---@return CallbackState
+function layout:placement_miners(state)
+	local create_entity = builder.create_entity_builder(state)
+
+	local module_inv_size = state.miner.module_inventory_size --[[@as uint]]
+	local grid = state.grid
+
+	for i, miner in ipairs(state.best_attempt.miners) do
+		local flip_lane = miner.line % 2 ~= 1
+		local direction = miner_direction[state.direction_choice]
+		if flip_lane then direction = opposite[direction] end
+
+		local x, y = miner.center.x, miner.center.y
+
+		grid:build_miner(x, y)
+		local ghost = create_entity{
+			name = state.miner_choice,
+			thing="miner",
+			grid_x = x,
+			grid_y = y,
+			direction = defines.direction[direction],
+		}
+
+		if state.module_choice ~= "none" then
+			ghost.item_requests = {[state.module_choice] = module_inv_size}
+		end
+	end
+
+	return "placement_pipes"
+end
+
 
 --- Pipe placement deals in tile grid space with spectifications from previous step
 ---@param self SimpleLayout
 ---@param state SimpleState
 ---@return CallbackState
-function layout:place_pipes(state)
+function layout:placement_pipes(state)
+	local next_step = "placement_belts"
+	if not state.place_pipes then return next_step end
+
 	local create_entity = builder.create_entity_builder(state)
 	local g = state.grid
 	local pipe = state.pipe_choice
@@ -699,65 +889,30 @@ function layout:place_pipes(state)
 		::continue_pipe::
 	end
 
-	return "placement_belts"
+	return next_step
 end
 
 ---@param self SimpleLayout
 ---@param state SimpleState
 ---@return CallbackState
 function layout:placement_belts(state)
-	local c = state.coords
-	local m = state.miner
-	local g = state.grid
-	local surface = state.surface
-	local attempt = state.best_attempt
+	local create_entity = builder.create_entity_builder(state)
 
-	---@type table<number, MinerPlacement[]>
-	local miner_lanes = state.miner_lanes
-	local miner_lane_count = state.miner_lane_count -- highest index of a lane, because using # won't do the job if a lane is missing
-	local miner_max_column = state.miner_max_column
-
-	---@param lane MinerPlacement[]
-	local function get_lane_length(lane) if lane and lane[#lane] then return lane[#lane].center.x end return 0 end
-
-	local pipe_adjust = state.place_pipes and -1 or 0
-
-	local belts = {}
-	state.belts = belts
-	state.belt_count = 0
-	local longest_belt = 0
-	for i = 1, miner_lane_count, 2 do
-		local lane1 = miner_lanes[i]
-		local lane2 = miner_lanes[i+1]
-
-		local y = attempt.sy + (m.size + 1) * i
-
-		local belt = {x1=attempt.sx + 1, x2=attempt.sx + 1, y=y, built=false}
-		belts[#belts+1] = belt
-		
-		if lane1 or lane2 then
-			state.belt_count = state.belt_count + 1
-			local x1 = attempt.sx + 1
-			local x2 = max(get_lane_length(lane1), get_lane_length(lane2)) + m.near
-			longest_belt = max(longest_belt, x2 - x1 + 1)
-			belt.x1, belt.x2, belt.built = x1, x2, true
-
-			for x = x1+pipe_adjust, x2 do
-				g:get_tile(x, y).built_on = "belt"
-				local tx, ty = coord_revert[state.direction_choice](x, y, c.tw, c.th)
-				surface.create_entity{
-					raise_built=true,
-					name="entity-ghost",
-					player=state.player,
-					force=state.player.force,
-					position={c.gx + tx, c.gy + ty},
-					direction=defines.direction[state.direction_choice],
-					inner_name=state.belt_choice,
-				}
-			end
+	for i, belt in ipairs(state.belts) do
+		if not belt.built  then goto continue end
+		local x1, x2, y = belt.x1, belt.x2, belt.y
+		for x = x1, x2 do
+			create_entity{
+				name=state.belt_choice,
+				thing="belt",
+				grid_x=x,
+				grid_y=y,
+				direction=defines.direction.west,
+			}
 		end
+
+		::continue::
 	end
-	state.longest_belt = longest_belt
 
 	return "placement_poles"
 end
@@ -766,109 +921,33 @@ end
 ---@param state SimpleState
 ---@return CallbackState
 function layout:placement_poles(state)
-	local c = state.coords
-	local DIR = state.direction_choice
-	local m = state.miner
-	local g = state.grid
-	local surface = state.surface
-	local attempt = state.best_attempt
+	local next_step = "placement_lamp"
+	if state.pole_choice == "none" then return next_step end
+	
+	local create_entity = builder.create_entity_builder(state)
 
-	local pole_proto = game.entity_prototypes[state.pole_choice] or {supply_area_distance=3, max_wire_distance=9}
-	local supply_area, wire_reach = 3, 9
-	if pole_proto then
-		supply_area, wire_reach = floor(pole_proto.supply_area_distance), pole_proto.max_wire_distance
-	end
-
-	--TODO: figure out double lane coverage with insane supply areas
-	local function get_covered_miners(ix, iy)
-		--for sy = -supply_radius, supply_radius do
-		for sy = -supply_area, supply_area, 1 do
-			for sx = -supply_area, supply_area, 1 do
-				local tile = g:get_tile(ix+sx, iy+sy)
-				if tile and tile.built_on == "miner" then
-					return true
-				end
-			end
+	for  _, pole in ipairs(state.power_poles_all) do
+		if pole.built then
+			local ghost = create_entity{
+				name=state.pole_choice,
+				thing="pole",
+				grid_x = pole.x,
+				grid_y = pole.y,
+			}
+			--ghost.disconnect_neighbour()
+			pole.ghost = ghost
 		end
 	end
 
-	---@type PowerPoleGrid
-	local power_poles_grid = setmetatable({}, pole_grid_mt)
-	local power_poles_all = {}
-	state.power_poles_all = power_poles_all
-
-	local coverage = mpp_util.calculate_pole_coverage(state, state.miner_max_column, state.miner_lane_count)
-
-	-- rendering.draw_circle{
-	-- 	surface = state.surface,
-	-- 	player = state.player,
-	-- 	filled = true,
-	-- 	color = {1, 1, 1},
-	-- 	radius = 0.5,
-	-- 	target = mpp_revert(c.gx, c.gy, DIR, attempt.sx, attempt.sy, c.tw, c.th),
-	-- }
-
-	local iy = 1
-	for y = attempt.sy + coverage.lane_start, c.th + m.size, coverage.lane_step do
-		local ix, pole_lane = 1, {}
-		for x = 1 + attempt.sx + coverage.pole_start, attempt.sx + coverage.full_miner_width + 1, coverage.pole_step do
-			local built = false
-			---@type LuaEntity
-			local ghost
-			if get_covered_miners(x, y) then
-				built = true
-				g:get_tile(x, y).built_on = "pole"
-			end
-			local pole = {x=x, y=y, ix=ix, iy=iy, built=built, ghost=ghost}
-			power_poles_grid:set_pole(ix, iy, pole)
-			power_poles_all[#power_poles_all+1] = pole
-			pole_lane[ix] = pole
-
-			if built and ix > 1 and pole_lane[ix-1] then
-				for bx = ix - 1, 1, -1 do
-					local backtrack_pole = pole_lane[bx]
-					if not backtrack_pole.built then
-						backtrack_pole.built = true
-					else
-						break
-					end
-				end
-			end
-
-			ix = ix + 1
-		end
-		iy = iy + 1
-	end
-
-	if state.pole_choice ~= "none" then
-		for  _, pole in ipairs(power_poles_all) do
-			if pole.built then
-				local x, y = pole.x, pole.y
-				g:get_tile(x, y).built_on = "pole"
-				local ghost = surface.create_entity{
-					raise_built=true,
-					name="entity-ghost",
-					player=state.player,
-					force=state.player.force,
-					position=mpp_revert(c.gx, c.gy, DIR, x, y, c.tw, c.th),
-					inner_name=state.pole_choice,
-				}
-				--ghost.disconnect_neighbour()
-				pole.ghost = ghost
-			end
-		end
-	end
-
-	return "placement_lamp"
+	return next_step
 end
 
 ---@param self SimpleLayout
 ---@param state SimpleState
 ---@return CallbackState
 function layout:placement_lamp(state)
-	if not state.lamp_choice then
-		return "placement_landfill"
-	end
+	local next_step = "placement_landfill"
+	if not state.lamp_choice then return next_step end
 
 	local c = state.coords
 	local grid = state.grid
@@ -895,7 +974,7 @@ function layout:placement_lamp(state)
 		end
 	end
 
-	return "placement_landfill"
+	return next_step
 end
 
 ---@param self SimpleLayout

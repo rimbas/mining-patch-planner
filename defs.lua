@@ -76,4 +76,10 @@
 ---@field width number
 ---@field height number
 
+---@class BeltSpecification
+---@field x1 number Start
+---@field x2 number End
+---@field y number
+---@field built boolean Do miners exist on this belt
+
 table.deepcopy = function(t) end
