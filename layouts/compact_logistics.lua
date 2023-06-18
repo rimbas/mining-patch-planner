@@ -4,6 +4,7 @@ local min, max = math.min, math.max
 local super_compact = require("layouts.super_compact")
 local logistics =require("layouts.logistics")
 local mpp_util = require("mpp_util")
+local builder = require("builder")
 local mpp_revert = mpp_util.revert
 
 ---@class CompactLogisticsLayout: SuperCompactLayout
@@ -16,6 +17,27 @@ layout.restrictions.lamp_available = false
 layout.restrictions.belt_available = false
 layout.restrictions.logistics_available = true
 
+---@param self SuperCompactLayout
+---@param state SuperCompactState
+---@return DeconstructSpecification
+function layout:_prepare_deconstruct_specification_ex(state)
+	local m = state.miner
+	local bounds = state.miner_bounds
+
+	state.deconstruct_specification = {
+		x = bounds.min_x-1 - m.near,
+		y = bounds.min_y-1 - m.near,
+		width = bounds.max_x - bounds.min_x+1 + m.near * 2,
+		height = bounds.max_y - bounds.min_y+1 + m.near * 2,
+	}
+
+	return state.deconstruct_specification
+end
+
+function layout:prepare_belt_layout(state)
+	return "prepare_pole_layout"
+end
+
 ---@param self SimpleLayout
 ---@param state SimpleState
 function layout:placement_belts(state)
@@ -25,6 +47,7 @@ function layout:placement_belts(state)
 	local DIR = state.direction_choice
 	local surface = state.surface
 	local attempt = state.best_attempt
+	local create_entity = builder.create_entity_builder(state)
 
 	local power_poles = {}
 	state.power_poles_all = power_poles
@@ -34,7 +57,7 @@ function layout:placement_belts(state)
 	local miner_lane_number = 0 -- highest index of a lane, because using # won't do the job if a lane is missing
 
 	for _, miner in ipairs(attempt.miners) do
-		local index = miner.lane * 2 + miner.stagger - 2
+		local index = miner.line * 2 + miner.stagger - 2
 		miner_lane_number = max(miner_lane_number, index)
 		if not miner_lanes[index] then miner_lanes[index] = {} end
 		local line = miner_lanes[index]
@@ -48,19 +71,16 @@ function layout:placement_belts(state)
 	local shift_x, shift_y = state.best_attempt.sx, state.best_attempt.sy
 
 
-	local function place_belts(start_x, end_x, y)
+	local function place_logistics(start_x, end_x, y)
 		local belt_start = 1 + shift_x + start_x
 		if start_x ~= 0 then
 			local miner = g:get_tile(shift_x+m.size, y)
 			if miner and miner.built_on == "miner" then
-				g:get_tile(shift_x+m.size+1, y).built_on = "belt"
-				surface.create_entity{
-					raise_built=true,
-					name="entity-ghost",
-					player=state.player,
-					force=state.player.force,
-					position=mpp_revert(c.gx, c.gy, DIR, shift_x+m.size+1, y, c.tw, c.th),
-					inner_name=state.logistics_choice,
+				create_entity{
+					name=state.logistics_choice,
+					thing="belt",
+					grid_x=shift_x+m.size+1,
+					grid_y=y,
 				}
 				power_poles[#power_poles+1] = {
 					x = shift_x,
@@ -79,25 +99,19 @@ function layout:placement_belts(state)
 			local pole_built = built or capped
 
 			if capped then
-				g:get_tile(x+m.size*2, y).built_on = "belt"
-				surface.create_entity{
-					raise_built=true,
-					name="entity-ghost",
-					player=state.player,
-					force=state.player.force,
-					position=mpp_revert(c.gx, c.gy, DIR, x+m.size*2, y, c.tw, c.th),
-					inner_name=state.logistics_choice,
+				create_entity{
+					name=state.logistics_choice,
+					thing="belt",
+					grid_x=x+m.size*2,
+					grid_y=y,
 				}
 			end
 			if built then
-				g:get_tile(x+1, y).built_on = "belt"
-				surface.create_entity{
-					raise_built=true,
-					name="entity-ghost",
-					player=state.player,
-					force=state.player.force,
-					position=mpp_revert(c.gx, c.gy, DIR, x+1, y, c.tw, c.th),
-					inner_name=state.logistics_choice,
+				create_entity{
+					name=state.logistics_choice,
+					thing="belt",
+					grid_x=x+1,
+					grid_y=y,
 				}
 			end
 
@@ -115,7 +129,7 @@ function layout:placement_belts(state)
 		if lane and lane.last_x then
 			local y = m.size + shift_y - 1 + (m.size + 2) * (i-1)
 			local x_start = stagger_shift % 2 == 0 and 3 or 0
-			place_belts(x_start, lane.last_x, y)
+			place_logistics(x_start, lane.last_x, y)
 		end
 		stagger_shift = stagger_shift + 1
 	end

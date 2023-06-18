@@ -58,7 +58,8 @@ require_layout("blueprints")
 ---@field grid_backup Grid
 ---@field deconstruct_specification DeconstructSpecification
 ---@field miner MinerStruct
----@field preview_rectangle nil|uint64 LuaRendering.draw_rectangle
+---@field _preview_rectangle nil|uint64 LuaRendering.draw_rectangle
+---@field _lane_info_rendering uint64[]
 ---@field _render_objects uint64[] LuaRendering objects
 ---@field blueprint_choice LuaGuiElement
 ---@field blueprint_inventory LuaInventory
@@ -80,9 +81,10 @@ local function create_state(event)
 	state._callback = "start"
 	state.tick = 0
 	state.mod_version = game.active_mods["mining-patch-planner"]
-	state.preview_rectangle = nil
+	state._preview_rectangle = nil
 	state._collected_ghosts = {}
 	state._render_objects = {}
+	state._lane_info_rendering = {}
 	
 	---@type PlayerData
 	local player_data = global.players[event.player_index]
@@ -224,7 +226,7 @@ function algorithm.on_player_selected_area(event)
 
 		-- "Progress" bar
 		local c = state.coords
-		state.preview_rectangle = rendering.draw_rectangle{
+		state._preview_rectangle = rendering.draw_rectangle{
 			surface=state.surface,
 			left_top={state.coords.ix1, state.coords.iy1},
 			right_bottom={state.coords.ix1 + c.w, state.coords.iy1 + c.h},

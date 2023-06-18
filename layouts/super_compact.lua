@@ -4,8 +4,7 @@ local min, max = math.min, math.max
 local common = require("layouts.common")
 local simple = require("layouts.simple")
 local mpp_util = require("mpp_util")
-local coord_convert, coord_revert = mpp_util.coord_convert, mpp_util.coord_revert
-local miner_direction, opposite = mpp_util.miner_direction, mpp_util.opposite
+local builder = require("builder")
 local mpp_revert = mpp_util.revert
 
 ---@class SuperCompactLayout : SimpleLayout
@@ -26,6 +25,9 @@ layout.restrictions.lamp_available = false
 layout.restrictions.module_available = true
 layout.restrictions.pipe_available = false
 
+---@class SuperCompactState : SimpleState
+---@field miner_bounds any
+
 -- Validate the selection
 ---@param self SuperCompactLayout
 ---@param state SimpleState
@@ -43,6 +45,7 @@ function layout:validate(state)
 	return true
 end
 
+---@param self SuperCompactLayout
 ---@param state SimpleState
 ---@return PlacementAttempt
 function layout:_placement_attempt(state, shift_x, shift_y)
@@ -51,21 +54,16 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 	local neighbor_sum = 0
 	local far_neighbor_sum = 0
 	local miners, postponed = {}, {}
-	local miner_score, postponed_score = 0, 0
 	local simple_density = 0
 	local real_density = 0
 	local leech_sum = 0
+	local empty_space = 0
 	local lane_layout = {}
 	
 	--@param tile GridTile
 	--local function heuristic(tile) return tile.neighbor_count > 2 end
 
-	local heuristic
-	if state.coverage_choice then
-		heuristic = common.overfill_miner_placement(state.miner)
-	else
-		heuristic = common.simple_miner_placement(state.miner)
-	end
+	local heuristic = self:_get_miner_placement_heuristic(state)
 	
 	local function miner_stagger(start_x, start_y, direction, stagger_step, mark_lane)
 		local miner_index = 1
@@ -73,19 +71,20 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 			if mark_lane then lane_layout[#lane_layout+1] = {y=y} end
 			for x = 1 + shift_x + start_x, state.coords.tw + 2, size * 2 do
 				local tile = grid:get_tile(x, y)
-				local center = grid:get_tile(x+near, y+near)
+				local center = grid:get_tile(x+near, y+near) --[[@as GridTile]]
 				local miner = {
 					tile = tile,
 					center = center,
 					direction = direction,
 					stagger = stagger_step,
-					lane = miner_index,
+					line = miner_index,
 				}
 				if center.far_neighbor_count > 0 then
 					if heuristic(center) then
 						miners[#miners+1] = miner
 						neighbor_sum = neighbor_sum + center.neighbor_count
 						far_neighbor_sum = far_neighbor_sum + center.far_neighbor_count
+						empty_space = empty_space + (size^2) - center.neighbor_count
 						simple_density = simple_density + center.neighbor_count / (size ^ 2)
 						real_density = real_density + center.far_neighbor_count / (fullsize ^ 2)
 						leech_sum = leech_sum + max(0, center.far_neighbor_count - center.neighbor_count)
@@ -99,25 +98,26 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 	end
 
 	miner_stagger(0, -2, "south", 1)
-	miner_stagger(3, 0, "west", 1, true)
+	miner_stagger(3, 0, "east", 1, true)
 	miner_stagger(0, 2, "north", 1)
 
 	-- the redundant calculation makes it easier to find the stagger offset
 	miner_stagger(0+size, -2+size+2, "south", 2)
-	miner_stagger(3-size, 0+size+2, "west", 2, true)
+	miner_stagger(3-size, 0+size+2, "east", 2, true)
 	miner_stagger(0+size, 2+size+2, "north", 2)
 
 	local result = {
 		sx=shift_x, sy=shift_y,
 		miners = miners,
+		miner_count=#miners,
 		lane_layout=lane_layout,
-		postponed = {},
+		postponed = postponed,
 		neighbor_sum = neighbor_sum,
 		far_neighbor_sum = far_neighbor_sum,
 		leech_sum=leech_sum,
 		simple_density = simple_density,
 		real_density = real_density,
-		far_density = far_neighbor_sum / #miners,
+		empty_space=empty_space,
 		unconsumed_count = 0,
 		postponed_count = 0,
 	}
@@ -127,96 +127,44 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 	return result
 end
 
---[[
----@param self SuperCompactLayout
+
+---@param self SimpleLayout
 ---@param state SimpleState
-function layout:init_first_pass(state)
-	local m = state.miner
-	local attempts = {{-m.near, -m.near}}
-	attempts[1] = {0, 0}
-	state.attempts = attempts
-	state.best_attempt_index = 1
-	state.attempt_index = 2 -- first attempt is used up
-	local ext_behind, ext_forward = -m.far, m.far-m.near
-	
-	for sy = ext_behind, ext_forward do
-		for sx = ext_behind, ext_forward do
-			if not (sx == -m.near and sy == -m.near) then
-				attempts[#attempts+1] = {sx, sy}
-			end
-		end
-	end
+---@return CallbackState
+function layout:prepare_miner_layout(state)
 
-	local attempt_heuristic = state.coverage_choice and common.overfill_layout_heuristic or common.simple_layout_heuristic
-	state.best_attempt = placement_attempt(state, attempts[1][1], attempts[1][2])
-	state.best_attempt_score = attempt_heuristic(state.best_attempt)
+	local miners = state.best_attempt.miners
+	local default = miners[1].center
+	local min_x, min_y = default.x, default.y
+	local max_x, max_y = default.x, default.y
 
-	return "first_pass"
-end
-]]
+	local e_north, e_east, e_south = 0, 0, 0
 
---[[
----Bruteforce the best solution
----@param self SuperCompactLayout
----@param state SimpleState
-function layout:first_pass(state)
-	local attempt_state = state.attempts[state.attempt_index]
-	local attempt_heuristic = state.coverage_choice and common.overfill_layout_heuristic or common.simple_layout_heuristic
-	---@type PlacementAttempt
-	local current_attempt = placement_attempt(state, attempt_state[1], attempt_state[2])
-	local current_attempt_score = attempt_heuristic(current_attempt)
-
-	if current_attempt_score < state.best_attempt_score  then
-		state.best_attempt_index = state.attempt_index
-		state.best_attempt = current_attempt
-		state.best_attempt_score = current_attempt_score
-	end
-
-	if state.attempt_index >= #state.attempts then
-		return "simple_deconstruct"
-	end
-	state.attempt_index = state.attempt_index + 1
-	return true
-end
-]]
-
----@param self SuperCompactLayout
----@param state SimpleState
-function layout:place_miners(state)
-	local c = state.coords
-	local g = state.grid
-	local surface = state.surface
-	local DIR = state.direction_choice
-	local module_inv_size = state.miner.module_inventory_size
-
-	for _, miner in ipairs(state.best_attempt.miners) do
+	for _, miner in ipairs(miners) do
 		local center = miner.center
-		g:build_miner(center.x, center.y)
-		local tile = g:get_tile(center.x, center.y)
-		local x, y = coord_revert[state.direction_choice](center.x, center.y, c.tw, c.th)
 
-		local miner_dir = opposite[DIR]
-		if miner.direction == "north" or miner.direction == "south" then
-			miner_dir = miner_direction[state.direction_choice]
-			if miner.direction == "north" then
-				miner_dir = opposite[miner_dir]
-			end
+		-- accomodating for belt
+		if min_y > center.y and miner.direction == "north" then
+			e_north = 1
+		elseif min_y > center.y then
+			e_north = 0
 		end
-
-		local ghost = surface.create_entity{
-			raise_built=true,
-			name="entity-ghost",
-			player=state.player,
-			force = state.player.force,
-			position = {c.gx + x, c.gy + y},
-			direction = defines.direction[miner_dir],
-			inner_name = state.miner_choice,
-		}
-
-		if state.module_choice ~= "none" then
-			ghost.item_requests = {[state.module_choice] = module_inv_size}
+		if max_x < center.x and miner.direction == "east" then
+			e_east = 1
+		elseif max_x < center.x then
+			e_east = 0
+		end
+		if max_y < center.y and miner.direction == "south" then
+			e_south = 1
+		elseif max_y < center.y then
+			e_south = 0
 		end
 		
+		min_x = min(min_x, center.x)
+		min_y = min(min_y, center.y)
+		max_x = max(max_x, center.x)
+		max_y = max(max_y, center.y)
+
 		--[[ debug visualisation - miner placement
 		local color = {1, 0, 0}
 		if miner.direction == "west" then
@@ -251,7 +199,7 @@ function layout:place_miners(state)
 		rendering.draw_text{
 			surface=state.surface,
 			color={1, 1, 1},
-			text=miner.lane * 2 + miner.stagger - 2,
+			text=miner.line * 2 + miner.stagger - 2,
 			target={c.gx + tx, c.gy + ty},
 			vertical_alignment = "bottom",
 			alignment = "center",
@@ -260,19 +208,72 @@ function layout:place_miners(state)
 		--]]
 	end
 
+	state.miner_bounds = {
+		min_x=min_x,
+		min_y=min_y,
+		max_x=max_x,
+		max_y=max_y,
+		e_north	= e_north,
+		e_east	= e_east,
+		e_south	= e_south,
+	}
+
+	return "unagressive_deconstruct"
+end
+
+---@param self SuperCompactLayout
+---@param state SuperCompactState
+---@return DeconstructSpecification
+function layout:_prepare_deconstruct_specification(state)
+	local m = state.miner
+	local bounds = state.miner_bounds
+
+	state.deconstruct_specification = {
+		x = bounds.min_x   - m.near - m.size,
+		y = bounds.min_y-1 - m.near - bounds.e_north,
+		width = bounds.max_x - bounds.min_x + m.near * 2 + m.size + bounds.e_east,
+		height = bounds.max_y - bounds.min_y+1 + m.near * 2 + bounds.e_north + bounds.e_south,
+	}
+
+	return state.deconstruct_specification
+end
+
+---@param self SuperCompactLayout
+---@param state SimpleState
+---@return CallbackState
+function layout:placement_miners(state)
+	local create_entity = builder.create_entity_builder(state)
+
+	local grid = state.grid
+	local module_inv_size = state.miner.module_inventory_size --[[@as uint]]
+
+	for _, miner in ipairs(state.best_attempt.miners) do
+		local center = miner.center
+		
+		grid:build_miner(center.x, center.y)
+		local ghost = create_entity{
+			name = state.miner_choice,
+			grid_x = center.x,
+			grid_y = center.y,
+			direction = defines.direction[miner.direction],
+		}
+
+		if state.module_choice ~= "none" then
+			ghost.item_requests = {[state.module_choice] = module_inv_size}
+		end
+	end
+
 	return "placement_belts"
 end
 
 ---@param self SuperCompactLayout
 ---@param state SimpleState
 function layout:placement_belts(state)
-	local c = state.coords
 	local m = state.miner
 	local g = state.grid
-	local DIR = state.direction_choice
-	local surface = state.surface
 	local attempt = state.best_attempt
 	local underground_belt = game.entity_prototypes[state.belt_choice].related_underground_belt.name
+	local create_entity = builder.create_entity_builder(state)
 
 	local power_poles = {}
 	state.power_poles_all = power_poles
@@ -284,7 +285,7 @@ function layout:placement_belts(state)
 	state.belt_count = 0
 
 	for _, miner in ipairs(attempt.miners) do
-		local index = miner.lane * 2 + miner.stagger - 2
+		local index = miner.line * 2 + miner.stagger - 2
 		miner_lane_number = max(miner_lane_number, index)
 		if not miner_lanes[index] then miner_lanes[index] = {} end
 		local line = miner_lanes[index]
@@ -302,40 +303,31 @@ function layout:placement_belts(state)
 		if start_x == 0 then
 			-- straight runoff
 			for sx = 0, 2 do
-				g:get_tile(belt_start-sx, y).built_on = "belt"
-				surface.create_entity{
-					raise_built=true,
-					name="entity-ghost",
-					player=state.player,
-					force=state.player.force,
-					position=mpp_revert(c.gx, c.gy, DIR, belt_start-sx, y, c.tw, c.th),
+				create_entity{
+					name=state.belt_choice,
+					thing="belt",
+					grid_x=belt_start-sx,
+					grid_y=y,
 					direction=defines.direction[state.direction_choice],
-					inner_name=state.belt_choice,
 				}
 			end
 		else
 			-- underground exit
-			g:get_tile(shift_x-1, y).built_on = "belt"
-			surface.create_entity{
-				raise_built=true,
-				name="entity-ghost",
-				player=state.player,
-				force=state.player.force,
-				position=mpp_revert(c.gx, c.gy, DIR, shift_x-1, y, c.tw, c.th),
-				direction=defines.direction[state.direction_choice],
-				inner_name=underground_belt,
+			create_entity{
+				name=underground_belt,
 				type="output",
-			}
-			g:get_tile(shift_x+m.size+1, y).built_on = "belt"
-			surface.create_entity{
-				raise_built=true,
-				name="entity-ghost",
-				player=state.player,
-				force=state.player.force,
-				position=mpp_revert(c.gx, c.gy, DIR, shift_x+m.size+1, y, c.tw, c.th),
+				thing="belt",
+				grid_x=shift_x-1,
+				grid_y=y,
 				direction=defines.direction[state.direction_choice],
-				inner_name=underground_belt,
+			}
+			create_entity{
+				name=underground_belt,
 				type="input",
+				thing="belt",
+				grid_x=shift_x+m.size+1,
+				grid_y=y,
+				direction=defines.direction[state.direction_choice],
 			}
 			local miner = g:get_tile(shift_x+m.size, y)
 			if miner and miner.built_on == "miner" then
@@ -348,9 +340,9 @@ function layout:placement_belts(state)
 		end
 
 		for x = belt_start, end_x, m.size * 2 do
-			local miner1 = g:get_tile(x, y-1)
-			local miner2 = g:get_tile(x, y+1)
-			local miner3 = g:get_tile(x+3, y)
+			local miner1 = g:get_tile(x, y-1) --[[@as GridTile]]
+			local miner2 = g:get_tile(x, y+1) --[[@as GridTile]]
+			local miner3 = g:get_tile(x+3, y) --[[@as GridTile]]
 			local built = miner1.built_on == "miner" or miner2.built_on == "miner"
 			local capped = miner3.built_on == "miner"
 			local pole_built = built or capped
@@ -358,50 +350,38 @@ function layout:placement_belts(state)
 
 			if last and not capped then
 				-- last passtrough and no trailing miner
-				g:get_tile(x+1, y).built_on = "belt"
-				surface.create_entity{
-					raise_built=true,
-					name="entity-ghost",
-					player=state.player,
-					force=state.player.force,
-					position=mpp_revert(c.gx, c.gy, DIR, x+1, y, c.tw, c.th),
+				create_entity{
+					name=state.belt_choice,
+					thing="belt",
+					grid_x=x+1,
+					grid_y=y,
 					direction=defines.direction[state.direction_choice],
-					inner_name=state.belt_choice,
 				}
 			elseif capped or built then
-				g:get_tile(x+1, y).built_on = "belt"
-				surface.create_entity{
-					raise_built=true,
-					name="entity-ghost",
-					player=state.player,
-					force=state.player.force,
-					position=mpp_revert(c.gx, c.gy, DIR, x+1, y, c.tw, c.th),
-					direction=defines.direction[state.direction_choice],
-					inner_name=underground_belt,
+				create_entity{
+					name=underground_belt,
 					type="output",
-				}
-				g:get_tile(x+m.size*2, y).built_on = "belt"
-				surface.create_entity{
-					raise_built=true,
-					name="entity-ghost",
-					player=state.player,
-					force=state.player.force,
-					position=mpp_revert(c.gx, c.gy, DIR, x+m.size*2, y, c.tw, c.th),
+					thing="belt",
+					grid_x=x+1,
+					grid_y=y,
 					direction=defines.direction[state.direction_choice],
-					inner_name=underground_belt,
+				}
+				create_entity{
+					name=underground_belt,
 					type="input",
+					thing="belt",
+					grid_x=x+m.size*2,
+					grid_y=y,
+					direction=defines.direction[state.direction_choice],
 				}
 			else
 				for sx = 1, 6 do
-					g:get_tile(x+sx, y).built_on = "belt"
-					surface.create_entity{
-						raise_built=true,
-						name="entity-ghost",
-						player=state.player,
-						force=state.player.force,
-						position=mpp_revert(c.gx, c.gy, DIR, x+sx, y, c.tw, c.th),
+					create_entity{
+						name=state.belt_choice,
+						thing="belt",
+						grid_x=x+sx,
+						grid_y=y,
 						direction=defines.direction[state.direction_choice],
-						inner_name=state.belt_choice,
 					}
 				end
 			end
@@ -432,31 +412,24 @@ end
 ---@param self SuperCompactLayout
 ---@param state SimpleState
 function layout:placement_pole(state)
+	local next_step = "placement_landfill"
 	if state.pole_choice == "none" then
-		return "placement_landfill"
+		return next_step
 	end
-	local c = state.coords
-	local m = state.miner
-	local g = state.grid
-	local DIR = state.direction_choice
-	local surface = state.surface
-	local attempt = state.best_attempt
+	local create_entity = builder.create_entity_builder(state)
 	for _, pole in ipairs(state.power_poles_all) do
 		local x, y = pole.x, pole.y
 		if pole.built then
-			g:get_tile(x, y).built_on = "pole"
-			surface.create_entity{
-				raise_built=true,
-				name="entity-ghost",
-				player=state.player,
-				force=state.player.force,
-				position=mpp_revert(c.gx, c.gy, DIR, x, y, c.tw, c.th),
-				inner_name=state.pole_choice,
+			create_entity{
+				name=state.pole_choice,
+				thing="pole",
+				grid_x=x,
+				grid_y=y,
 			}
 		end
 	end
 
-	return "placement_landfill"
+	return next_step
 end
 
 return layout

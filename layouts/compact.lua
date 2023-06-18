@@ -48,13 +48,11 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 	local row_index = 1
 	for ry = 1 + shift_y, state.coords.th + near, size + 0.5 do
 		local y = ceil(ry)
-		local column_index = 0
+		local column_index = 1
 		lane_layout[#lane_layout+1] = {y = y+near, row_index = row_index}
 		for x = 1 + shift_x, state.coords.tw, size do
 			local tile = grid:get_tile(x, y)
-			local center = grid:get_tile(x+near, y+near)
-			column_index = column_index + 1
-			if center == nil then goto next_column end
+			local center = grid:get_tile(x+near, y+near) --[[@as GridTile]]
 			local miner = {
 				tile = tile,
 				line = row_index,
@@ -72,7 +70,7 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 			elseif center.far_neighbor_count > 0 then
 				postponed[#postponed+1] = miner
 			end
-			::next_column::
+			column_index = column_index + 1
 		end
 		row_index = row_index + 1
 	end
@@ -335,7 +333,7 @@ function layout:_prepare_deconstruct_specification(state)
 	state.deconstruct_specification = {
 		x = state.best_attempt.sx - 1,
 		y = state.best_attempt.sy,
-		width = state.miner_max_column * state.miner.size + 1,
+		width = state.miner_max_column * state.miner.size + 2,
 		height = state.miner_lane_count * state.miner.size + ceil(state.miner_lane_count/2),
 	}
 

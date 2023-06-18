@@ -17,6 +17,7 @@ builder.create_entity_builder = function(state)
 	local surface = state.surface
 	local gx, gy, tw, th = c.gx, c.gy, c.tw, c.th
 	local direction_conv = mpp_util.bp_direction[state.direction_choice]
+	local collected_ghosts = state._collected_ghosts
 
 	---@param ghost GhostSpecification
 	return function(ghost)
@@ -30,6 +31,7 @@ builder.create_entity_builder = function(state)
 		local result = surface.create_entity(ghost)
 		if result then
 			grid:build_thing_simple(ghost.grid_x, ghost.grid_y, ghost.thing)
+			collected_ghosts[#collected_ghosts+1] = result
 		end
 		return result
 	end

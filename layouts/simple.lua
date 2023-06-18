@@ -213,7 +213,6 @@ function layout:process_grid(state)
 		state.grid_backup = table.deepcopy(state.grid) --[[@as Grid]]
 
 		return "prepare_layout_attempts"
-		--return "init_layout_attempt"
 	end
 	return true
 end
@@ -222,9 +221,11 @@ end
 ---@field tile GridTile
 ---@field center GridTile
 ---@field line number lane index
+---@field stagger number Super compact layout stagger index
 ---@field column number column index
 ---@field ent BlueprintEntity|nil
 ---@field unconsumed number Unconsumed resource count for postponed miners
+---@field direction string
 
 ---@class PlacementCoords
 ---@field sx number x shift
@@ -334,7 +335,8 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 	return result
 end
 
-
+---@param self SimpleLayout
+---@param state SimpleState
 function layout:prepare_layout_attempts(state)
 	local m = state.miner
 	--local init_pos_x, init_pos_y = -m.near, -m.near
@@ -411,41 +413,6 @@ end
 ---@param self SimpleLayout
 ---@param state SimpleState
 ---@return CallbackState
-function layout:simple_deconstruct(state)
-	local c = state.coords
-	local m = state.miner
-	local player = state.player
-	local surface = state.surface
-
-	local left_top = {
-		c.x1+state.best_attempt.sx-.5,
-		c.y1+state.best_attempt.sy-.5,
-	}
-	local right_bottom = {
-		c.x2+state.best_attempt.sx+.5,
-		c.y2+state.best_attempt.sy+.5,
-	}
-
-	local deconstructor = global.script_inventory[state.deconstruction_choice and 2 or 1]
-	surface.deconstruct_area{
-		force=player.force,
-		player=player.index,
-		area={left_top=left_top, right_bottom=right_bottom},
-		item=deconstructor,
-	}
-
-	--[[rendering.draw_rectangle{
-		surface=state.surface, players={state.player},
-		width=4, color={1, 0, 0}, filled=false,
-		left_top=left_top,
-		right_bottom=right_bottom,
-	}]]
-	return "prepare_miner_layout"
-end
-
----@param self SimpleLayout
----@param state SimpleState
----@return CallbackState
 function layout:prepare_miner_layout(state)
 	local c = state.coords
 	local g = state.grid
@@ -459,8 +426,6 @@ function layout:prepare_miner_layout(state)
 	for _, miner in ipairs(state.best_attempt.miners) do
 		local center = miner.center
 		g:build_miner(center.x, center.y)
-		local tile = g:get_tile(center.x, center.y)
-		local x, y = coord_revert[state.direction_choice](center.x, center.y, c.tw, c.th)
 		-- local can_place = surface.can_place_entity{
 		-- 	name=state.miner.name,
 		-- 	force = state.player.force,
@@ -721,19 +686,16 @@ end
 ---@return CallbackState
 function layout:unagressive_deconstruct(state)
 	local c = state.coords
-	local m = state.miner
 	local player = state.player
 	local surface = state.surface
 	local spec = self:_prepare_deconstruct_specification(state)
 
-	local left_top = {
-		c.x1+spec.x-.5,
-		c.y1+spec.y-.5,
-	}
-	local right_bottom = {
-		left_top[1]+spec.width,
-		left_top[2]+spec.height,
-	}
+	local reverter = coord_revert[state.direction_choice]
+	local spec_x, spec_y = reverter(spec.x, spec.y, c.tw, c.th)
+	local spec_w, spec_h = reverter(spec.x+spec.width, spec.y+spec.height, c.tw, c.th)
+
+	local left_top = { c.x1-.5 + spec_x, c.y1-.5 + spec_y }
+	local right_bottom = { left_top[1] + spec_w, left_top[2] + spec_h }
 
 	local deconstructor = global.script_inventory[state.deconstruction_choice and 2 or 1]
 	surface.deconstruct_area{
@@ -800,6 +762,7 @@ function layout:placement_pipes(state)
 	local pipe = state.pipe_choice
 	
 	local ground_pipe, ground_proto = mpp_util.find_underground_pipe(pipe)
+	---@cast ground_pipe string
 
 	local step, span
 	if ground_proto then
@@ -1031,7 +994,7 @@ end
 ---@return CallbackState
 function layout:finish(state)
 	if state.print_placement_info_choice and state.player.valid then
-		state.player.print({"mpp.msg_print_info_miner_placement", #state.best_attempt.miners, state.belt_count, #state.resources})
+		state.player.print({"mpp.msg_print_info_miner_placement", state.best_attempt.miner_count, state.belt_count, #state.resources})
 	end
 
 	if mpp_util.get_dump_state(state.player.index) then
