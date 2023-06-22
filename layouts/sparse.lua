@@ -337,8 +337,8 @@ function layout:prepare_pole_layout(state)
 		supply_area = floor(supply_area_distance * 2)
 	end
 
-	local power_poles_all = {}
-	state.power_poles_all = power_poles_all
+	local builder_power_poles = {}
+	state.builder_power_poles = builder_power_poles
 
 	local pole_step = min(floor(pole_proto.max_wire_distance), supply_area + 2)
 	state.pole_step = pole_step
@@ -381,7 +381,7 @@ function layout:prepare_pole_layout(state)
 				end
 			end
 
-			power_poles_all[#power_poles_all+1] = pole
+			builder_power_poles[#builder_power_poles+1] = pole
 			ix = ix + 1
 		end
 		return pole_lane

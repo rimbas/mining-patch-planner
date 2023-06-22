@@ -26,7 +26,7 @@ function layout:placement_belts(state)
 	local attempt = state.best_attempt
 
 	local power_poles = {}
-	state.power_poles_all = power_poles
+	state.builder_power_poles = power_poles
 
 	---@type table<number, MinerPlacement[]>
 	local miner_lanes = {{}}

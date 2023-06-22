@@ -50,7 +50,7 @@ function layout:placement_belts(state)
 	local create_entity = builder.create_entity_builder(state)
 
 	local power_poles = {}
-	state.power_poles_all = power_poles
+	state.builder_power_poles = power_poles
 
 	---@type table<number, MinerPlacement[]>
 	local miner_lanes = {{}}

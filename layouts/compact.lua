@@ -130,7 +130,7 @@ function layout:_placement_belts_small(state)
 	local underground_belt = game.entity_prototypes[belt_choice].related_underground_belt.name
 
 	local power_poles = {}
-	state.power_poles_all = power_poles
+	state.builder_power_poles = power_poles
 
 	---@type table<number, MinerPlacement[]>
 	local miner_lanes = {}
@@ -231,7 +231,7 @@ function layout:_placement_belts_large(state)
 	local underground_belt = game.entity_prototypes[belt_choice].related_underground_belt.name
 
 	local power_poles = {}
-	state.power_poles_all = power_poles
+	state.builder_power_poles = power_poles
 
 	---@type table<number, MinerPlacement[]>
 	local miner_lanes = {{}}
@@ -329,6 +329,41 @@ function layout:prepare_pole_layout(state)
 	return "unagressive_deconstruct"
 end
 
+---@param self CompactLayout
+---@param state SimpleState
+function layout:prepare_lamp_layout(state)
+	local _next_step = "placement_landfill"
+	if not state.lamp_choice then
+		return _next_step
+	end
+
+	local lamps = {}
+	state.builder_lamps = lamps
+
+	local grid = state.grid
+
+	local sx, sy = -1, 0
+	local lamp_spacing = true
+	if state.pole_step > 7 then lamp_spacing = false end
+
+	for _, pole in ipairs(state.builder_power_poles) do
+		local x, y = pole.x, pole.y
+		local ix, iy = pole.ix, pole.iy
+		local tile = grid:get_tile(x+sx, y+sy)
+		local skippable_lamp = iy % 2 == 1 and ix % 2 == 1
+		if tile and pole.built and (not lamp_spacing or skippable_lamp) then
+			lamps[#lamps+1] = {
+				name="small-lamp",
+				thing="lamp",
+				grid_x = x+sx,
+				grid_y = y+sy,
+			}
+		end
+	end
+
+	return _next_step
+end
+
 function layout:_prepare_deconstruct_specification(state)
 	state.deconstruct_specification = {
 		x = state.best_attempt.sx - 1,
@@ -338,56 +373,6 @@ function layout:_prepare_deconstruct_specification(state)
 	}
 
 	return state.deconstruct_specification
-end
-
----@param self CompactLayout
----@param state SimpleState
----@return CallbackState
-function layout:placement_belts(state)
-	local create_entity = builder.create_entity_builder(state)
-
-	for i, belt in ipairs(state.belts --[=[@as GhostSpecification[]]=]) do
-		create_entity(belt)
-	end
-
-	return "placement_poles"
-end
-
----@param self CompactLayout
----@param state SimpleState
-function layout:placement_lamp(state)
-	local _next_step = "placement_landfill"
-	if not state.lamp_choice then
-		return _next_step
-	end
-
-	local create_entity = builder.create_entity_builder(state)
-	local c = state.coords
-	local grid = state.grid
-	local surface = state.surface
-
-	local sx, sy = -1, 0
-	local lamp_spacing = true
-	if state.pole_step > 7 then lamp_spacing = false end
-
-	for _, pole in ipairs(state.power_poles_all) do
-		local x, y = pole.x, pole.y
-		local ix, iy = pole.ix, pole.iy
-		local tile = grid:get_tile(x+sx, y+sy)
-		local skippable_lamp = iy % 2 == 1 and ix % 2 == 1
-		if tile and pole.built and (not lamp_spacing or skippable_lamp) then
-			tile.built_on = "lamp"
-			local tx, ty = coord_revert[state.direction_choice](x + sx, y + sy, c.tw, c.th)
-			create_entity{
-				name="small-lamp",
-				thing="lamp",
-				grid_x = tx,
-				grid_y = ty,
-			}
-		end
-	end
-
-	return _next_step
 end
 
 return layout

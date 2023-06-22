@@ -276,7 +276,7 @@ function layout:placement_belts(state)
 	local create_entity = builder.create_entity_builder(state)
 
 	local power_poles = {}
-	state.power_poles_all = power_poles
+	state.builder_power_poles = power_poles
 	
 	---@type table<number, MinerPlacement[]>
 	local miner_lanes = {}
@@ -417,7 +417,7 @@ function layout:placement_pole(state)
 		return next_step
 	end
 	local create_entity = builder.create_entity_builder(state)
-	for _, pole in ipairs(state.power_poles_all) do
+	for _, pole in ipairs(state.builder_power_poles) do
 		local x, y = pole.x, pole.y
 		if pole.built then
 			create_entity{

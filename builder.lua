@@ -5,7 +5,14 @@ local builder = {}
 ---@class GhostSpecification : LuaSurface.create_entity_param
 ---@field grid_x number Grid x coordinate
 ---@field grid_y number Grid x coordinate
----@field thing string Type for the grid
+---@field padding_pre number
+---@field padding_post number
+---@field thing string Enum for the grid
+
+---@class PowerPoleGhostSpecification : GhostSpecification
+---@field no_light boolean
+---@field ix number Pole x index 
+---@field iy number Poly y index
 
 --- Builder for a convenience function that automatically translates
 --- internal grid state for a surface.create_entity call
@@ -30,7 +37,7 @@ builder.create_entity_builder = function(state)
 		ghost.direction=direction_conv[ghost.direction or defines.direction.north]
 		local result = surface.create_entity(ghost)
 		if result then
-			grid:build_thing_simple(ghost.grid_x, ghost.grid_y, ghost.thing)
+			grid:build_specification(ghost)
 			collected_ghosts[#collected_ghosts+1] = result
 		end
 		return result

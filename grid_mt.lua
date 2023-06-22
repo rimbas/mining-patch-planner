@@ -179,6 +179,39 @@ function grid_mt:build_thing_simple(cx, cy, thing)
 	end
 end
 
+---@param t GhostSpecification
+---@return boolean
+function grid_mt:build_specification(t)
+	local cx, cy = t.grid_x, t.grid_y
+	local left, right = t.padding_pre, t.padding_post
+	local thing = t.thing
+
+	if left == nil and right == nil then
+		local row = self[cy]
+		if row then
+			local tile = row[cx]
+			if tile then
+				tile.built_on = thing
+				return true
+			end
+		end
+	else
+		left, right = left or 0, right or 0
+		local x1, x2 = cx-left, cx+right
+		for y = cy-left, cy+right do
+			local row = self[y]
+			if row == nil then goto continue_row end
+			for x = x1, x2 do
+				local tile = row[x]
+				if tile then
+					tile.built_on = thing
+				end
+			end
+			::continue_row::
+		end
+	end
+end
+
 ---Finds if an entity type is built near
 ---@param cx number x coord
 ---@param cy number y coord

@@ -16,7 +16,7 @@ local layout = table.deepcopy(base)
 ---@field attempts BpPlacementAttempt[]
 ---@field best_attempt BpPlacementAttempt
 ---@field beacons BpPlacementEnt[]
----@field power_poles_all BpPlacementEnt[]
+---@field builder_power_poles BpPlacementEnt[]
 ---@field lamps BpPlacementEnt[]
 
 --- Coordinate space for the attempt
@@ -495,7 +495,7 @@ function layout:place_other(state)
 	local grid = state.grid
 	local surface = state.surface
 	local beacons, power, lamps = {}, {}, {}
-	state.beacons, state.power_poles_all, state.lamps = beacons, power, lamps
+	state.beacons, state.builder_power_poles, state.lamps = beacons, power, lamps
 
 	for _, other_ent in ipairs(state.best_attempt.other_ents) do
 		---@type BlueprintEntity
@@ -600,7 +600,7 @@ function layout:place_electricity(state)
 	local surface = state.surface
 	local grid = state.grid
 
-	for _, other_ent in ipairs(state.power_poles_all) do
+	for _, other_ent in ipairs(state.builder_power_poles) do
 		---@type BlueprintEntity
 		local ent = other_ent.ent
 		local center = other_ent.center
