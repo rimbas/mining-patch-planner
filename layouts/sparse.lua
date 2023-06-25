@@ -155,40 +155,9 @@ end
 
 ---@param self SimpleLayout
 ---@param state SimpleState
-function layout:_prepare_deconstruct_specification(state)
-	state.deconstruct_specification = {
-		x = state.best_attempt.sx - 1,
-		y = state.best_attempt.sy - 1,
-		width = state.miner_max_column * state.miner.full_size + 1,
-		height = state.miner_lane_count * (state.miner.full_size),
-	}
-
-	local m = state.miner
-	local gap = m.far - m.near
-	local columns = state.miner_max_column
-
-	state.deconstruct_specification = {
-		x = state.best_attempt.sx - 1,
-		y = state.best_attempt.sy - 1,
-		width = columns * m.full_size - gap*2 + 2,
-		height = state.miner_lane_count * m.full_size - gap*2 + 2,
-	}
-
-	return state.deconstruct_specification
-end
-
----@param self SimpleLayout
----@param state SimpleState
-function layout:prepare_pipe_layout(state)
-	local next_step = "prepare_belt_layout"
-	if state.pipe_choice == "none"
-		or (not state.requires_fluid and not state.force_pipe_placement_choice)
-	then
-		return next_step
-	end
-	state.place_pipes = true
+---@return PlacementSpecification[]
+function layout:_get_pipe_layout_specification(state)
 	local pipe_layout = {}
-	state.pipe_layout_specification = pipe_layout
 	
 	local m = state.miner
 	local attempt = state.best_attempt
@@ -242,7 +211,7 @@ function layout:prepare_pipe_layout(state)
 		}
 	end
 
-	return next_step
+	return pipe_layout
 end
 
 
@@ -262,18 +231,17 @@ function layout:prepare_belt_layout(state)
 	end
 
 	local belts = {}
-	state.belts = belts
+	state.builder_belts = belts
 
 	local function get_lane_length(lane) if lane then return lane[#lane].center.x end return 0 end
 	local function que_entity(t) belts[#belts+1] = t end
 
 	local belt_lanes = {}
 	local longest_belt = 0
+	local pipe_adjust = state.place_pipes and -1 or 0
 	for i = 1, miner_lane_count, 2 do
 		local lane1 = miner_lanes[i]
 		local lane2 = miner_lanes[i+1]
-
-		local shift = state.place_pipes and -1 or 0
 
 		local y = attempt.sy + m.size + 1 + (m.far * 2 + 1) * (i-1)
 
@@ -281,7 +249,7 @@ function layout:prepare_belt_layout(state)
 		belt_lanes[#belt_lanes+1] = belt
 
 		if lane1 or lane2 then
-			local x1 = attempt.sx + 1 + shift
+			local x1 = attempt.sx + 1 + pipe_adjust
 			local x2 = max(get_lane_length(lane1), get_lane_length(lane2)) + m.near
 			longest_belt = max(longest_belt, x2 - x1 + 1)
 			belt.x1, belt.x2, belt.built = x1, x2, true
@@ -368,22 +336,40 @@ function layout:prepare_pole_layout(state)
 			end
 			local pole = {x=x, y=y, ix=ix, iy=iy, built=built, no_light=no_light}
 			pole_lane[ix] = pole
-
-			if built and ix > 1 and pole_lane[ix-1] then
-				for bx = ix - 1, 1, -1 do
-					local backtrack_pole = pole_lane[bx]
-					if not backtrack_pole.built then
-						backtrack_pole.built = true
-					else
-						break
-					end
-
-				end
-			end
-
-			builder_power_poles[#builder_power_poles+1] = pole
 			ix = ix + 1
 		end
+		
+		-- if built and ix > 1 and pole_lane[ix-1] then
+		-- 	for bx = ix - 1, 1, -1 do
+		-- 		local backtrack_pole = pole_lane[bx]
+		-- 		if not backtrack_pole.built then
+		-- 			backtrack_pole.built = true
+		-- 		else
+		-- 			break
+		-- 		end
+
+		-- 	end
+		-- end
+		-- builder_power_poles[#builder_power_poles+1] = pole
+
+		local backtrack_built = false
+		for pole_i = #pole_lane, 1, -1 do
+			---@type GridPole
+			local backtrack_pole = pole_lane[pole_i]
+			if backtrack_built or backtrack_pole.built then
+				backtrack_built = true
+				backtrack_pole.built = true
+
+				builder_power_poles[#builder_power_poles+1] = {
+					name=state.pole_choice,
+					thing="pole",
+					grid_x = backtrack_pole.x,
+					grid_y = backtrack_pole.y,
+				}
+
+			end
+		end
+
 		return pole_lane
 	end
 
@@ -409,7 +395,5 @@ function layout:prepare_pole_layout(state)
 
 	return "unagressive_deconstruct"
 end
-
-layout.placement_belts = compact.placement_belts
 
 return layout

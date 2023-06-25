@@ -17,35 +17,12 @@ layout.restrictions.lamp_available = false
 layout.restrictions.belt_available = false
 layout.restrictions.logistics_available = true
 
----@param self SuperCompactLayout
----@param state SuperCompactState
----@return DeconstructSpecification
-function layout:_prepare_deconstruct_specification_ex(state)
-	local m = state.miner
-	local bounds = state.miner_bounds
-
-	state.deconstruct_specification = {
-		x = bounds.min_x-1 - m.near,
-		y = bounds.min_y-1 - m.near,
-		width = bounds.max_x - bounds.min_x+1 + m.near * 2,
-		height = bounds.max_y - bounds.min_y+1 + m.near * 2,
-	}
-
-	return state.deconstruct_specification
-end
-
-function layout:prepare_belt_layout(state)
-	return "prepare_pole_layout"
-end
-
 ---@param self SimpleLayout
 ---@param state SimpleState
-function layout:placement_belts(state)
+function layout:prepare_belt_layout(state)
 	local c = state.coords
 	local m = state.miner
 	local g = state.grid
-	local DIR = state.direction_choice
-	local surface = state.surface
 	local attempt = state.best_attempt
 	local create_entity = builder.create_entity_builder(state)
 
@@ -70,7 +47,6 @@ function layout:placement_belts(state)
 
 	local shift_x, shift_y = state.best_attempt.sx, state.best_attempt.sy
 
-
 	local function place_logistics(start_x, end_x, y)
 		local belt_start = 1 + shift_x + start_x
 		if start_x ~= 0 then
@@ -83,9 +59,10 @@ function layout:placement_belts(state)
 					grid_y=y,
 				}
 				power_poles[#power_poles+1] = {
-					x = shift_x,
-					y = y,
-					built=true,
+					name=state.pole_choice,
+					thing="pole",
+					grid_x = shift_x,
+					grid_y = y,
 				}
 			end
 		end
@@ -115,11 +92,14 @@ function layout:placement_belts(state)
 				}
 			end
 
-			power_poles[#power_poles+1] = {
-				x = x + 2,
-				y = y,
-				built=pole_built,
-			}
+			if pole_built then
+				power_poles[#power_poles+1] = {
+					name=state.pole_choice,
+					thing="pole",
+					grid_x = x + 2,
+					grid_y = y,
+				}
+			end
 		end
 	end
 

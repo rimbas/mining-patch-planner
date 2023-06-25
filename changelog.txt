@@ -1,13 +1,12 @@
 ---------------------------------------------------------------------------------------------------
 Version: 1.5.0
-Date: 2023-06-13
+Date: 2023-06-25
   Features:
-    - Less aggressive deconstruction. (use the setting if you don't need any entity deconstruction)
-    - Improved overfill mode layouts
-    - Improved Pyanodons compatibility
+    - Proper deconstruction in only where entities are built
+    - Overfill mode uses more of external area reach
     - Improved Space Exploration SatView compatibility
   Bugfixes:
-    - Fixed a bug in drill placement that caused malformed layouts in overfill mode
+    - Fixed a bug in drill placement that caused suboptimal layouts in overfill mode
 ---------------------------------------------------------------------------------------------------
 Version: 1.4.3
 Date: 2023-04-02

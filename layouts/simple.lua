@@ -130,7 +130,7 @@ function layout:start(state)
 		end
 	end
 
-	--[[ debug rendering - bounds ]]
+	--[[ debug rendering - bounds
 	rendering.draw_rectangle{
 		surface=state.surface,
 		left_top={state.coords.ix1, state.coords.iy1},
@@ -421,15 +421,15 @@ function layout:prepare_miner_layout(state)
 	local c = state.coords
 	local g = state.grid
 
+	---@type GhostSpecification[]
+	local builder_miners = {}
+	state.builder_miners = builder_miners
+
 	---@type table<number, MinerPlacement[]>
 	local miner_lanes = {}
 	local miner_lane_count = 0 -- highest index of a lane, because using # won't do the job if a lane is missing
 	local miner_max_column = 0
 	state.miner_lanes = miner_lanes
-
-	---@type GhostSpecification[]
-	local builder_miners = {}
-	state.builder_miners = builder_miners
 
 	for _, miner in ipairs(state.best_attempt.miners) do
 		local center = miner.center
@@ -466,7 +466,6 @@ function layout:prepare_miner_layout(state)
 		-- used for deconstruction, not ghost placement
 		builder_miners[#builder_miners+1] = {
 			thing="miner",
-			extent_=state.miner.size,
 			grid_x = miner.center.x,
 			grid_y = miner.center.y,
 			padding_pre = state.miner.near,
@@ -760,8 +759,8 @@ function layout:prepare_pole_layout(state)
 		return false
 	end
 
-	---@type PowerPoleGrid
-	local power_poles_grid = setmetatable({}, pole_grid_mt)
+	-----@type PowerPoleGrid
+	--local power_poles_grid = setmetatable({}, pole_grid_mt)
 	local builder_power_poles = {}
 	state.builder_power_poles = builder_power_poles
 
@@ -787,7 +786,7 @@ function layout:prepare_pole_layout(state)
 
 			---@type GridPole
 			local pole = {x=x, y=y, ix=ix, iy=iy, built=built}
-			power_poles_grid:set_pole(ix, iy, pole)
+			--power_poles_grid:set_pole(ix, iy, pole)
 			--builder_power_poles[#builder_power_poles+1] = pole
 			pole_lane[ix] = pole
 			ix = ix + 1
@@ -821,9 +820,9 @@ end
 ---@param state SimpleState
 ---@return CallbackState
 function layout:prepare_lamp_layout(state)
-	local c = state.coords
-	local grid = state.grid
-	local surface = state.surface
+	local next_step = "expensive_deconstruct"
+
+	if state.lamp_choice ~= true then return next_step end
 
 	local lamps = {}
 	state.builder_lamps = lamps
@@ -834,8 +833,7 @@ function layout:prepare_lamp_layout(state)
 	for _, pole in ipairs(state.builder_power_poles) do
 		---@cast pole PowerPoleGhostSpecification
 		local x, y = pole.grid_x, pole.grid_y
-		local tile = grid:get_tile(x+sx, y+sy)
-		if tile and pole.built and not pole.no_light then
+		if not pole.no_light then
 			lamps[#lamps+1] = {
 				name="small-lamp",
 				thing="lamp",
@@ -845,54 +843,7 @@ function layout:prepare_lamp_layout(state)
 		end
 	end
 
-	return "expensive_deconstruct"
-end
-
----@param self SimpleLayout
----@param state SimpleState
-function layout:_prepare_deconstruct_specification(state)
-	state.deconstruct_specification = {
-		x = state.best_attempt.sx - 1,
-		y = state.best_attempt.sy - 1,
-		width = state.miner_max_column * state.miner.size + 1,
-		height = state.miner_lane_count * (state.miner.size + 1) + 1,
-	}
-
-	return state.deconstruct_specification
-end
-
----@param self SimpleLayout
----@param state SimpleState
----@return CallbackState
-function layout:unagressive_deconstruct(state)
-	local c = state.coords
-	local player = state.player
-	local surface = state.surface
-	local spec = self:_prepare_deconstruct_specification(state)
-
-	local reverter = coord_revert[state.direction_choice]
-	local spec_x, spec_y = reverter(spec.x, spec.y, c.tw, c.th)
-	local spec_w, spec_h = reverter(spec.x+spec.width, spec.y+spec.height, c.tw, c.th)
-
-	local left_top = { c.x1-.5 + spec_x, c.y1-.5 + spec_y }
-	local right_bottom = { left_top[1] + spec_w, left_top[2] + spec_h }
-
-	local deconstructor = global.script_inventory[state.deconstruction_choice and 2 or 1]
-	surface.deconstruct_area{
-		force=player.force,
-		player=player.index,
-		area={left_top=left_top, right_bottom=right_bottom},
-		item=deconstructor,
-	}
-
-	--[[]]
-	rendering.draw_rectangle{
-		surface=state.surface, players={state.player},
-		width=4, color={1, 0, 0}, filled=false,
-		left_top=left_top,
-		right_bottom=right_bottom,
-	} -- ]]
-	return "placement_miners"
+	return next_step
 end
 
 ---@param self SimpleLayout
@@ -911,6 +862,7 @@ end
 ---@param state SimpleState
 function layout:expensive_deconstruct(state)
 	local c, DIR = state.coords, state.direction_choice
+	local player, surface = state.player, state.surface
 
 	local deconstructor = global.script_inventory[state.deconstruction_choice and 2 or 1]
 
@@ -920,20 +872,24 @@ function layout:expensive_deconstruct(state)
 			local cx, cy = object.grid_x, object.grid_y
 			local pad_left, pad_right =  object.padding_pre, object.padding_post
 
-			local pos1, pos2 = { cx, cy }, { cx, cy }
+			local tpos1, tpos2 = { cx, cy }, { cx, cy }
 			if pad_left ~= nil and pad_right ~= nil then
 				pad_left, pad_right = pad_left or 0, pad_right or 0
-				pos1[1], pos1[2] = cx - pad_left, cy - pad_left
-				pos2[1], pos2[2] = cx + pad_right, cy + pad_right
+				tpos1[1], tpos1[2] = cx - pad_left, cy - pad_left
+				tpos2[1], tpos2[2] = cx + pad_right, cy + pad_right
 			end
 			
-			pos1 = mpp_util.revert(c.gx, c.gy, DIR, pos1[1], pos1[2], c.tw, c.th)
-			pos2 = mpp_util.revert(c.gx, c.gy, DIR, pos2[1], pos2[2], c.tw, c.th)
+			pos1 = mpp_util.revert(c.gx, c.gy, DIR, tpos1[1], tpos1[2], c.tw, c.th)
+			pos2 = mpp_util.revert(c.gx, c.gy, DIR, tpos2[1], tpos2[2], c.tw, c.th)
+			
+			-- ugh
+			pos1[1], pos2[1] = min(pos1[1], pos2[1]), max(pos1[1], pos2[1])
+			pos1[2], pos2[2] = min(pos1[2], pos2[2]), max(pos1[2], pos2[2])
 
 			surface.deconstruct_area{
 				force=player.force,
 				player=player.index,
-				area={	
+				area={
 					left_top={pos1[1]-.5,pos1[2]-.5},
 					right_bottom={pos2[1]+.5,pos2[2]+.5},
 				},
@@ -997,10 +953,11 @@ end
 function layout:placement_pipes(state)
 	local create_entity = builder.create_entity_builder(state)
 
-	for _, belt in ipairs(state.builder_pipes) do
-		create_entity(belt)
+	if state.builder_pipes then
+		for _, belt in ipairs(state.builder_pipes) do
+			create_entity(belt)
+		end
 	end
-
 	return "placement_belts"
 end
 
@@ -1040,7 +997,8 @@ end
 ---@return CallbackState
 function layout:placement_lamps(state)
 	local next_step = "placement_landfill"
-	if not state.lamp_choice then return next_step end
+	if not layout.restrictions.lamp_available or not state.lamp_choice then return next_step end
+	if not state.builder_lamps then return next_step end
 
 	local create_entity = builder.create_entity_builder(state)
 

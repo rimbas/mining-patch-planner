@@ -105,7 +105,7 @@ function layout:prepare_belt_layout(state)
 		supply_area, wire_reach = pole_proto.supply_area_distance, pole_proto.max_wire_distance
 	end
 
-	state.belts = {}
+	state.builder_belts = {}
 
 	if supply_area < 3 or wire_reach < 9 then
 		state.pole_step = 6
@@ -123,6 +123,7 @@ local function create_entity_que(belts)
 end
 
 ---@param self CompactLayout
+---@param state SimpleState
 function layout:_placement_belts_small(state)
 	local m = state.miner
 	local attempt = state.best_attempt
@@ -153,10 +154,8 @@ function layout:_placement_belts_small(state)
 	---@param lane MinerPlacement[]
 	local function get_lane_column(lane) if lane and #lane > 0 then return lane[#lane].column end return 0 end
 
-	local belts = state.belts
 	state.belt_count = 0
-
-	local que_entity = create_entity_que(belts)
+	local que_entity = create_entity_que(state.builder_belts)
 
 	local function belts_filled(x1, y, w)
 		for x = x1, x1 + w do
@@ -180,6 +179,16 @@ function layout:_placement_belts_small(state)
 		if lane1 then for _, v in ipairs(lane1) do indices[v.column] = v end end
 		if lane2 then for _, v in ipairs(lane2) do indices[v.column] = v end end
 
+		if state.place_pipes then
+			que_entity{
+				name=state.belt_choice,
+				thing="belt",
+				grid_x = x0 - 1,
+				grid_y = y,
+				direction=WEST,
+			}
+		end
+
 		for j = 1, column_count do
 			local x1 = x0 + (j-1) * m.size
 			if j % 2 == 1 then -- part one
@@ -191,10 +200,17 @@ function layout:_placement_belts_small(state)
 					que_entity{
 						name=stopper, thing="belt", grid_x=x1+1, grid_y=y, direction=WEST, type="output",
 					}
+					-- power_poles[#power_poles+1] = {
+					-- 	x=x1+3, y=y,
+					-- 	ix=1+floor(i/2), iy=1+floor(j/2),
+					-- 	built = true,
+					-- }
 					power_poles[#power_poles+1] = {
-						x=x1+3, y=y,
+						name=state.pole_choice,
+						thing="pole",
+						grid_x = x1+3,
+						grid_y = y,
 						ix=1+floor(i/2), iy=1+floor(j/2),
-						built = true,
 					}
 				else -- just a passthrough belt
 					belts_filled(x1, y, m.size - 1)
@@ -221,11 +237,7 @@ end
 
 ---@param self CompactLayout
 function layout:_placement_belts_large(state)
-	local c = state.coords
 	local m = state.miner
-	local g = state.grid
-	local DIR = state.direction_choice
-	local surface = state.surface
 	local attempt = state.best_attempt
 	local belt_choice = state.belt_choice
 	local underground_belt = game.entity_prototypes[belt_choice].related_underground_belt.name
@@ -247,9 +259,7 @@ function layout:_placement_belts_large(state)
 
 	state.miner_lane_count = miner_lane_count
 
-	local belts = state.belts
-
-	local que_entity = create_entity_que(belts)
+	local que_entity = create_entity_que(state.builder_belts)
 
 	for _, lane in pairs(miner_lanes) do
 		table.sort(lane, function(a, b) return a.center.x < b.center.x end)
@@ -259,7 +269,6 @@ function layout:_placement_belts_large(state)
 	local function get_lane_length(lane) if lane and #lane > 0 then return lane[#lane].center.x or 0 end return 0 end
 	---@param lane MinerPlacement[]
 	local function get_lane_column(lane) if lane and #lane > 0 then return lane[#lane].column or 0 end return 0 end
-
 
 	local function belts_filled(x1, y, w)
 		for x = x1, x1 + w do
@@ -281,6 +290,15 @@ function layout:_placement_belts_large(state)
 		if lane1 then for _, v in ipairs(lane1) do indices[v.column] = v end end
 		if lane2 then for _, v in ipairs(lane2) do indices[v.column] = v end end
 
+		if state.place_pipes then
+			que_entity{
+				name=state.belt_choice,
+				thing="belt",
+				grid_x = x0 - 1,
+				grid_y = y,
+			}
+		end
+
 		for j = 1, column_count do
 			local x1 = x0 + (j-1) * m.size
 			if j % 3 == 1 then -- part one
@@ -294,10 +312,17 @@ function layout:_placement_belts_large(state)
 						name=stopper, grid_x=x1+1, grid_y=y, thing="belt", direction=WEST,
 						type="output",
 					}
+					-- power_poles[#power_poles+1] = {
+					-- 	x=x1+3, y=y,
+					-- 	ix=1+floor(i/2), iy=1+floor(j/2),
+					-- 	built = true,
+					-- }
 					power_poles[#power_poles+1] = {
-						x=x1+3, y=y,
+						name=state.pole_choice,
+						thing="pole",
+						grid_x = x1+3,
+						grid_y = y,
 						ix=1+floor(i/2), iy=1+floor(j/2),
-						built = true,
 					}
 				else -- just a passthrough belt
 					belts_filled(x1, y, m.size - 1)
@@ -325,18 +350,7 @@ end
 
 ---@param self CompactLayout
 ---@param state SimpleState
-function layout:prepare_pole_layout(state)
-	return "unagressive_deconstruct"
-end
-
----@param self CompactLayout
----@param state SimpleState
 function layout:prepare_lamp_layout(state)
-	local _next_step = "placement_landfill"
-	if not state.lamp_choice then
-		return _next_step
-	end
-
 	local lamps = {}
 	state.builder_lamps = lamps
 
@@ -347,11 +361,11 @@ function layout:prepare_lamp_layout(state)
 	if state.pole_step > 7 then lamp_spacing = false end
 
 	for _, pole in ipairs(state.builder_power_poles) do
-		local x, y = pole.x, pole.y
+		local x, y = pole.grid_x, pole.grid_y
 		local ix, iy = pole.ix, pole.iy
 		local tile = grid:get_tile(x+sx, y+sy)
 		local skippable_lamp = iy % 2 == 1 and ix % 2 == 1
-		if tile and pole.built and (not lamp_spacing or skippable_lamp) then
+		if tile and (not lamp_spacing or skippable_lamp) then
 			lamps[#lamps+1] = {
 				name="small-lamp",
 				thing="lamp",
@@ -361,18 +375,13 @@ function layout:prepare_lamp_layout(state)
 		end
 	end
 
-	return _next_step
+	return "expensive_deconstruct"
 end
 
-function layout:_prepare_deconstruct_specification(state)
-	state.deconstruct_specification = {
-		x = state.best_attempt.sx - 1,
-		y = state.best_attempt.sy,
-		width = state.miner_max_column * state.miner.size + 2,
-		height = state.miner_lane_count * state.miner.size + ceil(state.miner_lane_count/2),
-	}
-
-	return state.deconstruct_specification
+---@param self CompactLayout
+---@param state SimpleState
+function layout:prepare_pole_layout(state)
+	return "prepare_lamp_layout"
 end
 
 return layout

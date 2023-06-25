@@ -17,12 +17,8 @@ layout.restrictions.logistics_available = true
 
 ---@param self LogisticsLayout
 ---@param state SimpleState
-function layout:placement_belts(state)
-	local c = state.coords
+function layout:prepare_belt_layout(state)
 	local m = state.miner
-	local g = state.grid
-	local DIR = state.direction_choice
-	local surface = state.surface
 	local attempt = state.best_attempt
 
 	local power_poles = {}
@@ -53,7 +49,7 @@ function layout:placement_belts(state)
 	local function get_lane_column(lane) if lane and #lane > 0 then return lane[#lane].column or 0 end return 0 end
 
 	local belts = {}
-	state.belts = belts
+	state.builder_belts = belts
 
 	for i = 1, miner_lane_number, 2 do
 		local lane1 = miner_lanes[i]
@@ -70,20 +66,17 @@ function layout:placement_belts(state)
 		for j = 1, column_count do
 			local x = x0 + m.near + m.size * (j-1)
 			if indices[j] then
-				g:get_tile(x, y).built_on = "belt"
-				surface.create_entity{
-					raise_built=true,
-					name="entity-ghost",
-					player=state.player,
-					force=state.player.force,
-					position=mpp_revert(c.gx, c.gy, DIR, x, y, c.tw, c.th),
-					inner_name=state.logistics_choice,
+				belts[#belts+1] = {
+					name=state.logistics_choice,
+					thing="belt",
+					grid_x=x,
+					grid_y=y,
 				}
 			end
 		end
 	end
 
-	return "placement_poles"
+	return "prepare_pole_layout"
 end
 
 ---@param self SimpleLayout
