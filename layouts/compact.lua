@@ -4,10 +4,6 @@ local min, max = math.min, math.max
 local common = require("layouts.common")
 local simple = require("layouts.simple")
 local mpp_util = require("mpp_util")
-local builder = require("builder")
-local coord_convert, coord_revert = mpp_util.coord_convert, mpp_util.coord_revert
-local miner_direction, opposite = mpp_util.miner_direction, mpp_util.opposite
-local mpp_revert = mpp_util.revert
 local EAST, NORTH, SOUTH, WEST = mpp_util.directions()
 
 ---@class CompactLayout : SimpleLayout

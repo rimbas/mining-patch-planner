@@ -421,6 +421,18 @@ function layout:simple_deconstruct(state)
 		item=deconstructor,
 	}
 
+	--[[ debug rendering - deconstruction area
+	rendering.draw_rectangle{
+		surface=state.surface,
+		players={state.player},
+		filled=false,
+		width=3,
+		color={1, 0, 0},
+		left_top={c.x1-(bp.tw/2), c.y1-(bp.th/2)},
+		right_bottom={c.x2+(bp.tw/2), c.y2+(bp.th/2)}
+	}
+	]]
+
 	return "place_miners"
 end
 

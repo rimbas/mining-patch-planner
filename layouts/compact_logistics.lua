@@ -16,6 +16,7 @@ layout.translation = {"mpp.settings_layout_choice_compact_logistics"}
 layout.restrictions.lamp_available = false
 layout.restrictions.belt_available = false
 layout.restrictions.logistics_available = true
+layout.restrictions.lane_filling_info_available = false
 
 ---@param self SimpleLayout
 ---@param state SimpleState
@@ -113,7 +114,7 @@ function layout:prepare_belt_layout(state)
 		end
 		stagger_shift = stagger_shift + 1
 	end
-	return "placement_pole"
+	return "placement_poles"
 end
 
 layout.finish = logistics.finish

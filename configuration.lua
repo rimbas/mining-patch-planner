@@ -8,6 +8,7 @@ local conf = {}
 ---@field blueprint_items LuaInventory
 ---@field choices PlayerChoices
 ---@field blueprints PlayerGuiBlueprints
+---@field last_state State?
 
 ---@class PlayerChoices
 ---@field layout_choice string

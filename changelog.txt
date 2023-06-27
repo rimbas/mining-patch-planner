@@ -2,9 +2,11 @@
 Version: 1.5.0
 Date: 2023-06-25
   Features:
-    - Proper deconstruction in only where entities are built
+    - Proper deconstruction only where entities are built
+    - Previous ghosts are automatically removed when retrying on the same patch
     - Overfill mode uses more of external area reach
     - Improved Space Exploration SatView compatibility
+    - Added a Sparse Logistics layout
   Bugfixes:
     - Fixed a bug in drill placement that caused suboptimal layouts in overfill mode
 ---------------------------------------------------------------------------------------------------

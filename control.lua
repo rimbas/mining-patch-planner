@@ -32,14 +32,20 @@ local function task_runner(event)
 	if tick_result == nil then
 		error("Layout "..state.layout_choice.." missing a callback name")
 	elseif tick_result == false then
+		local player = state.player
 		if state.blueprint then state.blueprint.clear() end
 		if state.blueprint_inventory then state.blueprint_inventory.destroy() end
 		rendering.destroy(state._preview_rectangle)
 		for k, v in ipairs(state._render_objects) do
 			rendering.destroy(v)
 		end
+
+		---@type PlayerData
+		local player_data = global.players[player.index]
+		player_data.last_state, state._previous_state = state, nil
+
 		table.remove(global.tasks, 1)
-		state.player.play_sound{path="utility/build_blueprint_medium"}
+		player.play_sound{path="utility/build_blueprint_medium"}
 	elseif tick_result ~= true then
 		state._callback = tick_result
 	end

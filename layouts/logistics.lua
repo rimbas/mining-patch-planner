@@ -14,6 +14,7 @@ layout.translation = {"mpp.settings_layout_choice_logistics"}
 
 layout.restrictions.belt_available = false
 layout.restrictions.logistics_available = true
+layout.restrictions.lane_filling_info_available = false
 
 ---@param self LogisticsLayout
 ---@param state SimpleState

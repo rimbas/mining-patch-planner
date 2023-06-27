@@ -20,6 +20,7 @@ require_layout("super_compact")
 require_layout("sparse")
 require_layout("logistics")
 require_layout("compact_logistics")
+require_layout("sparse_logistics")
 require_layout("blueprints")
 
 ---@class State
@@ -32,6 +33,8 @@ require_layout("blueprints")
 ---@field found_resources LuaEntity[] Found resource types
 ---@field requires_fluid boolean
 ---@field mod_version string
+---
+---@field _previous_state State?
 ---@field _collected_ghosts LuaEntity[]
 ---
 ---@field layout_choice string
@@ -217,6 +220,24 @@ function algorithm.on_player_selected_area(event)
 		end
 
 		return nil, {"mpp.msg_miner_err_0"}
+	end
+
+
+	if player_data.last_state then
+		local old_resources = player_data.last_state.resources
+
+		local same = true
+		for i, v in pairs(old_resources) do
+			if v ~= filtered[i] then
+				same = false
+				break
+			end
+		end
+
+		if same then
+			state._previous_state = player_data.last_state
+		end
+		player_data.last_state = nil
 	end
 
 	local validation_result, error = layout:validate(state)

@@ -1,14 +1,10 @@
+local mpp_util = require("mpp_util")
+
 local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
+local EAST, NORTH, SOUTH, WEST = mpp_util.directions()
 
 local simple = require("layouts.simple")
-local compact = require("layouts.compact")
-local mpp_util = require("mpp_util")
-local builder = require("builder")
-local coord_convert, coord_revert = mpp_util.coord_convert, mpp_util.coord_revert
-local miner_direction, opposite = mpp_util.miner_direction, mpp_util.opposite
-local belt_direction = mpp_util.belt_direction
-local mpp_revert = mpp_util.revert
 
 local layout = table.deepcopy(simple) --[[@as Layout]]
 
@@ -47,6 +43,7 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 				line = row_index,
 				column = column_index,
 				center = center,
+				direction = row_index % 2 == 1 and SOUTH or NORTH
 			}
 			if center.far_neighbor_count > 0 then
 				miners[#miners+1] = miner
@@ -393,7 +390,7 @@ function layout:prepare_pole_layout(state)
 		iy = iy + 1
 	end
 
-	return "unagressive_deconstruct"
+	return "expensive_deconstruct"
 end
 
 return layout

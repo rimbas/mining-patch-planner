@@ -1,6 +1,3 @@
-local floor, ceil = math.floor, math.ceil
-local min, max = math.min, math.max
-
 local common = require("layouts.common")
 local base = require("layouts.base")
 local grid_mt = require("grid_mt")
@@ -9,6 +6,10 @@ local mpp_util = require("mpp_util")
 local builder = require("builder")
 local coord_convert, coord_revert = mpp_util.coord_convert, mpp_util.coord_revert
 local miner_direction, opposite = mpp_util.miner_direction, mpp_util.opposite
+
+local floor, ceil = math.floor, math.ceil
+local min, max = math.min, math.max
+local EAST, NORTH, SOUTH, WEST = mpp_util.directions()
 
 ---@class SimpleLayout : Layout
 local layout = table.deepcopy(base)
@@ -99,6 +100,33 @@ end
 ---@param self SimpleLayout
 ---@param state SimpleState
 function layout:start(state)
+	return "deconstruct_previous_ghosts"
+end
+
+---@param self SimpleLayout
+---@param state SimpleState
+function layout:deconstruct_previous_ghosts(state)
+	local next_step = "initialize_grid"
+	if state._previous_state == nil or state._previous_state._collected_ghosts == nil then
+		return next_step
+	end
+
+	local force, player = state.player.force, state.player
+
+	-- state.player.print("Trying to kill "..#state._previous_state._collected_ghosts.." ghosts")
+
+	for _, ghost in pairs(state._previous_state._collected_ghosts) do
+		if ghost.valid then
+			ghost.order_deconstruction(force, player)
+		end
+	end
+
+	return next_step
+end
+
+---@param self SimpleLayout
+---@param state SimpleState
+function layout:initialize_grid(state)
 	local grid = {}
 	local miner = state.miner
 	local c = state.coords
@@ -344,7 +372,7 @@ end
 function layout:prepare_layout_attempts(state)
 	local m = state.miner
 	--local init_pos_x, init_pos_y = -m.near, -m.near
-	local init_pos_x, init_pos_y = 0, 0
+	local init_pos_x, init_pos_y = -1, -1
 	local attempts = {{init_pos_x, init_pos_y}}
 	state.attempts = attempts
 	state.best_attempt_index = 1
@@ -582,59 +610,29 @@ function layout:prepare_pipe_layout(state)
 		span = step + 1
 	end
 
-	local function horizontal_underground(x1, y, w)
-		local x = x1
-		que_entity{
-			name=ground_pipe,
-			thing="pipe",
-			grid_x=x,
-			grid_y=y,
-			direction=defines.direction.west,
-		}
-		que_entity{
-			name=ground_pipe,
-			thing="pipe",
-			grid_x=x+w,
-			grid_y=y,
-			direction=defines.direction.east,
-		}
+	local function horizontal_underground(x, y, w)
+		que_entity{name=ground_pipe, thing="pipe", grid_x=x, grid_y=y, direction=WEST}
+		que_entity{name=ground_pipe, thing="pipe", grid_x=x+w, grid_y=y, direction=EAST}
 	end
 	local function horizontal_filled(x1, y, w)
 		for x = x1, x1+w do
-			que_entity{
-				name=pipe,
-				thing="pipe",
-				grid_x=x,
-				grid_y=y,
-			}
+			que_entity{name=pipe, thing="pipe", grid_x=x, grid_y=y}
+		end
+	end
+	local function vertical_filled(x, y1, h)
+		for y = y1, y1 + h do
+			que_entity{name=pipe, thing="pipe", grid_x=x, grid_y=y}
 		end
 	end
 	local function cap_vertical(x, y, skip_up, skip_down)
-		que_entity{
-			name=pipe,
-			thing="pipe",
-			grid_x=x,
-			grid_y=y,
-		}
+		que_entity{name=pipe, thing="pipe", grid_x=x, grid_y=y}
 
 		if not ground_pipe then return end
 		if not skip_up then
-			que_entity{
-				name=ground_pipe,
-				thing="pipe",
-				grid_x=x,
-				grid_y=y-1,
-				direction=defines.direction.south,
-			}
+			que_entity{name=ground_pipe, thing="pipe", grid_x=x, grid_y=y-1, direction=SOUTH}
 		end
 		if not skip_down then
-			que_entity{
-				name=ground_pipe,
-				thing="pipe",
-				grid_x=x,
-				grid_y=y+1,
-				direction=defines.direction.north,
-			}
+			que_entity{name=ground_pipe, thing="pipe", grid_x=x, grid_y=y+1, direction=NORTH}
 		end
 	end
 
@@ -658,6 +656,8 @@ function layout:prepare_pipe_layout(state)
 			else
 				horizontal_filled(x, y1, remainder)
 			end
+		elseif structure == "vertical" then
+			vertical_filled(x, y1, h)
 		elseif structure == "cap_vertical" then
 			cap_vertical(x1, y1, p.skip_up, p.skip_down)
 		end
@@ -1038,13 +1038,15 @@ function layout:placement_landfill(state)
 		landfill = "landfill"
 	end
 
+	local collected_ghosts = state._collected_ghosts
+
 	for _, fill in ipairs(fill_tiles) do
 		local tx, ty = fill.position.x, fill.position.y
 		local x, y = conv(tx-gx, ty-gy, c.w, c.h)
 		local tile = grid:get_tile(x, y)
 
 		if tile and tile.built_on then
-			surface.create_entity{
+			local tile_ghost = surface.create_entity{
 				raise_built=true,
 				name="tile-ghost",
 				player=state.player,
@@ -1052,6 +1054,10 @@ function layout:placement_landfill(state)
 				position=fill.position --[[@as MapPosition]],
 				inner_name=landfill,
 			}
+
+			if tile_ghost then
+				collected_ghosts[#collected_ghosts+1] = tile_ghost
+			end
 
 			--[[ debug rendering - landfill placement
 			rendering.draw_circle{
