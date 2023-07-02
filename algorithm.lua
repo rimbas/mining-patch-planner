@@ -58,7 +58,6 @@ require_layout("blueprints")
 ---
 ---@field coords Coords
 ---@field grid Grid
----@field grid_backup Grid
 ---@field deconstruct_specification DeconstructSpecification
 ---@field miner MinerStruct
 ---@field _preview_rectangle nil|uint64 LuaRendering.draw_rectangle
@@ -221,7 +220,6 @@ function algorithm.on_player_selected_area(event)
 
 		return nil, {"mpp.msg_miner_err_0"}
 	end
-
 
 	if player_data.last_state then
 		local old_resources = player_data.last_state.resources

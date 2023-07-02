@@ -5,6 +5,7 @@ local pole_grid_mt = require("pole_grid_mt")
 local mpp_util = require("mpp_util")
 local builder = require("builder")
 local coord_convert, coord_revert = mpp_util.coord_convert, mpp_util.coord_revert
+local internal_revert, internal_convert = mpp_util.internal_revert, mpp_util.internal_convert
 local miner_direction, opposite = mpp_util.miner_direction, mpp_util.opposite
 
 local floor, ceil = math.floor, math.ceil
@@ -61,6 +62,7 @@ layout.restrictions.lane_filling_info_available = true
 
 	Basic rundown:
 	* Create a virtual grid from resources
+		* Or restore from a previous state
 	* Run calculations on grid tiles to 
 	* _brute_ force several miner layouts on the grid and find the best one
 	* Mark the area around for deconstruction
@@ -112,9 +114,6 @@ function layout:deconstruct_previous_ghosts(state)
 	end
 
 	local force, player = state.player.force, state.player
-
-	-- state.player.print("Trying to kill "..#state._previous_state._collected_ghosts.." ghosts")
-
 	for _, ghost in pairs(state._previous_state._collected_ghosts) do
 		if ghost.valid then
 			ghost.order_deconstruction(force, player)
@@ -127,27 +126,46 @@ end
 ---@param self SimpleLayout
 ---@param state SimpleState
 function layout:initialize_grid(state)
-	local grid = {}
 	local miner = state.miner
 	local c = state.coords
-
-	grid.miner = miner
-
+	
 	local th, tw = c.h, c.w
 	if state.direction_choice == "south" or state.direction_choice == "north" then
 		th, tw = tw, th
 	end
 	c.th, c.tw = th, tw
 
-	local x1, x2 = -1-miner.full_size, tw + miner.full_size+1
-	for y = -1-miner.full_size, th + miner.full_size+1 do
+	local y1, y2 = -miner.full_size, th + miner.full_size+1
+	local x1, x2 = -miner.full_size, tw + miner.full_size+1
+	c.extent_x1, c.extent_y1, c.extent_x2, c.extent_y2 = x1, y1, x2, y2
+
+	--[[ debug rendering - bounds
+	state._render_objects[#state._render_objects+1] = rendering.draw_rectangle{
+		surface=state.surface,
+		left_top={state.coords.ix1, state.coords.iy1},
+		right_bottom={state.coords.ix1 + c.tw, state.coords.iy1 + c.th},
+		filled=false, width=4, color={0, 0, 1, 1},
+		players={state.player},
+	}
+
+	state._render_objects[#state._render_objects+1] = rendering.draw_rectangle{
+		surface=state.surface,
+		left_top={state.coords.ix1-miner.full_size-1, state.coords.iy1-miner.full_size-1},
+		right_bottom={state.coords.ix1+state.coords.tw+miner.full_size+1, state.coords.iy1+state.coords.th+miner.full_size+1},
+		filled=false, width=4, color={0, 0.5, 1, 1},
+		players={state.player},
+	}
+	--]]
+
+	local grid = {}
+	grid.miner = miner
+
+	for y = y1, y2 do
 		local row = {}
 		grid[y] = row
 		for x = x1, x2 do
 			--local tx1, ty1 = conv(c.x1, c.y1, c.tw, c.th)
 			row[x] = {
-				contains_resource = false,
-				resources = 0,
 				neighbor_count = 0,
 				far_neighbor_count = 0,
 				x = x, y = y,
@@ -158,24 +176,6 @@ function layout:initialize_grid(state)
 		end
 	end
 
-	--[[ debug rendering - bounds
-	rendering.draw_rectangle{
-		surface=state.surface,
-		left_top={state.coords.ix1, state.coords.iy1},
-		right_bottom={state.coords.ix1 + c.tw, state.coords.iy1 + c.th},
-		filled=false, width=4, color={0, 0, 1, 1},
-		players={state.player},
-	}
-
-	rendering.draw_rectangle{
-		surface=state.surface,
-		left_top={state.coords.ix1-miner.full_size-1, state.coords.iy1-miner.full_size-1},
-		right_bottom={state.coords.ix1+state.coords.tw+miner.full_size+1, state.coords.iy1+state.coords.th+miner.full_size+1},
-		filled=false, width=4, color={0, 0.5, 1, 1},
-		players={state.player},
-	}
-	--]]
-
 	state.grid = setmetatable(grid, grid_mt)
 	return "process_grid"
 end
@@ -185,7 +185,6 @@ end
 ---@return CallbackState
 function layout:process_grid(state)
 	local grid = state.grid
-	local DIR = state.direction_choice
 	local c = state.coords
 	local conv = coord_convert[state.direction_choice]
 	local gx, gy = state.coords.gx, state.coords.gy
@@ -194,37 +193,26 @@ function layout:process_grid(state)
 	state.resource_tiles = state.resource_tiles or {}
 	local resource_tiles = state.resource_tiles
 
-	local convolve_size = state.miner.full_size ^ 2
+	local price = state.miner.full_size ^ 2
 	local budget, cost = 12000, 0
 
 	local i = state.resource_iter or 1
 	while i <= #resources and cost < budget do
 		local ent = resources[i]
-		local x, y = ent.position.x, ent.position.y
-		local tx, ty = conv(x-gx, y-gy, c.w, c.h)
+		local x, y = ent.position.x - gx, ent.position.y - gy
+		local tx, ty = conv(x, y, c.w, c.h)
 		local tile = grid:get_tile(tx, ty)
-		tile.contains_resource = true
 		tile.amount = ent.amount
 		grid:convolve(tx, ty)
 		resource_tiles[#resource_tiles+1] = tile
-		cost = cost + convolve_size
+		cost = cost + price
 		i = i + 1
 	end
 	state.resource_iter = i
 
-	-- for _, ent in ipairs(resources) do
-	-- 	local x, y = ent.position.x, ent.position.y
-	-- 	local tx, ty = conv(x-gx, y-gy, c.w, c.h)
-	-- 	local tile = grid:get_tile(tx, ty)
-	-- 	tile.contains_resource = true
-	-- 	tile.amount = ent.amount
-	-- 	grid:convolve(tx, ty)
-	-- 	resource_tiles[#resource_tiles+1] = tile
-	-- end
-
 	--[[ debug visualisation - resource and coord
 	for _, ent in ipairs(resource_tiles) do
-		rendering.draw_circle{
+		state._render_objects[#state._render_objects+1] = rendering.draw_circle{
 			surface = state.surface,
 			filled = false,
 			color = {0.3, 0.3, 1},
@@ -232,7 +220,7 @@ function layout:process_grid(state)
 			target = {c.gx + ent.x, c.gy + ent.y},
 			radius = 0.5,
 		}
-		rendering.draw_text{
+		state._render_objects[#state._render_objects+1] = rendering.draw_text{
 			text=string.format("%i,%i", ent.x, ent.y),
 			surface = state.surface,
 			color={1,1,1},
@@ -242,8 +230,6 @@ function layout:process_grid(state)
 	end --]]
 	
 	if state.resource_iter >= #state.resources then
-		state.grid_backup = table.deepcopy(state.grid) --[[@as Grid]]
-
 		return "prepare_layout_attempts"
 	end
 	return true
@@ -397,7 +383,6 @@ end
 ---@param state SimpleState
 ---@return CallbackState
 function layout:init_layout_attempt(state)
-
 	local attempt = state.attempts[state.attempt_index]
 
 	state.best_attempt = self:_placement_attempt(state, attempt[1], attempt[2])
@@ -419,6 +404,7 @@ end
 ---@return CallbackState
 function layout:layout_attempt(state)
 	local attempt_state = state.attempts[state.attempt_index]
+
 	---@type PlacementAttempt
 	local current_attempt = self:_placement_attempt(state, attempt_state[1], attempt_state[2])
 	local current_attempt_score = self:_get_layout_heuristic(state)(current_attempt)
@@ -435,7 +421,7 @@ function layout:layout_attempt(state)
 	end
 
 	if state.attempt_index >= #state.attempts then
-		--game.print(("Chose attempt #%i, %i miners"):format(state.best_attempt_index, #state.best_attempt.miners))
+
 		return "prepare_miner_layout"
 	end
 	state.attempt_index = state.attempt_index + 1
@@ -733,10 +719,8 @@ end
 ---@return CallbackState
 function layout:prepare_pole_layout(state)
 	local c = state.coords
-	local DIR = state.direction_choice
 	local m = state.miner
 	local g = state.grid
-	local surface = state.surface
 	local attempt = state.best_attempt
 
 	local pole_proto = game.entity_prototypes[state.pole_choice] or {supply_area_distance=3, max_wire_distance=9}
@@ -922,8 +906,8 @@ function layout:placement_miners(state)
 	local grid = state.grid
 
 	for i, miner in ipairs(state.best_attempt.miners) do
+		local direction = "south"
 		local flip_lane = miner.line % 2 ~= 1
-		local direction = miner_direction[state.direction_choice]
 		if flip_lane then direction = opposite[direction] end
 
 		local x, y = miner.center.x, miner.center.y
@@ -1024,9 +1008,6 @@ function layout:placement_landfill(state)
 
 	local conv = coord_convert[state.direction_choice]
 	local gx, gy = state.coords.ix1 - 1, state.coords.iy1 - 1
-
-	local resource_tiles = {}
-	state.resource_tiles = resource_tiles
 
 	local fill_tiles, landfill
 	local area = {left_top={c.x1-m.full_size-1, c.y1-m.full_size-1}, right_bottom={c.x2+m.full_size+1, c.y2+m.full_size+1}}

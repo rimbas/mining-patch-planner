@@ -3,17 +3,7 @@ local mpp_util = require("mpp_util")
 ---@class GridRow: GridTile[]
 
 ---@class Grid
----@field coords Coords
----@field resource_tiles GridTile[]
 ---@field miner MinerStruct
----@field event EventDataPlayerSelectedArea
----@field layout_choice string
----@field horizontal_direction string
----@field vertical_direction string
----@field direction string
----@field belt_choice string
----@field miner_choice string
----@field lamp boolean
 local grid_mt = {}
 grid_mt.__index = grid_mt
 
@@ -32,10 +22,13 @@ grid_mt.__index = grid_mt
 ---@field th integer Height Rotation invariant height
 ---@field gx double x1 but -1 for grid rendering
 ---@field gy double y1 but -1 for grid rendering
+---@field extent_x1 number Internal grid dimensions
+---@field extent_y1 number Internal grid dimensions
+---@field extent_x2 number Internal grid dimensions
+---@field extent_y2 number Internal grid dimensions
 
 ---@class GridTile
----@field contains_resource boolean
----@field resources integer
+---@field amount number Amount of resource on tile
 ---@field neighbor_count integer
 ---@field neighbor_counts table<number, number>
 ---@field far_neighbor_count integer
@@ -110,7 +103,7 @@ function grid_mt:consume(cx, cy)
 		if row == nil then goto continue_row end
 		for x = cx-far, cx+far do
 			local tile = row[x]
-			if tile and tile.contains_resource then
+			if tile and tile.amount then
 				tile.consumed = true
 			end
 		end
@@ -131,7 +124,7 @@ function grid_mt:consume_custom(cx, cy, w, evenw, evenh)
 		if row == nil then goto continue_row end
 		for x = x1, x2 do
 			local tile = row[x]
-			if tile and tile.contains_resource then
+			if tile and tile.amount then
 				tile.consumed = true
 			end
 		end
@@ -180,7 +173,6 @@ function grid_mt:build_thing_simple(cx, cy, thing)
 end
 
 ---@param t GhostSpecification
----@return boolean
 function grid_mt:build_specification(t)
 	local cx, cy = t.grid_x, t.grid_y
 	local left, right = t.padding_pre, t.padding_post
@@ -192,7 +184,6 @@ function grid_mt:build_specification(t)
 			local tile = row[cx]
 			if tile then
 				tile.built_on = thing
-				return true
 			end
 		end
 	else
@@ -297,7 +288,7 @@ function grid_mt:get_unconsumed(mx, my)
 		for x = mx-far, mx+far do
 			local tile = row[x]
 			if tile then
-				if tile.contains_resource and not tile.consumed then
+				if tile.amount and not tile.consumed then
 					count = count + 1
 				end
 			end
@@ -315,7 +306,7 @@ function grid_mt:get_unconsumed_custom(mx, my, w)
 		for x = mx-w, mx+w do
 			local tile = row[x]
 			if tile then
-				if tile.contains_resource and not tile.consumed then
+				if tile.amount and not tile.consumed then
 					count = count + 1
 				end
 			end

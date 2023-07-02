@@ -1,11 +1,12 @@
-local floor, ceil = math.floor, math.ceil
-local min, max = math.min, math.max
 
 local common = require("layouts.common")
 local simple = require("layouts.simple")
 local mpp_util = require("mpp_util")
 local builder = require("builder")
-local mpp_revert = mpp_util.revert
+
+local floor, ceil = math.floor, math.ceil
+local min, max = math.min, math.max
+local EAST, NORTH, SOUTH, WEST = mpp_util.directions()
 
 ---@class SuperCompactLayout : SimpleLayout
 local layout = table.deepcopy(simple)
@@ -241,7 +242,7 @@ function layout:prepare_belt_layout(state)
 					thing="belt",
 					grid_x=belt_start-sx,
 					grid_y=y,
-					direction=defines.direction[state.direction_choice],
+					direction=WEST,
 				}
 			end
 		else
@@ -252,7 +253,7 @@ function layout:prepare_belt_layout(state)
 				thing="belt",
 				grid_x=shift_x-1,
 				grid_y=y,
-				direction=defines.direction[state.direction_choice],
+				direction=WEST,
 			}
 			que_entity{
 				name=underground_belt,
@@ -260,7 +261,7 @@ function layout:prepare_belt_layout(state)
 				thing="belt",
 				grid_x=shift_x+m.size+1,
 				grid_y=y,
-				direction=defines.direction[state.direction_choice],
+				direction=WEST,
 			}
 			local miner = g:get_tile(shift_x+m.size, y)
 			if miner and miner.built_on == "miner" then
@@ -289,7 +290,7 @@ function layout:prepare_belt_layout(state)
 					thing="belt",
 					grid_x=x+1,
 					grid_y=y,
-					direction=defines.direction[state.direction_choice],
+					direction=WEST,
 				}
 			elseif capped or built then
 				que_entity{
@@ -298,7 +299,7 @@ function layout:prepare_belt_layout(state)
 					thing="belt",
 					grid_x=x+1,
 					grid_y=y,
-					direction=defines.direction[state.direction_choice],
+					direction=WEST,
 				}
 				que_entity{
 					name=underground_belt,
@@ -306,7 +307,7 @@ function layout:prepare_belt_layout(state)
 					thing="belt",
 					grid_x=x+m.size*2,
 					grid_y=y,
-					direction=defines.direction[state.direction_choice],
+					direction=WEST,
 				}
 			else
 				for sx = 1, 6 do
@@ -315,7 +316,7 @@ function layout:prepare_belt_layout(state)
 						thing="belt",
 						grid_x=x+sx,
 						grid_y=y,
-						direction=defines.direction[state.direction_choice],
+						direction=WEST,
 					}
 				end
 			end

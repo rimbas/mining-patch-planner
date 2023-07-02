@@ -84,7 +84,6 @@ function layout:start(state)
 		grid[y] = row
 		for x = -bp.w, tw+bp.w do
 			row[x] = {
-				contains_resource = false,
 				resources = 0,
 				x = x, y = y,
 				gx = c.x1 + x, gy = c.y1 + y,
@@ -130,7 +129,6 @@ function layout:process_grid(state)
 		local x, y = r.position.x, r.position.y
 		local tx, ty = conv(x-gx, y-gy, gw, gh)
 		local tile = grid:get_tile(tx, ty)
-		tile.contains_resource = true
 		tile.amount = r.amount
 		for width, _ in pairs(convolve_steps) do
 			grid:convolve_custom(tx, ty, width)
