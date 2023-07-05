@@ -30,7 +30,8 @@ require_layout("blueprints")
 ---@field is_space boolean
 ---@field player LuaPlayer
 ---@field resources LuaEntity[] Filtered resources
----@field found_resources LuaEntity[] Found resource types
+---@field found_resources LuaEntity[] Resource name -> resource category mapping
+---@field resource_counts {name: string, count: number}[] Highest count resource first
 ---@field requires_fluid boolean
 ---@field mod_version string
 ---
@@ -131,27 +132,28 @@ end
 ---Filters resource entity list and returns patch coordinates and size
 ---@param entities LuaEntity[]
 ---@param available_resource_categories table<string, true>
----@return Coords, LuaEntity[]
+---@return Coords @bounds of found resources
+---@return LuaEntity[] @Filtered entities
 ---@return table<string, string> @key:resource name; value:resource category
----@return boolean requires fluid
+---@return boolean @requires fluid
+---@return table<string, number> @resource counts table
 local function process_entities(entities, available_resource_categories)
-	local filtered = {}
-	local found_resources = {} -- resource.name: resource_category
+	local filtered, found_resources, counts = {}, {}, {}
 	local x1, y1 = math.huge, math.huge
 	local x2, y2 = -math.huge, -math.huge
 	local _, cached_resource_categories = enums.get_available_miners()
 	local checked, requires_fluid = {}, false
 	for _, entity in pairs(entities) do
-		local proto = entity.prototype
+		local name, proto = entity.name, entity.prototype
 		local category = proto.resource_category
-		if not checked[proto.name] then
-			checked[proto.name] = true
-			if proto.mineable_properties.required_fluid then
-				requires_fluid = true
-			end
+
+		if not checked[name] then
+			checked[name] = true
+			if proto.mineable_properties.required_fluid then requires_fluid = true end
 		end
-		found_resources[entity.name] = category
+		found_resources[name] = category
 		if cached_resource_categories[category] and available_resource_categories[category] then
+			counts[name] = 1 + (counts[name] or 0)
 			filtered[#filtered+1] = entity
 			local x, y = entity.position.x, entity.position.y
 			if x < x1 then x1 = x end
@@ -161,6 +163,10 @@ local function process_entities(entities, available_resource_categories)
 		end
 	end
 	
+	local resource_counts = {}
+	for k, v in pairs(counts) do table.insert(resource_counts, {name=k, count=v}) end
+	table.sort(resource_counts, function(a, b) return a.count > b.count end)
+
 	local coords = {
 		x1 = x1, y1 = y1, x2 = x2, y2 = y2,
 		ix1 = floor(x1), iy1 = floor(y1),
@@ -168,7 +174,7 @@ local function process_entities(entities, available_resource_categories)
 		gx = x1 - 1, gy = y1 - 1,
 	}
 	coords.w, coords.h = coords.ix2 - coords.ix1, coords.iy2 - coords.iy1
-	return coords, filtered, found_resources, requires_fluid
+	return coords, filtered, found_resources, requires_fluid, resource_counts
 end
 
 ---@param state State
@@ -196,11 +202,12 @@ function algorithm.on_player_selected_area(event)
 	end
 
 	local layout_categories = get_miner_categories(state, layout)
-	local coords, filtered, found_resources, requires_fluid = process_entities(event.entities, layout_categories)
+	local coords, filtered, found_resources, requires_fluid, resource_counts = process_entities(event.entities, layout_categories)
 	state.coords = coords
 	state.resources = filtered
 	state.found_resources = found_resources
 	state.requires_fluid = requires_fluid
+	state.resource_counts = resource_counts
 
 	if #state.resources == 0 then
 		for resource, category in pairs(state.found_resources) do
@@ -222,6 +229,8 @@ function algorithm.on_player_selected_area(event)
 	end
 
 	if player_data.last_state then
+		local renderables = player_data.last_state._render_objects
+
 		local old_resources = player_data.last_state.resources
 
 		local same = true
@@ -233,7 +242,17 @@ function algorithm.on_player_selected_area(event)
 		end
 
 		if same then
+			for _, id in ipairs(renderables) do
+				rendering.destroy(id)
+			end
 			state._previous_state = player_data.last_state
+		else
+			local ttl = mpp_util.get_display_duration(event.player_index)
+			for _, id in ipairs(renderables) do
+				if rendering.is_valid(id) then
+					rendering.set_time_to_live(id, ttl)
+				end
+			end
 		end
 		player_data.last_state = nil
 	end
@@ -258,6 +277,42 @@ function algorithm.on_player_selected_area(event)
 		return state
 	else
 		return nil, error
+	end
+end
+
+---Sets renderables timeout
+---@param player_data PlayerData
+function algorithm.on_gui_open(player_data)
+	local last_state = player_data.last_state
+	if last_state == nil or last_state._render_objects == nil then return end
+
+	local ttl = mpp_util.get_display_duration(last_state.player.index)
+	if ttl > 0 then
+		for _, id in ipairs(last_state._render_objects) do
+			if rendering.is_valid(id) then
+				rendering.set_time_to_live(id, 0)
+			end
+		end
+	end
+end
+
+---Sets renderables timeout
+---@param player_data PlayerData
+function algorithm.on_gui_close(player_data)
+	local last_state = player_data.last_state
+	if last_state == nil or last_state._render_objects == nil then return end
+
+	local ttl = mpp_util.get_display_duration(last_state.player.index)
+	if ttl > 0 then
+		for _, id in ipairs(last_state._render_objects) do
+			if rendering.is_valid(id) then
+				rendering.set_time_to_live(id, ttl)
+			end
+		end
+	else
+		for _, id in ipairs(last_state._render_objects) do
+			rendering.destroy(id)
+		end
 	end
 end
 

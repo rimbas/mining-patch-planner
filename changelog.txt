@@ -1,14 +1,17 @@
 ---------------------------------------------------------------------------------------------------
 Version: 1.5.0
-Date: 2023-07-01
+Date: 2023-07-05
   Features:
+    - Added a simple placement info printout
+    - Added a lane filling overlay for belt layouts
     - Proper deconstruction only in places where entity ghosts were placed
     - When retrying on the same patch all previous ghosts are automatically removed
     - Overfill mode uses more of mining drill's external area
-    - Improved Space Exploration SatView compatibility
     - Added a Sparse Logistics layout
   Bugfixes:
-    - Fixed a bug in drill placement that caused suboptimal layouts in overfill mode
+    - Fixed a bug in drill placement logic that caused suboptimal layouts in overfill mode
+    - Fixed the planner selecting tile ghosts
+    - Fixed GUI and cursor mismatch when using Space Exploration Satellite View
 ---------------------------------------------------------------------------------------------------
 Version: 1.4.3
 Date: 2023-04-02

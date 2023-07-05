@@ -4,6 +4,7 @@ local grid_mt = require("grid_mt")
 local pole_grid_mt = require("pole_grid_mt")
 local mpp_util = require("mpp_util")
 local builder = require("builder")
+local render_util = require("render_util")
 local coord_convert, coord_revert = mpp_util.coord_convert, mpp_util.coord_revert
 local internal_revert, internal_convert = mpp_util.internal_revert, mpp_util.internal_convert
 local miner_direction, opposite = mpp_util.miner_direction, mpp_util.opposite
@@ -358,7 +359,7 @@ end
 function layout:prepare_layout_attempts(state)
 	local m = state.miner
 	--local init_pos_x, init_pos_y = -m.near, -m.near
-	local init_pos_x, init_pos_y = -1, -1
+	local init_pos_x, init_pos_y = -m.near, -m.near
 	local attempts = {{init_pos_x, init_pos_y}}
 	state.attempts = attempts
 	state.best_attempt_index = 1
@@ -671,6 +672,7 @@ function layout:prepare_belt_layout(state)
 	local pipe_adjust = state.place_pipes and -1 or 0
 
 	local belts = {}
+	state.belts = belts
 	state.belt_count = 0
 	local longest_belt = 0
 	for i = 1, miner_lane_count, 2 do
@@ -679,7 +681,7 @@ function layout:prepare_belt_layout(state)
 
 		local y = attempt.sy + (m.size + 1) * i
 
-		local belt = {x1=attempt.sx + 1 + pipe_adjust, x2=attempt.sx + 1, y=y, built=false}
+		local belt = {x1=attempt.sx + 1 + pipe_adjust, x2=attempt.sx + 1, y=y, built=false, lane1=lane1, lane2=lane2}
 		belts[#belts+1] = belt
 		
 		if lane1 or lane2 then
@@ -689,6 +691,7 @@ function layout:prepare_belt_layout(state)
 			longest_belt = max(longest_belt, x2 - x1 + 1)
 			belt.x2, belt.built = x2, true
 		end
+
 	end
 	state.longest_belt = longest_belt
 
@@ -1058,11 +1061,42 @@ end
 
 ---@param self SimpleLayout
 ---@param state SimpleState
+function layout:_display_lane_filling(state)
+	if not state.display_lane_filling_choice or not state.belts then return end
+	
+	local drill_speed = game.entity_prototypes[state.miner_choice].mining_speed
+	local belt_speed = game.entity_prototypes[state.belt_choice].belt_speed * 60 * 4
+	local dominant_resource = state.resource_counts[1].name
+	local resource_hardness = game.entity_prototypes[dominant_resource].mineable_properties.mining_time or 1
+	local drill_productivity, module_speed = 1 + state.player.force.mining_drill_productivity_bonus, 1
+	if state.module_choice ~= "none" then
+		local mod = game.item_prototypes[state.module_choice]
+		module_speed = module_speed + (mod.module_effects.speed.bonus or 0) * state.miner.module_inventory_size
+		drill_productivity = drill_productivity + (mod.module_effects.productivity and mod.module_effects.productivity.bonus or 0) * state.miner.module_inventory_size
+	end
+	local multiplier = drill_speed / resource_hardness * module_speed * drill_productivity
+
+	--local ore_hardness = game.entity_prototypes[state.found_resources
+	for i, belt in pairs(state.belts) do
+		local function lane_capacity(lane) if lane then return #lane * multiplier end return 0 end
+
+		local speed1, speed2 = lane_capacity(belt.lane1), lane_capacity(belt.lane2)
+
+		render_util.draw_belt_lane(state, belt)
+
+		render_util.draw_belt_stats(state, belt, belt_speed, speed1, speed2)
+	end
+end
+
+---@param self SimpleLayout
+---@param state SimpleState
 ---@return CallbackState
 function layout:finish(state)
 	if state.print_placement_info_choice and state.player.valid then
 		state.player.print({"mpp.msg_print_info_miner_placement", state.best_attempt.miner_count, state.belt_count, #state.resources})
 	end
+
+	self:_display_lane_filling(state)
 
 	if mpp_util.get_dump_state(state.player.index) then
 		common.save_state_to_file(state, "json")

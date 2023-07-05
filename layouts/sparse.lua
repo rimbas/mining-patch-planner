@@ -227,13 +227,14 @@ function layout:prepare_belt_layout(state)
 		table.sort(lane, function(a, b) return a.center.x < b.center.x end)
 	end
 
-	local belts = {}
-	state.builder_belts = belts
+	local builder_belts = {}
+	state.builder_belts = builder_belts
 
 	local function get_lane_length(lane) if lane then return lane[#lane].center.x end return 0 end
-	local function que_entity(t) belts[#belts+1] = t end
+	local function que_entity(t) builder_belts[#builder_belts+1] = t end
 
 	local belt_lanes = {}
+	state.belts = belt_lanes
 	local longest_belt = 0
 	local pipe_adjust = state.place_pipes and -1 or 0
 	for i = 1, miner_lane_count, 2 do
@@ -242,7 +243,7 @@ function layout:prepare_belt_layout(state)
 
 		local y = attempt.sy + m.size + 1 + (m.far * 2 + 1) * (i-1)
 
-		local belt = {x1=attempt.sx + 1, x2=attempt.sx + 1, y=y, built=false}
+		local belt = {x1=attempt.sx + 1, x2=attempt.sx + 1, y=y, built=false, lane1=lane1, lane2=lane2}
 		belt_lanes[#belt_lanes+1] = belt
 
 		if lane1 or lane2 then

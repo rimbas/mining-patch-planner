@@ -36,9 +36,6 @@ local function task_runner(event)
 		if state.blueprint then state.blueprint.clear() end
 		if state.blueprint_inventory then state.blueprint_inventory.destroy() end
 		rendering.destroy(state._preview_rectangle)
-		for k, v in ipairs(state._render_objects) do
-			rendering.destroy(v)
-		end
 
 		---@type PlayerData
 		local player_data = global.players[player.index]
@@ -119,8 +116,10 @@ local function cursor_stack_check(e)
 		cursor_stack.name == "mining-patch-planner"
 	) then
 		gui.show_interface(player)
+		algorithm.on_gui_open(player_data)
 	else
 		gui.hide_interface(player)
+		algorithm.on_gui_close(player_data)
 	end
 end
 

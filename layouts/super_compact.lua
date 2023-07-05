@@ -210,7 +210,8 @@ function layout:prepare_belt_layout(state)
 	state.builder_power_poles = power_poles
 	
 	---@type table<number, MinerPlacement[]>
-	local miner_lanes = {}
+	local belt_lanes = {}
+	state.belts = belt_lanes
 	local miner_lane_number = 0 -- highest index of a lane, because using # won't do the job if a lane is missing
 
 	local builder_belts = {}
@@ -221,8 +222,8 @@ function layout:prepare_belt_layout(state)
 	for _, miner in ipairs(attempt.miners) do
 		local index = miner.line * 2 + miner.stagger - 2
 		miner_lane_number = max(miner_lane_number, index)
-		if not miner_lanes[index] then miner_lanes[index] = {} end
-		local line = miner_lanes[index]
+		if not belt_lanes[index] then belt_lanes[index] = {} end
+		local line = belt_lanes[index]
 		if miner.center.x > (line.last_x or 0) then
 			line.last_x = miner.center.x
 			line.last_miner = miner
@@ -233,7 +234,7 @@ function layout:prepare_belt_layout(state)
 	local shift_x, shift_y = state.best_attempt.sx, state.best_attempt.sy
 
 	local function place_belts(start_x, end_x, y)
-		local belt_start = 1 + shift_x + start_x
+		local belt_start, belt_end = 1 + shift_x + start_x, end_x
 		if start_x == 0 then
 			-- straight runoff
 			for sx = 0, 2 do
@@ -320,6 +321,7 @@ function layout:prepare_belt_layout(state)
 					}
 				end
 			end
+			if last and capped then belt_end = x+6 end
 
 			if pole_built then
 				power_poles[#power_poles+1] = {
@@ -330,16 +332,29 @@ function layout:prepare_belt_layout(state)
 				}
 			end
 		end
+		return belt_start, belt_end
 	end
 
 	local stagger_shift = 1
 	for i = 1, miner_lane_number do
-		local lane = miner_lanes[i]
-		if lane and lane.last_x then
+		local belt = belt_lanes[i]
+		if belt and belt.last_x then
 			local y = m.size + shift_y - 1 + (m.size + 2) * (i-1)
-			local x_start = stagger_shift % 2 == 0 and 3 or 0
-			place_belts(x_start, lane.last_x, y)
+			local x_start =stagger_shift % 2 == 0 and 3 or 0
+			local bx1, bx2 = place_belts(x_start, belt.last_x, y)
+			belt.x1, belt.x2, belt.y = bx1-3, bx2, y
 			state.belt_count = state.belt_count + 1
+			local lane1, lane2 = {}, {}
+			for _, miner in ipairs(belt) do
+				if miner.direction == "north" then
+					lane2[#lane2+1] = miner
+				else
+					lane1[#lane1+1] = miner
+				end
+			end
+			if #lane1 > 0 then belt.lane1 = lane1 end
+			if #lane2 > 0 then belt.lane2 = lane2 end
+
 		end
 		stagger_shift = stagger_shift + 1
 	end

@@ -101,6 +101,8 @@ function layout:prepare_belt_layout(state)
 		supply_area, wire_reach = pole_proto.supply_area_distance, pole_proto.max_wire_distance
 	end
 
+	local belts = {}
+	state.belts = belts
 	state.builder_belts = {}
 
 	if supply_area < 3 or wire_reach < 9 then
@@ -133,6 +135,8 @@ function layout:_placement_belts_small(state)
 	local miner_lanes = {}
 	local miner_lane_count = 0 -- highest index of a lane, because using # won't do the job if a lane is missing
 
+	local belts = state.belts
+
 	for _, miner in ipairs(attempt.miners) do
 		local index = miner.line
 		miner_lane_count = max(miner_lane_count, index)
@@ -159,6 +163,7 @@ function layout:_placement_belts_small(state)
 		end
 	end
 
+	local pipe_adjust = state.place_pipes and -1 or 0
 	for i = 1, miner_lane_count, 2 do
 		local lane1 = miner_lanes[i]
 		local lane2 = miner_lanes[i+1]
@@ -179,11 +184,16 @@ function layout:_placement_belts_small(state)
 			que_entity{
 				name=state.belt_choice,
 				thing="belt",
-				grid_x = x0 - 1,
+				grid_x = x0 + pipe_adjust,
 				grid_y = y,
 				direction=WEST,
 			}
 		end
+		
+		belts[#belts+1] = {
+			x1 = x0 + pipe_adjust, x2 = x0 + column_count * m.size,
+			y = y, lane1 = lane1, lane2 = lane2,
+		}
 
 		for j = 1, column_count do
 			local x1 = x0 + (j-1) * m.size
@@ -241,6 +251,8 @@ function layout:_placement_belts_large(state)
 	local power_poles = {}
 	state.builder_power_poles = power_poles
 
+	local belts = state.belts
+
 	---@type table<number, MinerPlacement[]>
 	local miner_lanes = {{}}
 	local miner_lane_count = 0 -- highest index of a lane, because using # won't do the job if a lane is missing
@@ -272,6 +284,7 @@ function layout:_placement_belts_large(state)
 		end
 	end
 
+	local pipe_adjust = state.place_pipes and -1 or 0
 	for i = 1, miner_lane_count, 2 do
 		local lane1 = miner_lanes[i]
 		local lane2 = miner_lanes[i+1]
@@ -290,10 +303,16 @@ function layout:_placement_belts_large(state)
 			que_entity{
 				name=state.belt_choice,
 				thing="belt",
-				grid_x = x0 - 1,
+				grid_x = x0 + pipe_adjust,
 				grid_y = y,
+				direction=WEST,
 			}
 		end
+
+		belts[#belts+1] = {
+			x1 = x0 + pipe_adjust, x2 = x0 + column_count * m.size,
+			y = y, lane1 = lane1, lane2 = lane2,
+		}
 
 		for j = 1, column_count do
 			local x1 = x0 + (j-1) * m.size

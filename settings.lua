@@ -3,12 +3,13 @@ data:extend{
 		type="int-setting",
 		name="mpp-lane-filling-info-duration",
 		setting_type="runtime-per-user",
-		default_value=60,
+		default_value=10,
 	},
 	{
 		type="bool-setting",
 		name="mpp-dump-heuristics-data",
 		setting_type="runtime-per-user",
 		default_value=false,
+		hidden=true,
 	},
 }

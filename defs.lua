@@ -81,5 +81,7 @@
 ---@field x2 number End
 ---@field y number
 ---@field built boolean Do miners exist on this belt
+---@field lane1 MinerPlacement[]
+---@field lane2 MinerPlacement[]
 
 table.deepcopy = function(t) end

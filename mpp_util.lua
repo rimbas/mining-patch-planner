@@ -355,6 +355,12 @@ function mpp_util.directions()
 end
 
 ---@param player_index uint
+---@return uint
+function mpp_util.get_display_duration(player_index)
+	return settings.get_player_settings(player_index)["mpp-lane-filling-info-duration"].value * 60 --[[@as uint]]
+end
+
+---@param player_index uint
 ---@return boolean
 function mpp_util.get_dump_state(player_index)
 	return settings.get_player_settings(player_index)["mpp-dump-heuristics-data"].value --[[@as boolean]]
