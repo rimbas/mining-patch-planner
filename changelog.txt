@@ -1,4 +1,14 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.5.2
+Date: 2023-07-25
+  Features:
+    - Added a belt throughput estimate to lane saturation overlay
+---------------------------------------------------------------------------------------------------
+Version: 1.5.1
+Date: 2023-07-10
+  Bugfixes:
+    - Fixed a crash in lane filling overlay when using modules with no speed
+---------------------------------------------------------------------------------------------------
 Version: 1.5.0
 Date: 2023-07-05
   Features:
