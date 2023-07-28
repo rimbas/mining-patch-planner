@@ -21,9 +21,9 @@ local gui = {}
 ---@field value string Value name
 ---@field tooltip LocalisedString
 ---@field icon SpritePath
----@field icon_enabled SpritePath
+---@field icon_enabled SpritePath?
 ---@field order string
----@field default string
+---@field default string?
 ---@field elem_type string
 ---@field elem_filters PrototypeFilter?
 ---@field elem_value string?

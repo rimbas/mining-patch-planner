@@ -1,7 +1,7 @@
 local conf = require("configuration")
 local enums = require("enums")
 
-local current_version = 010500 -- 1.5.0
+local current_version = 010503 -- 1.5.0
 
 -- resetting a GUI manually from console
 -- /c __mining-patch-planner__ game.player.gui.screen.mpp_settings_frame.destroy()
@@ -23,16 +23,15 @@ script.on_configuration_changed(function(config_changed_data)
 	if config_changed_data.mod_changes["mining-patch-planner"] and version < current_version then
 		global.tasks = global.tasks or {}
 		conf.initialize_deconstruction_filter()
-		for player_index, data in ipairs(global.players) do
+		for player_index, data in pairs(global.players) do
 			---@cast data PlayerData
-			---@type LuaPlayer
 			local player = game.players[player_index]
 			reset_gui(player)
 			--conf.initialize_global(player_index)
 			conf.update_player_data(player_index)
 		end
 	else
-		for player_index, data in ipairs(global.players) do
+		for player_index, data in pairs(global.players) do
 			reset_gui(game.players[player_index])
 		end
 	end

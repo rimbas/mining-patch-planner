@@ -52,7 +52,8 @@ local conf = {}
 conf.default_config = {
 	advanced = false,
 	blueprint_add_mode = false,
-	--blueprint_items = nil,
+---@diagnostic disable-next-line: assign-type-mismatch
+	blueprint_items = nil,
 
 	choices = {
 		layout_choice = "simple",
@@ -71,6 +72,8 @@ conf.default_config = {
 		deconstruction_choice = false,
 		pipe_choice = "pipe",
 		module_choice = "none",
+---@diagnostic disable-next-line: assign-type-mismatch
+		blueprint_choice = nil,
 		
 		-- non layout/convienence/advanced settings
 		show_non_electric_miners_choice = false,
