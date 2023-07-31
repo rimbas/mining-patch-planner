@@ -2,13 +2,13 @@ local util = require("util")
 local conf = {}
 
 ---@class PlayerData
----@field advanced boolean
----@field blueprint_add_mode boolean
+---@field advanced boolean Preserve in migrations
+---@field blueprint_add_mode boolean Preserve in migrations
 ---@field gui PlayerGui
----@field blueprint_items LuaInventory
----@field choices PlayerChoices
----@field blueprints PlayerGuiBlueprints
----@field last_state State?
+---@field blueprint_items LuaInventory Preserve in migrations
+---@field choices PlayerChoices Preserve in migrations
+---@field blueprints PlayerGuiBlueprints 
+---@field last_state State? Preserve in migrations
 
 ---@class PlayerChoices
 ---@field layout_choice string
@@ -113,6 +113,7 @@ function conf.update_player_data(player_index)
 	new_config.advanced = pass_same_type(old_config.advanced, new_config.advanced)
 	new_config.blueprint_add_mode = pass_same_type(old_config.blueprint_add_mode, new_config.blueprint_add_mode)
 	new_config.blueprint_items = old_config.blueprint_items or game.create_inventory(1)
+	new_config.last_state = old_config.last_state
 
 	local old_choices = old_config.choices or {}
 	for key, new_choice in pairs(new_config.choices) do
