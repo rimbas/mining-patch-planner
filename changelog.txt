@@ -1,8 +1,13 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.5.5
+Date: 2023-08-27
+  Bugfixes:
+    - Fixed a crash in lane filling overlay when using Super Compact mode on irregular resource patches
+---------------------------------------------------------------------------------------------------
 Version: 1.5.4
 Date: 2023-07-31
   Bugfixes:
-    - Fixed active overlays not clearing after a migration.
+    - Fixed active overlays not clearing after a migration
 ---------------------------------------------------------------------------------------------------
 Version: 1.5.3
 Date: 2023-07-28

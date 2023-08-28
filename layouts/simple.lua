@@ -1092,7 +1092,7 @@ function layout:_display_lane_filling(state)
 	end
 
 	if #state.belts > 1 then
-		local x = state.belts[1].x1
+		local x = min(state.belts[1].x1, state.belts[2].x1)
 		local y = (state.belts[1].y + state.belts[#state.belts].y) / 2
 		render_util.draw_belt_total(state, x, y, throughput1, throughput2)
 	end
