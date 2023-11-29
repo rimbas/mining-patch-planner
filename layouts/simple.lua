@@ -866,8 +866,8 @@ function layout:expensive_deconstruct(state)
 				tpos2[1], tpos2[2] = cx + pad_right, cy + pad_right
 			end
 			
-			pos1 = mpp_util.revert(c.gx, c.gy, DIR, tpos1[1], tpos1[2], c.tw, c.th)
-			pos2 = mpp_util.revert(c.gx, c.gy, DIR, tpos2[1], tpos2[2], c.tw, c.th)
+			local pos1 = mpp_util.revert(c.gx, c.gy, DIR, tpos1[1], tpos1[2], c.tw, c.th)
+			local pos2 = mpp_util.revert(c.gx, c.gy, DIR, tpos2[1], tpos2[2], c.tw, c.th)
 			
 			-- ugh
 			pos1[1], pos2[1] = min(pos1[1], pos2[1]), max(pos1[1], pos2[1])

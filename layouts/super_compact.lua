@@ -224,7 +224,7 @@ function layout:prepare_belt_layout(state)
 		if not belt_lanes[index] then belt_lanes[index] = {} end
 		local line = belt_lanes[index]
 		line._index = index
-		if miner.center.x > (line.last_x or 0) then
+		if line.last_x == nil or miner.center.x > line.last_x then
 			line.last_x = miner.center.x
 			line.last_miner = miner
 		end
