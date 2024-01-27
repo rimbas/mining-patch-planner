@@ -27,6 +27,7 @@ local layout = table.deepcopy(base)
 ---@field best_attempt_index number
 ---@field resourcs LuaEntity[]
 ---@field resource_tiles GridTile
+---@field resource_iter number
 ---@field longest_belt number For pole alignment information
 ---@field pole_step number
 ---@field miner_lane_count number Miner lane count

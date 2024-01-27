@@ -12,7 +12,7 @@ local conf = {}
 
 ---@class PlayerChoices
 ---@field layout_choice string
----@field blueprint_choice LuaItemStack Currently selected blueprint (flow)
+---@field blueprint_choice LuaItemStack? Currently selected blueprint (flow)
 ---@field direction_choice string
 ---@field miner_choice string
 ---@field pole_choice string
@@ -39,6 +39,8 @@ local conf = {}
 ---@field advanced_settings LuaGuiElement
 ---@field layout_dropdown LuaGuiElement
 ---@field blueprint_add_button LuaGuiElement
+---@field blueprint_add_section LuaGuiElement
+---@field blueprint_receptacle LuaGuiElement
 
 ---@class PlayerGuiBlueprints All subtables are indexed by blueprint's item number
 ---@field mapping table<number, LuaItemStack>
@@ -47,6 +49,10 @@ local conf = {}
 ---@field delete table<number, LuaGuiElement> Blueprint delete button
 ---@field cache table<number, EvaluatedBlueprint>
 ---@field original_id table<number, number> Inventory blueprint id to 
+
+---Small hack have proper typing in all other places
+---@type LuaGuiElement
+local nil_element_placeholder = nil
 
 ---@type PlayerData
 conf.default_config = {
@@ -57,7 +63,6 @@ conf.default_config = {
 
 	choices = {
 		layout_choice = "simple",
-		--blueprint_choice = nil, -- nil by default, only used with blueprint option
 		direction_choice = "north",
 		miner_choice = "electric-mining-drill",
 		pole_choice = "medium-electric-pole",
@@ -72,7 +77,6 @@ conf.default_config = {
 		deconstruction_choice = false,
 		pipe_choice = "pipe",
 		module_choice = "none",
----@diagnostic disable-next-line: assign-type-mismatch
 		blueprint_choice = nil,
 		
 		-- non layout/convienence/advanced settings
@@ -86,6 +90,11 @@ conf.default_config = {
 		section = {},
 		tables = {},
 		selections = {},
+		advanced_settings = nil_element_placeholder,
+		blueprint_add_button = nil_element_placeholder,
+		blueprint_add_section = nil_element_placeholder,
+		blueprint_receptacle = nil_element_placeholder,
+		layout_dropdown = nil_element_placeholder,
 	},
 
 	blueprints = {

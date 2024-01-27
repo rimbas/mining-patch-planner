@@ -16,18 +16,20 @@ local gui = {}
 ]]
 
 ---@class SettingValueEntry
----@field action string Action tag override
 ---@field type string|nil Button type
 ---@field value string Value name
 ---@field tooltip LocalisedString
 ---@field icon SpritePath
 ---@field icon_enabled SpritePath?
----@field order string
+---@field order string?
 ---@field default string?
+---@field refresh boolean? Update selections?
+
+---@class SettingValueEntryPrototype : SettingValueEntry
+---@field action "mpp_prototype" Action tag override
 ---@field elem_type string
 ---@field elem_filters PrototypeFilter?
 ---@field elem_value string?
----@field refresh boolean? Update selections?
 
 ---Creates a setting section (label + table)
 ---Can be hidden
@@ -66,7 +68,7 @@ end
 ---@param player_data any global player GUI reference object
 ---@param root LuaGuiElement
 ---@param action_type string Default action tag
----@param values SettingValueEntry[]
+---@param values (SettingValueEntry | SettingValueEntryPrototype)[]
 local function create_setting_selector(player_data, root, action_type, action, values)
 	local action_class = {}
 	player_data.gui.selections[action] = action_class
@@ -126,12 +128,12 @@ local function set_player_blueprint(player_data, button)
 	local blueprint_number = button.tags.mpp_fake_blueprint_button
 	local blueprint_flow = player_blueprints.flow[button.parent.index]
 
-	if choices.blueprint_choice == blueprint_number then
+	local current_blueprint = choices.blueprint_choice
+	if current_blueprint == blueprint_number then
 		return nil
 	end
 	
-	if choices.blueprint_choice then
-		local current_blueprint = choices.blueprint_choice
+	if current_blueprint then
 		local current_blueprint_button = player_blueprints.button[current_blueprint.item_number]
 		current_blueprint_button.style = "mpp_fake_blueprint_button"
 	end
@@ -623,6 +625,7 @@ local function update_misc_selection(player)
 	end
 	
 	if layout.restrictions.pipe_available then
+		---@type string | nil
 		local existing_choice = choices.pipe_choice
 		if not game.entity_prototypes[existing_choice] then
 			existing_choice = nil

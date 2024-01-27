@@ -47,6 +47,7 @@
 ---@field belt string
 ---@field pole string
 ---@field logistics string
+---@field pipe string
 
 ---@class Restrictions
 ---@field miner_available boolean
@@ -80,7 +81,7 @@
 ---@field x1 number Start
 ---@field x2 number End
 ---@field y number
----@field built boolean Do miners exist on this belt
+---@field built boolean? Do miners exist on this belt
 ---@field lane1 MinerPlacement[]
 ---@field lane2 MinerPlacement[]
 

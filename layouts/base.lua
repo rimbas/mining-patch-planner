@@ -3,12 +3,13 @@ local min, max = math.min, math.max
 
 local mpp_util = require("mpp_util")
 
----@type Layout
+---@class Layout
 local layout = {}
 
 layout.name = "Base"
 layout.translation = {"mpp.settings_layout_choice_base"}
 
+---@diagnostic disable-next-line: missing-fields
 layout.defaults = {}
 layout.defaults.miner = "electric-mining-drill"
 layout.defaults.belt = "transport-belt"
@@ -16,6 +17,7 @@ layout.defaults.pole = "medium-electric-pole"
 layout.defaults.logistics = "logistic-chest-passive-provider"
 layout.defaults.pipe = "pipe"
 
+---@diagnostic disable-next-line: missing-fields
 layout.restrictions = {}
 layout.restrictions.miner_available = true
 layout.restrictions.miner_near_radius = {1, 10e3}
@@ -31,7 +33,7 @@ layout.restrictions.lamp_available = true
 layout.restrictions.coverage_tuning = false
 layout.restrictions.logistics_available = false
 layout.restrictions.landfill_omit_available = true
-layout.restrictions.start_tuning = false
+layout.restrictions.start_alignment_tuning = false
 layout.restrictions.deconstruction_omit_available = true
 layout.restrictions.module_available = false
 layout.restrictions.pipe_available = false

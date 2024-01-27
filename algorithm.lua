@@ -79,6 +79,7 @@ require_layout("blueprints")
 ---@return State|nil
 ---@return LocalisedString error status
 local function create_state(event)
+	---@diagnostic disable-next-line: missing-fields
 	local state = {} --[[@as State]]
 	state._callback = "start"
 	state.tick = 0
@@ -115,10 +116,10 @@ local function create_state(event)
 	state.debug_dump = mpp_util.get_dump_state(event.player_index)
 
 	if state.layout_choice == "blueprints" then
-		if not player_data.choices.blueprint_choice then
+		local blueprint = player_data.choices.blueprint_choice
+		if blueprint == nil then
 			return nil, {"mpp.msg_unselected_blueprint"}
 		end
-		local blueprint = player_data.choices.blueprint_choice
 		-- state.blueprint_inventory = game.create_inventory(1)
 		-- state.blueprint = state.blueprint_inventory.find_empty_stack()
 		-- state.blueprint.set_stack(blueprint)
