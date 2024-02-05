@@ -1,5 +1,8 @@
 local mpp_util = require("mpp_util")
 
+local floor, ceil = math.floor, math.ceil
+local min, max = math.min, math.max
+local EAST, NORTH, SOUTH, WEST = mpp_util.directions()
 local DIR = defines.direction
 
 local render_util = {}
@@ -157,5 +160,217 @@ function render_util.draw_belt_total(state, pos_x, pos_y, speed1, speed2)
 
 end
 
+---@class RendererParams
+---@field origin MapPosition?
+---@field target MapPosition?
+---@field x number?
+---@field y number?
+---@field w number?
+---@field h number?
+---@field r number?
+---@field c Color?
+---@field left_top MapPosition?
+---@field right_bottom MapPosition?
+
+---this went off the rails
+---@param event EventData.on_player_reverse_selected_area
+---@return MppRendering
+function render_util.renderer(event)
+
+	---@param t RendererParams
+	local function parametrizer(t, overlay)
+
+		for k, v in pairs(overlay or {}) do t[k] = v end
+		if t.x and t.y then t.origin = {t.x, t.y} end
+		local target = t.origin or t.left_top
+		local left_top, right_bottom = t.left_top or t.origin or target, t.right_bottom or t.origin
+
+		if t.origin and t.w or t.h then
+			t.w, t.h = t.w or t.h, t.h or t.w
+			right_bottom = {(target[1] or target.x) + t.w, (target[2] or target.y) + t.h}
+		elseif t.r then
+			local r = t.r
+			local ox, oy = target[1] or target.x, target[2] or target.y
+			left_top = {ox-r, oy-r}
+			right_bottom = {ox+r, oy+r}
+		end
+
+		local new = {
+			surface = event.surface,
+			players = {event.player_index},
+			filled = false,
+			radius = t.r or 1,
+			color = t.c or t.color or {1, 1, 1},
+			left_top = left_top,
+			right_bottom = right_bottom,
+			target = target, -- circles
+			from = left_top,
+			to = right_bottom, -- lines
+			width = 1,
+		}
+		for k, v in pairs(t) do new[k]=v end
+		for _, v in ipairs{"x", "y", "h", "w", "r", "origin"} do new[v]=nil end
+		return new
+	end
+
+	local meta_renderer_meta = {}
+	meta_renderer_meta.__index = function(self, k)
+		return function(t, t2)
+			return {
+				rendering[k](
+					parametrizer(t, t2)
+				)
+			}
+	end end
+	local rendering = setmetatable({}, meta_renderer_meta)
+
+	---@class MppRendering
+	local rendering_extension = {}
+
+	---Draws an x between left_top and right_bottom
+	---@param params RendererParams
+	function rendering_extension.draw_cross(params)
+		rendering.draw_line(params)
+		rendering.draw_line({
+			width = params.width,
+			color = params.color,
+			left_top={
+				params.right_bottom[1],
+				params.left_top[2]
+			},
+			right_bottom={
+				params.left_top[1],
+				params.right_bottom[2],
+			}
+		})
+	end
+
+	function rendering_extension.draw_rectangle_dashed(params)
+		rendering.draw_line(params, {
+			from={params.left_top[1], params.left_top[2]},
+			to={params.right_bottom[1], params.left_top[2]},
+			dash_offset = 0.0,
+		})
+		rendering.draw_line(params, {
+			from={params.left_top[1], params.right_bottom[2]},
+			to={params.right_bottom[1], params.right_bottom[2]},
+			dash_offset = 0.5,
+		})
+		rendering.draw_line(params, {
+			from={params.right_bottom[1], params.left_top[2]},
+			to={params.right_bottom[1], params.right_bottom[2]},
+			dash_offset = 0.0,
+		})
+		rendering.draw_line(params, {
+			from={params.left_top[1], params.left_top[2]},
+			to={params.left_top[1], params.right_bottom[2]},
+			dash_offset = 0.5,
+		})
+	end
+
+	local meta = {}
+	function meta:__index(k)
+		return function(t, t2)
+			if rendering_extension[k] then
+				rendering_extension[k](parametrizer(t, t2))
+			else
+				rendering[k](parametrizer(t, t2))
+			end
+		end
+	end
+
+	return setmetatable({}, meta)
+end
+
+---@param player_data PlayerData
+---@param event EventData.on_player_reverse_selected_area
+function render_util.draw_mining_drill_overlay(player_data, event)
+
+	local renderer = render_util.renderer(event)
+
+	local fx1, fy1 = event.area.left_top.x, event.area.left_top.y
+	fx1, fy1 = floor(fx1), floor(fy1)
+	local x, y = fx1 + 0.5, fy1 + 0.5
+	local fx2, fy2 = event.area.right_bottom.x, event.area.right_bottom.y
+	fx2, fy2 = ceil(fx2), ceil(fy2)
+
+	--renderer.draw_cross{x=fx1, y=fy1, w=fx2-fx1, h=fy2-fy1}
+	--renderer.draw_cross{x=fx1, y=fy1, w=2}
+
+	local drill = mpp_util.miner_struct(player_data.choices.miner_choice)
+
+	renderer.draw_circle{
+		x = fx1 + drill.drop_pos.x,
+		y = fy1 + drill.drop_pos.y,
+		c = {0, 1, 0},
+		r = 0.2,
+	}
+
+	-- drop pos
+	renderer.draw_cross{
+		x = fx1 + 0.5 + drill.out_x,
+		y = fy1 + 0.5 + drill.out_y,
+		r = 0.3,
+	}
+
+	-- drill origin
+	renderer.draw_circle{
+		x = fx1 + 0.5,
+		y = fy1 + 0.5,
+		width = 2,
+		r = 0.4,
+	}
+
+	-- negative extent - cyan
+	renderer.draw_cross{
+		x = fx1 +.5 + drill.extent_negative,
+		y = fy1 +.5 + drill.extent_negative,
+		r = 0.25,
+		c = {0, 0.8, 0.8},
+	}
+
+	-- positive extent - purple
+	renderer.draw_cross{
+		x = fx1 +.5 + drill.extent_positive,
+		y = fy1 +.5 + drill.extent_positive,
+		r = 0.25,
+		c = {1, 0, 1},
+	}
+
+	renderer.draw_rectangle{
+		x=fx1,
+		y=fy1,
+		w=drill.w,
+		h=drill.h,
+		width=3,
+		gap_length=0.5,
+		dash_length=0.5,
+	}
+
+	renderer.draw_rectangle_dashed{
+		x=fx1 + drill.extent_negative,
+		y=fy1 + drill.extent_negative,
+		w=drill.full_size,
+		h=drill.full_size,
+		c={0.5, 0.5, 0.5},
+		width=5,
+		gap_length=0.5,
+		dash_length=0.5,
+	}
+
+	renderer.draw_circle{ x = fx1, y = fy1, r = 0.1 }
+	--renderer.draw_circle{ x = fx2, y = fy2, r = 0.15, color={1, 0, 0} }
+end
+
+function render_util.draw_patch_edge(state)
+
+	local layout_categories = get_miner_categories(state, layout)
+	local coords, filtered, found_resources, requires_fluid, resource_counts = process_entities(event.entities, layout_categories)
+	state.coords = coords
+	state.resources = filtered
+	state.found_resources = found_resources
+	state.requires_fluid = requires_fluid
+	state.resource_counts = resource_counts
+end
 
 return render_util

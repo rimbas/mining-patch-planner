@@ -58,8 +58,8 @@ end
 ---@param self Layout
 ---@param state State
 function layout:initialize(state)
-	local miner_proto = game.entity_prototypes[state.miner_choice]
-	state.miner = mpp_util.miner_struct(miner_proto)
+	--local miner_proto = game.entity_prototypes[state.miner_choice]
+	state.miner = mpp_util.miner_struct(state.miner_choice)
 end
 
 ---Starting step

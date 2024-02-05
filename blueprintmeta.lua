@@ -87,8 +87,8 @@ function bp_meta:evaluate_miners()
 	for _, ent in pairs(self.entities) do
 		local name = ent.name
 		if game.entity_prototypes[name].type == "mining-drill" then
-			local proto = game.entity_prototypes[name]
-			miners[name] = mpp_util.miner_struct(proto)
+			--local proto = game.entity_prototypes[name]
+			miners[name] = mpp_util.miner_struct(name)
 		end
 	end
 end

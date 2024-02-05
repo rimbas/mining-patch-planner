@@ -65,22 +65,51 @@ end
 ---@field resource_categories table<string, boolean>
 ---@field full_size number Full span of the miner
 ---@field module_inventory_size number
+---@field x number Drill x origin
+---@field y number Drill y origin
+---@field out_x number Resource drop position x
+---@field out_y number Resource drop position y
+---@field extent_negative number 
+---@field extent_positive number
 
----@param miner_proto LuaEntityPrototype
+---@type table<string, MinerStruct>
+local miner_struct_cache = {}
+
+---Calculates values for drill sizes and extents
+---@param mining_drill_name string
 ---@return MinerStruct
-function mpp_util.miner_struct(miner_proto)
+function mpp_util.miner_struct(mining_drill_name)
+	local cached = miner_struct_cache[mining_drill_name]
+	if cached then return cached end
+	
+	local miner_proto = game.entity_prototypes[mining_drill_name]
 	local miner = {}
-	miner.far = floor(miner_proto.mining_drill_radius)
 	local cbox = miner_proto.collision_box
 	local cbox_tl, cbox_br = cbox.left_top, cbox.right_bottom
 	local cw, ch = cbox_br.x - cbox_tl.x, cbox_br.y - cbox_tl.y
 	miner.w, miner.h = ceil(cw), ceil(ch)
+	miner.parity = miner.w % 2 - 1
+	miner.x, miner.y = miner.w / 2, miner.h / 2
 	miner.size = miner.w
-	miner.full_size = miner.far * 2 + 1
-	miner.near =  floor(miner.size * 0.5)
+	miner.area = ceil(miner_proto.mining_drill_radius * 2)
 	miner.resource_categories = miner_proto.resource_categories
 	miner.name = miner_proto.name
 	miner.module_inventory_size = miner_proto.module_inventory_size
+	miner.extent_negative = miner.near - miner.far +miner.parity
+	miner.extent_positive = miner.extent_negative + miner.full_size - 1
+
+	local nauvis = game.get_surface("nauvis") --[[@as LuaSurface]]
+
+	local dummy = nauvis.create_entity{
+		name = mining_drill_name,
+		position = {miner.x, miner.y},
+	}
+
+	miner.drop_pos = dummy.drop_position
+	miner.out_x = floor(dummy.drop_position.x)
+	miner.out_y = floor(dummy.drop_position.y)
+
+	dummy.destroy()
 
 	return miner
 end
@@ -140,7 +169,7 @@ function mpp_util.calculate_pole_coverage(state, miner_count, lane_count, shifte
 	shifted = shifted or false
 	local cov = {}
 	local pole_proto = game.entity_prototypes[state.pole_choice]
-	local m = mpp_util.miner_struct(game.entity_prototypes[state.miner_choice])
+	local m = mpp_util.miner_struct(state.miner_choice)
 	local p = mpp_util.pole_struct(game.entity_prototypes[state.pole_choice])
 
 	local miner_coverage = max((miner_count-1)*m.far+miner_count, 1)
@@ -188,7 +217,7 @@ end
 function mpp_util.calculate_shifted_pole_coverage(state, miner_count)
 	local cov = {}
 	local pole_proto = game.entity_prototypes[state.pole_choice]
-	local m = mpp_util.miner_struct(game.entity_prototypes[state.miner_choice])
+	local m = mpp_util.miner_struct(state.miner_choice)
 	local p = mpp_util.pole_struct(game.entity_prototypes[state.pole_choice])
 
 	local miner_coverage = max((miner_count-1)*m.far+miner_count, 1)

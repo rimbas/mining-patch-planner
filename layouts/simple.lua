@@ -48,7 +48,7 @@ layout.name = "simple"
 layout.translation = {"mpp.settings_layout_choice_simple"}
 
 layout.restrictions.miner_near_radius = {1, 10e3}
-layout.restrictions.miner_far_radius = {1, 10e3}
+layout.restrictions.miner_far_radius = {0, 10e3}
 layout.restrictions.pole_omittable = true
 layout.restrictions.pole_width = {1, 1}
 layout.restrictions.pole_length = {5, 10e3}

@@ -4,6 +4,7 @@ require("migration")
 local gui = require("gui")
 local algorithm = require("algorithm")
 local bp_meta = require("blueprintmeta")
+local render_util = require("render_util")
 
 ---@class __MiningPatchPlanner__global
 ---@field tasks any
@@ -75,6 +76,34 @@ script.on_event(defines.events.on_player_selected_area, function(event)
 		player.print(error)
 	end
 end)
+
+script.on_event(defines.events.on_player_reverse_selected_area, function(event)
+	---@cast event EventData.on_player_reverse_selected_area
+	local player = game.get_player(event.player_index)
+	if not player then return end
+	local cursor_stack = player.cursor_stack
+	if not cursor_stack or not cursor_stack.valid or not cursor_stack.valid_for_read then return end
+	if cursor_stack and cursor_stack.valid and cursor_stack.valid_for_read and cursor_stack.name ~= "mining-patch-planner" then return end
+
+
+	---@type PlayerData
+	local player_data = global.players[event.player_index]
+
+	local res, error = pcall(
+		render_util.draw_mining_drill_overlay,
+		player_data, event
+	)
+
+	if res == false then
+		game.print(error)
+	end
+
+end)
+
+script.on_event(defines.events.on_player_alt_reverse_selected_area, function(event)
+	rendering.clear("mining-patch-planner")
+end)
+
 
 script.on_load(function()
 	if global.players then

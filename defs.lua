@@ -85,4 +85,11 @@
 ---@field lane1 MinerPlacement[]
 ---@field lane2 MinerPlacement[]
 
+---@alias LuaRenderingFunction fun(RendererParams): uint64
+
+---@class MppRendering
+---@field draw_line LuaRenderingFunction
+---@field draw_circle LuaRenderingFunction
+---@field draw_rectangle LuaRenderingFunction
+
 table.deepcopy = function(t) end
