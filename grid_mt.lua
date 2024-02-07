@@ -3,7 +3,7 @@ local mpp_util = require("mpp_util")
 ---@class GridRow: GridTile[]
 
 ---@class Grid
----@field miner MinerStruct
+---@field [number] GridRow
 local grid_mt = {}
 grid_mt.__index = grid_mt
 
@@ -29,21 +29,16 @@ grid_mt.__index = grid_mt
 
 ---@class GridTile
 ---@field amount number Amount of resource on tile
----@field neighbor_count integer
----@field neighbor_counts table<number, number>
----@field far_neighbor_count integer
+---@field neighbors_inner number
+---@field neighbors_outer number
+---@field neighbor_counts table<number, number> Convolution result
 ---@field x integer
 ---@field y integer
 ---@field gx double actual coordinate in surface
 ---@field gy double actual coordinate in surface
 ---@field boolean integer Is a miner consuming this tile
 ---@field built_on boolean|string Is tile occupied by a building entity
-
----@class Miner
----@field tile GridTile
----@field center GridTile Center tile
----@field line integer -- Line index of the miner
----@field unconsumed integer
+---@field consumed boolean Track if tile is covered by a mining drill
 
 ---comment
 ---@param x integer Grid coordinate
@@ -54,38 +49,67 @@ function grid_mt:get_tile(x, y)
 	if row then return row[x] end
 end
 
----Convolves a resource patch reach using characteristics of a miner
----@param x integer coordinate of the resource patch
----@param y integer coordinate of the resource patch
-function grid_mt:convolve(x, y)
-	local near, far = self.miner.near, self.miner.far
-	local ny1, ny2 = y-near, y+near
-	local nx1, nx2 = x-near, x+near
-	for sy = y-far, y+far do
-		local row = self[sy]
-		if row == nil then goto continue_row end
-		for sx = x-far, x+far do
-			local tile = row[sx]
-			if tile == nil then goto continue_column end
+---Convolves resource count for a grid cell
+---@param ox any
+---@param oy any
+---@param size any
+function grid_mt:convolve(ox, oy, size)
+	local nx1, nx2 = ox, ox+size - 1
+	local ny1, ny2 = oy, oy+size - 1
 
-			tile.far_neighbor_count = tile.far_neighbor_count + 1
-			if nx1 <= sx and sx <= nx2 and ny1 <= sy and sy <= ny2 then
-				tile.neighbor_count = tile.neighbor_count + 1
-			end
+	for y = ny1, ny2 do
+		---@type table<number, GridTile>
+		local row = self[y]
+		if row == nil then goto continue_row end
+		for x = nx1, nx2 do
+			local tile = row[x]
+			if tile == nil then goto continue_column end
+			local counts = tile.neighbor_counts
+			counts[size] = counts[size] + 1
 			::continue_column::
 		end
 		::continue_row::
 	end
 end
 
-function grid_mt:convolve_custom(x, y, w)
-	for sy = y-w, y+w do
-		local row = self[sy]
+---Convolves resource count for a grid cell
+---@param ox any
+---@param oy any
+---@param size any
+function grid_mt:convolve_inner(ox, oy, size)
+	local nx1, nx2 = ox, ox+size - 1
+	local ny1, ny2 = oy, oy+size - 1
+
+	for y = ny1, ny2 do
+		---@type table<number, GridTile>
+		local row = self[y]
 		if row == nil then goto continue_row end
-		for sx = x-w, x+w do
-			local tile = row[sx]
+		for x = nx1, nx2 do
+			local tile = row[x]
 			if tile == nil then goto continue_column end
-			tile.neighbor_counts[w] = (tile.neighbor_counts[w] or 0) + 1
+			tile.neighbors_inner = tile.neighbors_inner + 1
+			::continue_column::
+		end
+		::continue_row::
+	end
+end
+
+---Convolves resource count for a grid cell
+---@param ox any
+---@param oy any
+---@param size any
+function grid_mt:convolve_outer(ox, oy, size)
+	local nx1, nx2 = ox, ox+size - 1
+	local ny1, ny2 = oy, oy+size - 1
+
+	for y = ny1, ny2 do
+		---@type table<number, GridTile>
+		local row = self[y]
+		if row == nil then goto continue_row end
+		for x = nx1, nx2 do
+			local tile = row[x]
+			if tile == nil then goto continue_column end
+			tile.neighbors_outer = tile.neighbors_outer + 1
 			::continue_column::
 		end
 		::continue_row::
@@ -93,15 +117,16 @@ function grid_mt:convolve_custom(x, y, w)
 end
 
 ---Marks tiles as consumed by a miner
----@param cx integer
----@param cy integer
-function grid_mt:consume(cx, cy)
-	local mc = self.miner
-	local far = mc.far
-	for y = cy-far, cy+far do
+---@param ox integer
+---@param oy integer
+function grid_mt:consume(ox, oy, size)
+	local nx1, nx2 = ox, ox+size - 1
+	local ny1, ny2 = oy, oy+size - 1
+
+	for y = ny1, ny2 do
 		local row = self[y]
 		if row == nil then goto continue_row end
-		for x = cx-far, cx+far do
+		for x = nx1, nx2 do
 			local tile = row[x]
 			if tile and tile.amount then
 				tile.consumed = true
@@ -116,6 +141,7 @@ end
 ---@param w number
 ---@param evenw boolean
 ---@param evenh boolean
+---@deprecated
 function grid_mt:consume_custom(cx, cy, w, evenw, evenh)
 	local ox, oy = evenw and 1 or 0, evenh and 1 or 0
 	local x1, x2 = cx+ox-w, cx+w
@@ -135,7 +161,8 @@ end
 ---Marks tiles as consumed by a miner
 ---@param tiles GridTile[]
 function grid_mt:clear_consumed(tiles)
-	for _, tile in ipairs(tiles) do
+	for _, tile in pairs(tiles) do
+		---@cast tile GridTile
 		tile.consumed = false
 	end
 end
@@ -143,15 +170,13 @@ end
 ---Builder function
 ---@param cx number x coord
 ---@param cy number y coord
+---@param size number
 ---@param thing string Type of building
----@param r number Radius
----@param even boolean Is even width building
-function grid_mt:build_thing(cx, cy, thing, r, even)
-	local o = even and 1 or 0
-	for y = cy+o-r, cy+r do
+function grid_mt:build_thing(cx, cy, size, thing)
+	for y = cx, cy+size do
 		local row = self[y]
 		if row == nil then goto continue_row end
-		for x = cx+o-r, cx+r do
+		for x = cx, cx+size do
 			local tile = row[x]
 			if tile then
 				tile.built_on = thing
@@ -250,19 +275,8 @@ function grid_mt:find_thing_in(cx, cy, things, r, even)
 	return false
 end
 
-function grid_mt:build_miner(cx, cy)
-	local near = self.miner.near
-	for y = cy-near, cy+near do
-		local row = self[y]
-		if row == nil then goto continue_row end
-		for x = cx-near, cx+near do
-			local tile = row[x]
-			if tile then
-				tile.built_on = "miner"
-			end
-		end
-		::continue_row::
-	end
+function grid_mt:build_miner(cx, cy, size)
+	self:build_thing(cx, cy, size, "miner")
 end
 
 function grid_mt:build_miner_custom(cx, cy, w)
@@ -279,13 +293,15 @@ function grid_mt:build_miner_custom(cx, cy, w)
 	end
 end
 
-function grid_mt:get_unconsumed(mx, my)
-	local far = self.miner.far
+function grid_mt:get_unconsumed(ox, oy, size)
+	local nx1, nx2 = ox, ox+size - 1
+	local ny1, ny2 = oy, oy+size - 1
 	local count = 0
-	for y = my-far, my+far do
+
+	for y = ny1, ny2 do
 		local row = self[y]
 		if row == nil then goto continue_row end
-		for x = mx-far, mx+far do
+		for x = nx1, nx2 do
 			local tile = row[x]
 			if tile then
 				if tile.amount and not tile.consumed then

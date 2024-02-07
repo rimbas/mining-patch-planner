@@ -55,22 +55,26 @@ do
 	mpp_util.bp_direction = t
 end
 
+---A mining drill's origin (0, 0) is the top left corner
+---The spawn location is (x, y), rotations need to rotate around
 ---@class MinerStruct
 ---@field name string
 ---@field size number Physical miner size
----@field w number Miner collision width
----@field h number Miner collision height
----@field far number Far radius
----@field near number Close radius
+---@field parity (-1|0) Parity offset for even sized drills, -1 when odd
 ---@field resource_categories table<string, boolean>
----@field full_size number Full span of the miner
+---@field radius float Mining area reach
+---@field area number Full coverage span of the miner
 ---@field module_inventory_size number
 ---@field x number Drill x origin
 ---@field y number Drill y origin
----@field out_x number Resource drop position x
----@field out_y number Resource drop position y
+---@field w number Collision width
+---@field h number Collision height
+---@field drop_pos MapPosition Raw drop position
+---@field out_x integer Resource drop position x
+---@field out_y integer Resource drop position y
 ---@field extent_negative number 
 ---@field extent_positive number
+---@field supports_fluids boolean
 
 ---@type table<string, MinerStruct>
 local miner_struct_cache = {}
@@ -83,20 +87,25 @@ function mpp_util.miner_struct(mining_drill_name)
 	if cached then return cached end
 	
 	local miner_proto = game.entity_prototypes[mining_drill_name]
-	local miner = {}
+	---@diagnostic disable-next-line: missing-fields
+	local miner = {} --[[@as MinerStruct]]
 	local cbox = miner_proto.collision_box
 	local cbox_tl, cbox_br = cbox.left_top, cbox.right_bottom
 	local cw, ch = cbox_br.x - cbox_tl.x, cbox_br.y - cbox_tl.y
 	miner.w, miner.h = ceil(cw), ceil(ch)
-	miner.parity = miner.w % 2 - 1
-	miner.x, miner.y = miner.w / 2, miner.h / 2
+	if miner.w ~= miner.h then
+		-- we have a problem ?
+	end
 	miner.size = miner.w
+	miner.parity = miner.size % 2 - 1
+	miner.x, miner.y = miner.w / 2, miner.h / 2
+	miner.radius = miner_proto.mining_drill_radius
 	miner.area = ceil(miner_proto.mining_drill_radius * 2)
 	miner.resource_categories = miner_proto.resource_categories
 	miner.name = miner_proto.name
 	miner.module_inventory_size = miner_proto.module_inventory_size
-	miner.extent_negative = miner.near - miner.far +miner.parity
-	miner.extent_positive = miner.extent_negative + miner.full_size - 1
+	miner.extent_negative = floor(miner.size * 0.5) - floor(miner_proto.mining_drill_radius) + miner.parity
+	miner.extent_positive = miner.extent_negative + miner.area - 1
 
 	local nauvis = game.get_surface("nauvis") --[[@as LuaSurface]]
 
@@ -105,26 +114,55 @@ function mpp_util.miner_struct(mining_drill_name)
 		position = {miner.x, miner.y},
 	}
 
-	miner.drop_pos = dummy.drop_position
-	miner.out_x = floor(dummy.drop_position.x)
-	miner.out_y = floor(dummy.drop_position.y)
+	if dummy then
+		miner.drop_pos = dummy.drop_position
+		miner.out_x = floor(dummy.drop_position.x)
+		miner.out_y = floor(dummy.drop_position.y)
+		dummy.destroy()
+	else
+		-- hardcoded fallback
+		local dx, dy = floor(miner.size / 2) + miner.parity, -1
+		miner.drop_pos = { dx+.5, -0.296875, x = dx+.5, y = -0.296875 }
+		miner.out_x = dx
+		miner.out_y = dy
+	end
 
-	dummy.destroy()
+	--[[ pipe height stuff
+	if miner_proto.fluidbox_prototypes and #miner_proto.fluidbox_prototypes > 0 then
+		local connections = miner_proto.fluidbox_prototypes[1].pipe_connections
+
+		for _, conn in pairs(connections) do
+			---@cast conn FluidBoxConnection
+			--game.print(conn)
+		end
+
+	else
+		miner.supports_fluids = false
+	end
+	--]]
 
 	return miner
 end
 
 ---@class PoleStruct
+---@field place boolean Flag if poles are to be actually placed
 ---@field size number
----@field radius number
----@field supply_width number
----@field wire number max wire distance
+---@field radius number Power supply reach
+---@field supply_width number Full width of supply reach
+---@field wire number Max wire distance
 
----@param pole_proto LuaEntityPrototype
+---@type table<string, PoleStruct>
+local pole_struct_cache = {}
+
+---@param pole_name string
 ---@return PoleStruct
-function mpp_util.pole_struct(pole_proto)
+function mpp_util.pole_struct(pole_name)
+	local cached_struct = pole_struct_cache[pole_name]
+	if cached_struct then return cached_struct end
+
+	local pole_proto = game.entity_prototypes[pole_name]
 	if pole_proto then
-		local pole = {}
+		local pole = {place=true}
 		local cbox = pole_proto.collision_box
 		pole.size = ceil(cbox.right_bottom.x - cbox.left_top.x)
 		local radius = pole_proto.supply_area_distance
@@ -132,9 +170,11 @@ function mpp_util.pole_struct(pole_proto)
 		pole.radius = pole.supply_width / 2
 		pole.wire = pole_proto.max_wire_distance
 
+		pole_struct_cache[pole_name] = pole
 		return pole
 	end
 	return {
+		place = false,
 		size = 1,
 		supply_width = 7,
 		radius = 3.5,
@@ -172,7 +212,7 @@ function mpp_util.calculate_pole_coverage(state, miner_count, lane_count, shifte
 	local m = mpp_util.miner_struct(state.miner_choice)
 	local p = mpp_util.pole_struct(game.entity_prototypes[state.pole_choice])
 
-	local miner_coverage = max((miner_count-1)*m.far+miner_count, 1)
+	local miner_coverage = max((miner_count-1)*m.size+miner_count, 1)
 
 	-- Shift subtract
 	local shift_subtract = shifted and 2 or 0
@@ -187,10 +227,10 @@ function mpp_util.calculate_pole_coverage(state, miner_count, lane_count, shifte
 		miner_step = floor(p.wire)
 	end
 
-	local pole_start = m.near
+	local pole_start = m.size
 	if capable_span then
 		if covered_miners % 2 == 0 then
-			pole_start = m.near * 2
+			pole_start = m.size * 2
 		elseif miner_count % covered_miners == 0 then
 			pole_start = pole_start + m.size
 		end
@@ -218,9 +258,9 @@ function mpp_util.calculate_shifted_pole_coverage(state, miner_count)
 	local cov = {}
 	local pole_proto = game.entity_prototypes[state.pole_choice]
 	local m = mpp_util.miner_struct(state.miner_choice)
-	local p = mpp_util.pole_struct(game.entity_prototypes[state.pole_choice])
+	local p = mpp_util.pole_struct(state.pole_choice)
 
-	local miner_coverage = max((miner_count-1)*m.far+miner_count, 1)
+	local miner_coverage = max((miner_count-1)*m.size+miner_count, 1)
 
 	-- Shift subtract
 	local covered_miners = ceil(p.supply_width / m.size)

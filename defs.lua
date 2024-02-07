@@ -34,13 +34,14 @@
 
 ---@class Layout
 ---@field name string
----@field starting_state string Initial state
 ---@field defaults LayoutDefaults
 ---@field restrictions Restrictions
----@field on_load function(state: State)
----@field validate function(state: State)
----@field initialize function(state: State)
----@field tick function(state: State)
+---@field on_load fun(self, state: State)
+---@field validate fun(self, state: State): boolean
+---@field initialize fun(self, state: State)
+---@field tick fun(self, state: State): TickResult
+
+---@alias TickResult string | boolean | nil
 
 ---@class LayoutDefaults
 ---@field miner string

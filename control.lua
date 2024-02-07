@@ -29,7 +29,20 @@ local function task_runner(event)
 	local state = global.tasks[1]
 	local layout = algorithm.layouts[state.layout_choice]
 
-	local tick_result = layout:tick(state)
+	---@type TickResult
+	local tick_result
+
+	if not __DebugAdapter then
+		tick_result = layout:tick(state)
+	else
+		local success
+		success, tick_result = pcall(layout.tick, layout, state)
+		if success == false then
+			game.print(tick_result)
+			tick_result = false
+		end
+	end
+
 	if tick_result == nil then
 		error("Layout "..state.layout_choice.." missing a callback name")
 	elseif tick_result == false then

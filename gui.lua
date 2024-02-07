@@ -365,9 +365,9 @@ local function update_miner_selection(player_data)
 
 		if not player_data.choices.show_non_electric_miners_choice and not miner_proto.electric_energy_source_prototype then goto skip_miner end
 		--if miner.size % 2 == 0 then goto skip_miner end -- Algorithm doesn't support even size miners
-		if miner.near < near_radius_min or near_radius_max < miner.near then goto skip_miner end
+		--if miner.radius < near_radius_min or near_radius_max < miner.radius then goto skip_miner end
 		-- TODO: add a warning for coverage somewhere in the gui
-		if miner.far < far_radius_min or far_radius_max < miner.far then goto skip_miner end
+		if miner.radius < far_radius_min or far_radius_max < miner.radius then goto skip_miner end
 
 		values[#values+1] = {
 			value=miner.name,

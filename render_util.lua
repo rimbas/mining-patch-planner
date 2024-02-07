@@ -340,8 +340,8 @@ function render_util.draw_mining_drill_overlay(player_data, event)
 	renderer.draw_rectangle{
 		x=fx1,
 		y=fy1,
-		w=drill.w,
-		h=drill.h,
+		w=drill.size,
+		h=drill.size,
 		width=3,
 		gap_length=0.5,
 		dash_length=0.5,
@@ -350,8 +350,8 @@ function render_util.draw_mining_drill_overlay(player_data, event)
 	renderer.draw_rectangle_dashed{
 		x=fx1 + drill.extent_negative,
 		y=fy1 + drill.extent_negative,
-		w=drill.full_size,
-		h=drill.full_size,
+		w=drill.area,
+		h=drill.area,
 		c={0.5, 0.5, 0.5},
 		width=5,
 		gap_length=0.5,

@@ -61,6 +61,7 @@ require_layout("blueprints")
 ---@field grid Grid
 ---@field deconstruct_specification DeconstructSpecification
 ---@field miner MinerStruct
+---@field pole PoleStruct
 ---@field _preview_rectangle nil|uint64 LuaRendering.draw_rectangle
 ---@field _lane_info_rendering uint64[]
 ---@field _render_objects uint64[] LuaRendering objects
