@@ -313,6 +313,23 @@ function render_util.draw_mining_drill_overlay(player_data, event)
 		r = 0.3,
 	}
 
+	renderer.draw_line{
+		from={x + drill.x, y},
+		to={x + drill.x, y + 2},
+		width = 2, color={0.5, 0.5, 0.5}
+	}
+	renderer.draw_line{
+		from={x + drill.x, y},
+		to={x + drill.x-.5, y + .65},
+		width = 2, color={0.5, 0.5, 0.5}
+	}
+	renderer.draw_line{
+		from={x + drill.x, y},
+		to={x + drill.x+.5, y + .65},
+		width = 2, color={0.5, 0.5, 0.5}
+	}
+
+
 	-- drill origin
 	renderer.draw_circle{
 		x = fx1 + 0.5,
@@ -358,7 +375,21 @@ function render_util.draw_mining_drill_overlay(player_data, event)
 		dash_length=0.5,
 	}
 
-	renderer.draw_circle{ x = fx1, y = fy1, r = 0.1 }
+	-- pipe connections
+	renderer.draw_line{
+		width=4, color = {0, .7, 1},
+		from={fx1-.3, y+drill.pipe_left-.5},
+		to={fx1-.3, y+drill.pipe_left+.5},
+	}
+
+	-- pipe connections
+	renderer.draw_line{
+		width=4, color = {.7, .7, 0},
+		from={fx1+drill.size+.3, y+drill.pipe_left-.5},
+		to={fx1+drill.size+.3, y+drill.pipe_left+.5},
+	}
+
+	renderer.draw_circle{x = fx1, y = fy1, r = 0.1}
 	--renderer.draw_circle{ x = fx2, y = fy2, r = 0.15, color={1, 0, 0} }
 end
 

@@ -7,17 +7,18 @@ local mpp_util = require("mpp_util")
 local grid_mt = {}
 grid_mt.__index = grid_mt
 
+---Coordinate aggregate of the resource patch
 ---@class Coords
----@field x1 double Top left corner
----@field y1 double Top left corner
----@field x2 double Bottom right corner
----@field y2 double Bottom right corner
----@field ix1 number Integer top left corner
----@field iy1 number Integer top left corner
+---@field x1 double Top left corner of the patch
+---@field y1 double Top left corner of the patch
+---@field x2 double Bottom right corner of the patch
+---@field y2 double Bottom right corner of the patch
+---@field ix1 number Integer top left corner of the patch
+---@field iy1 number Integer top left corner of the patch
 ---@field ix2 number Integer bottom right corner
 ---@field iy2 number Integer bottom right corner
----@field w integer Width
----@field h integer Height
+---@field w integer Width of the patch
+---@field h integer Height of the patch
 ---@field tw integer Width Rotation invariant width
 ---@field th integer Height Rotation invariant height
 ---@field gx double x1 but -1 for grid rendering

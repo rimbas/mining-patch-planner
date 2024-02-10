@@ -30,6 +30,7 @@ local layout = table.deepcopy(base)
 ---@field resource_tiles GridTile
 ---@field resource_iter number
 ---@field longest_belt number For pole alignment information
+---@field pole_gap number Vertical gap size in the power pole lane
 ---@field pole_step number
 ---@field miner_lane_count number Miner lane count
 ---@field miner_max_column number Miner column span
@@ -84,6 +85,19 @@ function layout:on_load(state)
 	end
 end
 
+---@param self SimpleLayout
+---@param state SimpleState
+function layout:initialize(state)
+	base.initialize(self, state)
+	state.pole_gap =  state.pole.size
+	if state.pole_choice == "none_zero" then
+		state.pole_gap = 0
+	elseif state.pole_choice == "none_two" then
+		state.pole_gap = 2
+	end
+end
+
+
 -- Validate the selection
 ---@param self SimpleLayout
 ---@param state SimpleState
@@ -105,6 +119,8 @@ end
 ---@param self SimpleLayout
 ---@param state SimpleState
 function layout:start(state)
+
+
 	return "deconstruct_previous_ghosts"
 end
 
@@ -142,7 +158,7 @@ function layout:initialize_grid(state)
 	local x1, x2 = -miner.area, tw + miner.area+1
 	c.extent_x1, c.extent_y1, c.extent_x2, c.extent_y2 = x1, y1, x2, y2
 
-	--[[ debug rendering - bounds ]]
+	--[[ debug rendering - bounds
 	state._render_objects[#state._render_objects+1] = rendering.draw_rectangle{
 		surface=state.surface,
 		left_top={state.coords.ix1, state.coords.iy1},
@@ -160,10 +176,10 @@ function layout:initialize_grid(state)
 	}
 	--]]
 
-	local m_size, m_area =  state.miner.size, state.miner.area
-	local function init_counts()
-		return {[m_size]=0, [m_area]=0}
-	end
+	-- local m_size, m_area =  state.miner.size, state.miner.area
+	-- local function init_counts()
+	-- 	return {[m_size]=0, [m_area]=0}
+	-- end
 
 	local grid = {}
 
@@ -176,7 +192,7 @@ function layout:initialize_grid(state)
 				x = x, y = y,
 				neighbors_inner = 0,
 				neighbors_outer = 0,
-				neighbor_counts = init_counts(),
+				--neighbor_counts = init_counts(),
 				gx = c.x1 + x, gy = c.y1 + y,
 				consumed = false,
 				built_on = false,
@@ -282,8 +298,8 @@ end
 ---@class MinerPlacementInit
 ---@field x number Top left corner in the grid
 ---@field y number Top left corner in the grid
----@field gx number Entity placement coorinate
----@field gy number Entity placement coorinate
+---@field origin_x number Entity placement coordinate
+---@field origin_y number Entity placement coordinate
 ---@field tile GridTile Top left tile
 ---@field line number lane index
 ---@field column number column index
@@ -343,7 +359,7 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 	local grid = state.grid
 	--local size, near, far, fullsize = state.miner.size, state.miner.near, state.miner.far, state.miner.full_size
 	local m, p = state.miner, state.pole
-	local row_gap_size = state.pole.size
+	local pole_gap = state.pole_gap
 	local size, area = m.size, m.area
 	local miners, postponed = {}, {}
 	local inner_neighbor_sum = 0
@@ -357,7 +373,7 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 	local heuristic = self:_get_miner_placement_heuristic(state)
 
 	local row_index = 1
-	for y = shift_y, state.coords.th + size, size + 1 do
+	for y = shift_y, state.coords.th + size, size + pole_gap do
 		local column_index = 1
 		lane_layout[#lane_layout+1] = {y = y, row_index = row_index}
 		for x = shift_x, state.coords.tw + size, size do
@@ -366,8 +382,8 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 			local miner = {
 				x = x,
 				y = y,
-				gx = x + m.x - 1,
-				gy = y + m.y - 1,
+				origin_x = x + m.x,
+				origin_y = y + m.y,
 				tile = tile,
 				line = row_index,
 				column=column_index,
@@ -432,7 +448,7 @@ function layout:prepare_layout_attempts(state)
 		end
 	end
 
-	--[[ debug visualisation - attempt origins ]]
+	--[[ debug visualisation - attempt origins
 	local gx, gy = state.coords.gx, state.coords.gy
 	for i, attempt in pairs(attempts) do
 		state._render_objects[#state._render_objects+1] = rendering.draw_circle{
@@ -546,7 +562,7 @@ function layout:prepare_miner_layout(state)
 
 		local x, y = c.ix1+miner.x-1, c.iy1+miner.y-1
 
-		--[[ debug visualisation - miner ]]
+		--[[ debug visualisation - miner
 		rendering.draw_rectangle{
 			surface = state.surface,
 			filled = false,
@@ -570,8 +586,8 @@ function layout:prepare_miner_layout(state)
 		local build_x, build_y = miner.x + M.x, miner.y + M.y
 		builder_miners[#builder_miners+1] = {
 			thing="miner",
-			grid_x = miner.x,
-			grid_y = miner.y,
+			grid_x = miner.x-1,
+			grid_y = miner.y-1,
 			padding_pre = M.extent_negative,
 			padding_post = M.extent_positive,
 		}
@@ -583,7 +599,7 @@ function layout:prepare_miner_layout(state)
 		table.sort(lane, function(a, b) return a.x < b.x end)
 	end
 
-	--[[ debug visualisation - miner ]]
+	--[[ debug visualisation - miner
 	local render_objects = state._render_objects
 	for _, row in pairs(g) do
 		for _, tile in pairs(row) do
@@ -601,8 +617,6 @@ function layout:prepare_miner_layout(state)
 		end
 	end
 	--]]
-
-	--if true then return false end
 
 	return "prepare_pipe_layout"
 end
@@ -683,7 +697,7 @@ end
 function layout:prepare_pipe_layout(state)
 	local builder_pipes = {}
 	state.builder_pipes = builder_pipes
-	
+
 	local next_step = "prepare_belt_layout"
 	if state.pipe_choice == "none"
 	or (not state.requires_fluid and not state.force_pipe_placement_choice)
@@ -697,7 +711,7 @@ function layout:prepare_pipe_layout(state)
 
 	local function que_entity(t) builder_pipes[#builder_pipes+1] = t end
 	local pipe = state.pipe_choice
-	
+
 	local ground_pipe, ground_proto = mpp_util.find_underground_pipe(pipe)
 	---@cast ground_pipe string
 
@@ -785,19 +799,20 @@ function layout:prepare_belt_layout(state)
 	state.belts = belts
 	state.belt_count = 0
 	local longest_belt = 0
+	local pole_gap = state.pole_gap
 	for i = 1, miner_lane_count, 2 do
 		local lane1 = miner_lanes[i]
 		local lane2 = miner_lanes[i+1]
 
-		local y = attempt.sy + (m.size + 1) * i
+		local y = attempt.sy + m.size + (m.size + pole_gap) * (i-1)
 
-		local belt = {x1=attempt.sx + 1 + pipe_adjust, x2=attempt.sx + 1, y=y, built=false, lane1=lane1, lane2=lane2}
+		local belt = {x1=attempt.sx + pipe_adjust, x2=attempt.sx, y=y, built=false, lane1=lane1, lane2=lane2}
 		belts[#belts+1] = belt
 		
 		if lane1 or lane2 then
 			state.belt_count = state.belt_count + 1
 			local x1 = belt.x1
-			local x2 = max(get_lane_length(lane1), get_lane_length(lane2)) + m.size
+			local x2 = max(get_lane_length(lane1), get_lane_length(lane2))
 			longest_belt = max(longest_belt, x2 - x1 + 1)
 			belt.x2, belt.built = x2, true
 		end
@@ -833,14 +848,12 @@ end
 function layout:prepare_pole_layout(state)
 	local c = state.coords
 	local m = state.miner
+	local P = state.pole
 	local g = state.grid
 	local attempt = state.best_attempt
 
-	local pole_proto = game.entity_prototypes[state.pole_choice] or {supply_area_distance=3, max_wire_distance=9}
 	local supply_area, wire_reach = 3, 9
-	if pole_proto then
-		supply_area, wire_reach = floor(pole_proto.supply_area_distance), pole_proto.max_wire_distance
-	end
+	supply_area, wire_reach = P.supply_width, P.wire
 
 	--TODO: figure out double lane coverage with insane supply areas
 	local function get_covered_miners(ix, iy)
@@ -873,6 +886,8 @@ function layout:prepare_pole_layout(state)
 	-- }
 
 	local pole_lanes = {}
+
+	--local y = attempt.sy + m.size + (m.size + pole_gap) * (i-1)
 
 	local iy = 1
 	for y = attempt.sy + coverage.lane_start, c.th + m.size, coverage.lane_step do
@@ -1024,14 +1039,12 @@ function layout:placement_miners(state)
 		local flip_lane = miner.line % 2 ~= 1
 		if flip_lane then direction = opposite[direction] end
 
-		local x, y = miner.gx, miner.gy
-
-		grid:build_miner(x, y, M.size)
+		grid:build_miner(miner.x, miner.y, M.size)
 		local ghost = create_entity{
 			name = state.miner_choice,
 			thing="miner",
-			grid_x = x,
-			grid_y = y,
+			grid_x = miner.origin_x,
+			grid_y = miner.origin_y,
 			direction = defines.direction[direction],
 		}
 

@@ -6,9 +6,9 @@ local mpp_util = {}
 
 local coord_convert = {
 	west = function(x, y, w, h) return x, y end,
-	east = function(x, y, w, h) return w-x+1, h-y+1 end,
-	south = function(x, y, w, h) return h-y+1, x end,
-	north = function(x, y, w, h) return y, w-x+1 end,
+	east = function(x, y, w, h) return w-x, h-y end,
+	south = function(x, y, w, h) return h-y, x end,
+	north = function(x, y, w, h) return y, w-x end,
 }
 mpp_util.coord_convert = coord_convert
 
@@ -26,7 +26,7 @@ mpp_util.opposite = {west="east",east="west",north="south",south="north"}
 
 do
 	local d = defines.direction
-	local t = {
+	mpp_util.bp_direction = {
 		west = {
 			[d.north] = d.north,
 			[d.east] = d.east,
@@ -52,7 +52,6 @@ do
 			[d.west] = d.south,
 		},
 	}
-	mpp_util.bp_direction = t
 end
 
 ---A mining drill's origin (0, 0) is the top left corner
@@ -75,6 +74,9 @@ end
 ---@field extent_negative number 
 ---@field extent_positive number
 ---@field supports_fluids boolean
+---@field pipe_left number Y height on left side
+---@field pipe_right number Y height on right side
+
 
 ---@type table<string, MinerStruct>
 local miner_struct_cache = {}
@@ -98,7 +100,7 @@ function mpp_util.miner_struct(mining_drill_name)
 	end
 	miner.size = miner.w
 	miner.parity = miner.size % 2 - 1
-	miner.x, miner.y = miner.w / 2, miner.h / 2
+	miner.x, miner.y = miner.w / 2 - 0.5, miner.h / 2 - 0.5
 	miner.radius = miner_proto.mining_drill_radius
 	miner.area = ceil(miner_proto.mining_drill_radius * 2)
 	miner.resource_categories = miner_proto.resource_categories
@@ -127,7 +129,7 @@ function mpp_util.miner_struct(mining_drill_name)
 		miner.out_y = dy
 	end
 
-	--[[ pipe height stuff
+	--[[ pipe height stuff ]]
 	if miner_proto.fluidbox_prototypes and #miner_proto.fluidbox_prototypes > 0 then
 		local connections = miner_proto.fluidbox_prototypes[1].pipe_connections
 
@@ -136,10 +138,12 @@ function mpp_util.miner_struct(mining_drill_name)
 			--game.print(conn)
 		end
 
+		miner.pipe_left = floor(miner.size / 2) + miner.parity
+		miner.pipe_right = floor(miner.size / 2) + miner.parity
+
 	else
 		miner.supports_fluids = false
 	end
-	--]]
 
 	return miner
 end
@@ -174,7 +178,7 @@ function mpp_util.pole_struct(pole_name)
 		return pole
 	end
 	return {
-		place = false,
+		place = false, -- nonexistent pole, use fallbacks and don't place
 		size = 1,
 		supply_width = 7,
 		radius = 3.5,
@@ -210,7 +214,7 @@ function mpp_util.calculate_pole_coverage(state, miner_count, lane_count, shifte
 	local cov = {}
 	local pole_proto = game.entity_prototypes[state.pole_choice]
 	local m = mpp_util.miner_struct(state.miner_choice)
-	local p = mpp_util.pole_struct(game.entity_prototypes[state.pole_choice])
+	local p = mpp_util.pole_struct(state.pole_choice)
 
 	local miner_coverage = max((miner_count-1)*m.size+miner_count, 1)
 

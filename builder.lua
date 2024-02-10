@@ -17,7 +17,7 @@ local builder = {}
 --- Builder for a convenience function that automatically translates
 --- internal grid state for a surface.create_entity call
 ---@param state State
-builder.create_entity_builder = function(state)
+function builder.create_entity_builder(state)
 	local c = state.coords
 	local grid = state.grid
 	local DIR = state.direction_choice
@@ -33,7 +33,10 @@ builder.create_entity_builder = function(state)
 		ghost.force = state.player.force
 		ghost.inner_name=ghost.name
 		ghost.name="entity-ghost"
-		ghost.position=coord_revert(gx, gy, DIR, ghost.grid_x, ghost.grid_y, tw, th)
+		-- Assume default entity size of 1 and subtract 0.5 from grid position 
+		-- because entity origins in Factorio are offset by -0.5 from our grid coordinates
+		-- Larger entities have to be specially handled anyway and can account for the subtraction
+		ghost.position=coord_revert(gx, gy, DIR, ghost.grid_x-.5, ghost.grid_y-.5, tw, th)
 		ghost.direction=direction_conv[ghost.direction or defines.direction.north]
 		local result = surface.create_entity(ghost)
 		if result then
@@ -43,29 +46,5 @@ builder.create_entity_builder = function(state)
 		return result
 	end
 end
-
---- Builder for a convenience function that automatically translates
---- internal grid state for a surface.create_entity call
----@param state State
-builder.create_manual_entity_builder = function(state)
-	local c = state.coords
-	local DIR = state.direction_choice
-	local surface = state.surface
-	local gx, gy, tw, th = c.gx, c.gy, c.tw, c.th
-	local direction_conv = mpp_util.bp_direction[state.direction_choice]
-
-	---@param ghost GhostSpecification
-	return function(ghost)
-		ghost.raise_built = true
-		ghost.player = state.player
-		ghost.force = state.player.force
-		ghost.inner_name=ghost.name
-		ghost.name="entity-ghost"
-		ghost.position=coord_revert(gx, gy, DIR, ghost.grid_x, ghost.grid_y, tw, th)
-		ghost.direction=direction_conv[ghost.direction or defines.direction.north]
-		return surface.create_entity(ghost)
-	end
-end
-
 
 return builder
