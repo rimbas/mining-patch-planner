@@ -42,6 +42,7 @@ compatibility.is_space = function(surface_identification)
 	if type(surface_identification) == "string" then
 		surface_identification = game.get_surface(surface_identification).index
 	elseif type(surface_identification) == "userdata" then
+		---@cast surface_identification LuaSurface
 		surface_identification = surface_identification.index
 	end
 
@@ -49,12 +50,12 @@ compatibility.is_space = function(surface_identification)
 	if memoized ~= nil then return memoized end
 
 	if game.active_mods["space-exploration"] then
-		local zone = remote.call("space-exploration", "get_zone_from_surface_index", {surface_index = surface_index})
+		local zone = remote.call("space-exploration", "get_zone_from_surface_index", {surface_index = surface_index} --[[@as table]]) --[[@as LuaSurface?]]
 		if not zone then
 			memoize_space_surfaces[surface_index] = false
 			return false
 		end
-		local result = remote.call("space-exploration", "get_zone_is_space", {zone_index = zone.index})
+		local result = remote.call("space-exploration", "get_zone_is_space", {zone_index = zone.index} --[[@as table]]) --[[@as boolean]]
 		memoize_space_surfaces[surface_index] = result
 		return result
 	end

@@ -102,13 +102,21 @@ script.on_event(defines.events.on_player_alt_reverse_selected_area, function(eve
 	---@type PlayerData
 	local player_data = global.players[event.player_index]
 
-	local res, error = pcall(
-		render_util.draw_mining_drill_overlay,
-		player_data, event
-	)
+	local debugging_choice = player_data.choices.debugging_choice
+	debugging_func = render_util[debugging_choice]
 
-	if res == false then
-		game.print(error)
+	if debugging_func then
+
+		local res, error = pcall(
+			debugging_func,
+			player_data, event
+		)
+
+		if res == false then
+			game.print(error)
+		end
+	else
+		game.print("No valid debugging function selected")
 	end
 
 end)

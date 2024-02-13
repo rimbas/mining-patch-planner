@@ -163,7 +163,7 @@ function layout:initialize_grid(state)
 		surface=state.surface,
 		left_top={state.coords.ix1, state.coords.iy1},
 		right_bottom={state.coords.ix1 + c.tw, state.coords.iy1 + c.th},
-		filled=false, width=4, color={0, 0, 1, 1},
+		filled=false, width=4, color={0, 0, 1, .2},
 		players={state.player},
 	}
 
@@ -171,7 +171,7 @@ function layout:initialize_grid(state)
 		surface=state.surface,
 		left_top={state.coords.ix1-miner.area-1, state.coords.iy1-miner.area-1},
 		right_bottom={state.coords.ix1+state.coords.tw+miner.area+1, state.coords.iy1+state.coords.th+miner.area+1},
-		filled=false, width=4, color={0, 0.5, 1, 1},
+		filled=false, width=4, color={0, 0.5, 1, .1},
 		players={state.player},
 	}
 	--]]
@@ -190,13 +190,15 @@ function layout:initialize_grid(state)
 			--local tx1, ty1 = conv(c.x1, c.y1, c.tw, c.th)
 			row[x] = {
 				x = x, y = y,
+				amount = 0,
+				neighbor_amount = 0,
 				neighbors_inner = 0,
 				neighbors_outer = 0,
 				--neighbor_counts = init_counts(),
 				gx = c.x1 + x, gy = c.y1 + y,
 				consumed = false,
 				built_on = false,
-			}
+			} --[[@as GridTile]]
 		end
 	end
 
@@ -230,17 +232,24 @@ function layout:process_grid(state)
 		local ent = resources[i]
 		local x, y = ent.position.x - gx, ent.position.y - gy
 		local tx, ty = conv(x, y, c.w, c.h)
-		local tile = grid:get_tile(tx, ty)
+		local tile = grid:get_tile(tx, ty) --[[@as GridTile]]
 		tile.amount = ent.amount
+		--[[
+			TODO: don't do outer convolution for large area drills
+			Large inner and outer areas exceed the O(n^2) bruteforcing
+			look into separable convolutions?
+		]]
+		--grid:convolve_miner(tx-size+1, ty-size+1, m)
+
 		grid:convolve_inner(tx-size+1, ty-size+1, size)
-		grid:convolve_outer(tx-extent_positive, ty-extent_positive, area)
+		if not m.skip_outer then
+			grid:convolve_outer(tx-extent_positive, ty-extent_positive, area, tile.amount)
+		end
 		table_insert(resource_tiles, tile)
 		cost = cost + price
 		i = i + 1
 	end
 	state.resource_iter = i
-
-	local m_size, m_area =  state.miner.size, state.miner.area
 
 	--[[ debug visualisation - resource and coord
 	for _, tile in ipairs(resource_tiles) do
@@ -264,6 +273,7 @@ function layout:process_grid(state)
 	end --]]
 
 	--[[ debug visualisation - neighbours calculations
+	local m_size, m_area =  state.miner.size, state.miner.area
 	local render_objects = state._render_objects
 	for _, row in pairs(grid) do
 		for _, tile in pairs(row) do
@@ -277,9 +287,11 @@ function layout:process_grid(state)
 				width=1, radius = 0.5,
 				target={c.gx + tile.x, c.gy + tile.y},
 			})
+			local stagger = (.5 - (tile.x % 2)) * .25
+			local col = c1 == 0 and {0.3, 0.3, 0.3} or {0.6, 0.6, 0.6}
 			table_insert(render_objects, rendering.draw_text{
-				surface = state.surface, filled = false, color = {1, 1, 1},
-				target={c.gx + tile.x, c.gy + tile.y},
+				surface = state.surface, filled = false, color = col,
+				target={c.gx + tile.x, c.gy + tile.y + stagger},
 				text = string.format("%i,%i", c1, c2),
 				alignment = "center",
 				vertical_alignment="middle",
@@ -318,19 +330,13 @@ end
 ---@class PlacementAttempt
 ---@field sx number x shift
 ---@field sy number y shift
+---@field heuristics HeuristicsBlock
 ---@field miners MinerPlacement[]
----@field miner_count number
----@field postponed MinerPlacement[]
 ---@field heuristic_score number
----@field inner_neighbor_sum number
+---@field unconsumed number
 ---@field lane_layout LaneInfo
----@field outer_neighbor_sum number
----@field unconsumed_count number
----@field simple_density number
----@field real_density number
----@field leech_sum number
----@field postponed_count number
----@field empty_space number
+---@field bx number Lower right mining drill bound
+---@field by number Lower right mining drill bound
 
 ---@class LaneInfo
 ---@field y number
@@ -355,20 +361,14 @@ end
 ---@param state SimpleState
 ---@return PlacementAttempt
 function layout:_placement_attempt(state, shift_x, shift_y)
-	local c = state.coords
 	local grid = state.grid
-	--local size, near, far, fullsize = state.miner.size, state.miner.near, state.miner.far, state.miner.full_size
-	local m, p = state.miner, state.pole
+	local M = state.miner
+	local size, area = M.size, M.area
 	local pole_gap = state.pole_gap
-	local size, area = m.size, m.area
 	local miners, postponed = {}, {}
-	local inner_neighbor_sum = 0
-	local outer_neighbor_sum = 0
-	local simple_density = 0
-	local real_density = 0
-	local leech_sum = 0
-	local empty_space = 0
+	local heuristic_values = common.init_heuristic_values()
 	local lane_layout = {}
+	local bx, by = shift_x + M.size - 1, shift_y + M.size - 1
 
 	local heuristic = self:_get_miner_placement_heuristic(state)
 
@@ -376,26 +376,21 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 	for y = shift_y, state.coords.th + size, size + pole_gap do
 		local column_index = 1
 		lane_layout[#lane_layout+1] = {y = y, row_index = row_index}
-		for x = shift_x, state.coords.tw + size, size do
+		for x = shift_x, state.coords.tw + size+1, size do
 			local tile = grid:get_tile(x, y) --[[@as GridTile]]
 			---@type MinerPlacementInit
 			local miner = {
 				x = x,
 				y = y,
-				origin_x = x + m.x,
-				origin_y = y + m.y,
+				origin_x = x + M.x,
+				origin_y = y + M.y,
 				tile = tile,
 				line = row_index,
-				column=column_index,
+				column = column_index,
 			}
 			if tile.neighbors_outer > 0 and heuristic(tile) then
 				miners[#miners+1] = miner
-				inner_neighbor_sum = inner_neighbor_sum + tile.neighbors_inner
-				outer_neighbor_sum = outer_neighbor_sum + tile.neighbors_outer
-				empty_space = empty_space + (size^2) - tile.neighbors_inner
-				simple_density = simple_density + tile.neighbors_inner / (size ^ 2)
-				real_density = real_density + tile.neighbors_outer / (area ^ 2)
-				leech_sum = leech_sum + max(0, tile.neighbors_outer - tile.neighbors_inner)
+				common.add_heuristic_values(heuristic_values, M, tile)
 			elseif tile.neighbors_outer > 0 then
 				postponed[#postponed+1] = miner
 			end
@@ -404,23 +399,22 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 		row_index = row_index + 1
 	end
 
+	---@type PlacementAttempt
 	local result = {
-		sx=shift_x, sy=shift_y,
-		miners=miners,
-		miner_count=#miners,
-		lane_layout=lane_layout,
-		postponed=postponed,
-		inner_neighbor_sum=inner_neighbor_sum,
-		outer_neighbor_sum=outer_neighbor_sum,
-		leech_sum=leech_sum,
-		simple_density=simple_density,
-		real_density=real_density,
-		empty_space=empty_space,
-		unconsumed_count=0,
-		postponed_count=0,
+		sx = shift_x,
+		sy = shift_y,
+		bx = bx,
+		by = by,
+		miners = miners,
+		lane_layout = lane_layout,
+		heuristics = heuristic_values,
+		heuristic_score = -(0/0),
+		unconsumed = 0,
 	}
 
 	common.process_postponed(state, result, miners, postponed)
+
+	common.finalize_heuristic_values(result, heuristic_values, state.coords)
 
 	return result
 end
@@ -443,7 +437,7 @@ function layout:prepare_layout_attempts(state)
 	for sy = ext_forward, ext_behind, -1 do
 		for sx = ext_forward, ext_behind, -1 do
 			if not (sx == init_pos_x and sy == init_pos_y) then
-				--attempts[#attempts+1] = {sx, sy}
+				attempts[#attempts+1] = {sx, sy}
 			end
 		end
 	end
@@ -488,7 +482,7 @@ function layout:init_layout_attempt(state)
 	local attempt = state.attempts[state.attempt_index]
 
 	state.best_attempt = self:_placement_attempt(state, attempt[1], attempt[2])
-	state.best_attempt_score = self:_get_layout_heuristic(state)(state.best_attempt)
+	state.best_attempt_score = self:_get_layout_heuristic(state)(state.best_attempt.heuristics)
 
 	if state.debug_dump then
 		state.best_attempt.heuristic_score = state.best_attempt_score
@@ -507,6 +501,19 @@ end
 function layout:layout_attempt(state)
 
 	if state.attempt_index >= #state.attempts then
+		--- Draw the best attempt's origin (shift)
+		if __DebugAdapter then
+			local heuristics = state.best_attempt.heuristics
+			self:_get_layout_heuristic(state)(state.best_attempt.heuristics)
+			local C = state.coords
+			table_insert(state._render_objects, rendering.draw_circle{
+				surface = state.surface, filled=false, color = {0, 0, 0},
+				width=3, radius = 0.4,
+				draw_on_ground = true,
+				target={C.gx + state.best_attempt.sx, C.gy + state.best_attempt.sy},
+			})
+		end
+
 		return "prepare_miner_layout"
 	end
 
@@ -514,14 +521,14 @@ function layout:layout_attempt(state)
 
 	---@type PlacementAttempt
 	local current_attempt = self:_placement_attempt(state, attempt_state[1], attempt_state[2])
-	local current_attempt_score = self:_get_layout_heuristic(state)(current_attempt)
+	local current_attempt_score = self:_get_layout_heuristic(state)(current_attempt.heuristics)
+	current_attempt.heuristic_score = current_attempt_score
 
 	if state.debug_dump then
-		current_attempt.heuristic_score = current_attempt_score
 		state.saved_attempts[#state.saved_attempts+1] = current_attempt
 	end
 
-	if current_attempt.unconsumed_count == 0 and current_attempt_score < state.best_attempt_score  then
+	if current_attempt.unconsumed == 0 and current_attempt_score < state.best_attempt_score  then
 		state.best_attempt_index = state.attempt_index
 		state.best_attempt = current_attempt
 		state.best_attempt_score = current_attempt_score
@@ -639,12 +646,12 @@ end
 function layout:_get_pipe_layout_specification(state)
 	local pipe_layout = {}
 
-	local m = state.miner
+	local M = state.miner
 	local attempt = state.best_attempt
 
 	for _, pre_lane in ipairs(state.miner_lanes) do
 		if not pre_lane[1] then goto continue_lanes end
-		local y = pre_lane[1].center.y
+		local y = pre_lane[1].y + M.pipe_left
 		local sx = state.best_attempt.sx
 		local lane = table.mapkey(pre_lane, function(t) return t.column end) -- make array with intentional gaps between miners
 
@@ -666,8 +673,8 @@ function layout:_get_pipe_layout_specification(state)
 
 		for i, gap in ipairs(gaps) do
 			local start, length = gap.start, gap.length
-			local gap_length = m.size * length
-			local gap_start = sx + (start-1) * m.size + 1
+			local gap_length = M.size * length
+			local gap_start = sx + (start-1) * M.size + 1
 			
 			pipe_layout[#pipe_layout+1] = {
 				structure="horizontal",
@@ -890,16 +897,15 @@ function layout:prepare_pole_layout(state)
 	--local y = attempt.sy + m.size + (m.size + pole_gap) * (i-1)
 
 	local iy = 1
-	for y = attempt.sy + coverage.lane_start, c.th + m.size, coverage.lane_step do
+	for y = attempt.sy + coverage.lane_start - 1, c.th + m.size, coverage.lane_step do
 		local ix, pole_lane = 1, {}
 		pole_lanes[#pole_lanes+1] = pole_lane
-		for x = 1 + attempt.sx + coverage.pole_start, attempt.sx + coverage.full_miner_width + 1, coverage.pole_step do
+		for x = attempt.sx + coverage.pole_start, attempt.sx + coverage.full_miner_width + 1, coverage.pole_step do
 			local built = get_covered_miners(x, y)
 
 			---@type GridPole
-			local pole = {x=x, y=y, ix=ix, iy=iy, built=built}
+			local pole = {x=x, y=y, ix=ix, iy=iy, has_consumers=built}
 			--power_poles_grid:set_pole(ix, iy, pole)
-			--builder_power_poles[#builder_power_poles+1] = pole
 			pole_lane[ix] = pole
 			ix = ix + 1
 		end
@@ -908,9 +914,9 @@ function layout:prepare_pole_layout(state)
 		for pole_i = #pole_lane, 1, -1 do
 			---@type GridPole
 			local backtrack_pole = pole_lane[pole_i]
-			if backtrack_built or backtrack_pole.built then
+			if backtrack_built or backtrack_pole.has_consumers then
 				backtrack_built = true
-				backtrack_pole.built = true
+				backtrack_pole.has_consumers = true
 
 				builder_power_poles[#builder_power_poles+1] = {
 					name=state.pole_choice,
@@ -1039,7 +1045,6 @@ function layout:placement_miners(state)
 		local flip_lane = miner.line % 2 ~= 1
 		if flip_lane then direction = opposite[direction] end
 
-		grid:build_miner(miner.x, miner.y, M.size)
 		local ghost = create_entity{
 			name = state.miner_choice,
 			thing="miner",
@@ -1230,7 +1235,7 @@ end
 ---@return CallbackState
 function layout:finish(state)
 	if state.print_placement_info_choice and state.player.valid then
-		state.player.print({"mpp.msg_print_info_miner_placement", state.best_attempt.miner_count, state.belt_count, #state.resources})
+		state.player.print({"mpp.msg_print_info_miner_placement", #state.best_attempt.miners, state.belt_count, #state.resources})
 	end
 
 	self:_display_lane_filling(state)

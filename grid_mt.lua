@@ -30,16 +30,20 @@ grid_mt.__index = grid_mt
 
 ---@class GridTile
 ---@field amount number Amount of resource on tile
----@field neighbors_inner number
----@field neighbors_outer number
----@field neighbor_counts table<number, number> Convolution result
+---@field neighbor_amount number Total resource sum of neighbors (performance killer?)
+---@field neighbors_inner number Physical drill coverage
+---@field neighbors_outer number Drill radius coverage
 ---@field x integer
 ---@field y integer
 ---@field gx double actual coordinate in surface
 ---@field gy double actual coordinate in surface
----@field boolean integer Is a miner consuming this tile
 ---@field built_on boolean|string Is tile occupied by a building entity
----@field consumed boolean Track if tile is covered by a mining drill
+---@field consumed boolean Is a miner consuming this tile
+
+---@class BlueprintGridTile : GridTile
+---@field neighbor_counts table<number, number>
+---@field neighbors_inner nil
+---@field neighbors_outer nil
 
 ---comment
 ---@param x integer Grid coordinate
@@ -51,6 +55,7 @@ function grid_mt:get_tile(x, y)
 end
 
 ---Convolves resource count for a grid cell
+---For usage in blueprint layouts
 ---@param ox any
 ---@param oy any
 ---@param size any
@@ -59,7 +64,7 @@ function grid_mt:convolve(ox, oy, size)
 	local ny1, ny2 = oy, oy+size - 1
 
 	for y = ny1, ny2 do
-		---@type table<number, GridTile>
+		---@type table<number, BlueprintGridTile>
 		local row = self[y]
 		if row == nil then goto continue_row end
 		for x = nx1, nx2 do
@@ -99,7 +104,7 @@ end
 ---@param ox any
 ---@param oy any
 ---@param size any
-function grid_mt:convolve_outer(ox, oy, size)
+function grid_mt:convolve_outer(ox, oy, size, amount)
 	local nx1, nx2 = ox, ox+size - 1
 	local ny1, ny2 = oy, oy+size - 1
 
@@ -111,13 +116,41 @@ function grid_mt:convolve_outer(ox, oy, size)
 			local tile = row[x]
 			if tile == nil then goto continue_column end
 			tile.neighbors_outer = tile.neighbors_outer + 1
+			tile.neighbor_amount = tile.neighbor_amount + amount
 			::continue_column::
 		end
 		::continue_row::
 	end
 end
 
----Marks tiles as consumed by a miner
+---@param ox number
+---@param oy number
+---@param drill MinerStruct
+function grid_mt:convolve_miner(ox, oy, drill)
+	local x1, y1 = ox-drill.extent_positive, ox-drill.extent_positive
+	local x2, y2 = x1+drill.area, y1+drill.area
+	local ix1, iy1 = ox-drill.size+1, oy-drill.size+1
+	local ix2, iy2 = x1+drill.size, y1+drill.size
+
+	for y = y1, y2 do
+		local row = self[y]
+		if row then
+			for x = x1, x2 do
+				---@type GridTile
+				local tile = row[x]
+				if tile then
+					tile.neighbors_outer = tile.neighbors_outer + 1
+					if ix1 < x and x < ix2 and iy1 < y and y < iy2 then
+						tile.neighbors_outer = tile.neighbors_outer + 1
+					end
+				end
+			end
+		end
+	end
+end
+
+
+---Marks tiles (with resources) as consumed by a mining drill
 ---@param ox integer
 ---@param oy integer
 function grid_mt:consume(ox, oy, size)
@@ -129,7 +162,7 @@ function grid_mt:consume(ox, oy, size)
 		if row == nil then goto continue_row end
 		for x = nx1, nx2 do
 			local tile = row[x]
-			if tile and tile.amount then
+			if tile and tile.amount > 0 then
 				tile.consumed = true
 			end
 		end
@@ -174,7 +207,7 @@ end
 ---@param size number
 ---@param thing string Type of building
 function grid_mt:build_thing(cx, cy, size, thing)
-	for y = cx, cy+size do
+	for y = cy, cy+size do
 		local row = self[y]
 		if row == nil then goto continue_row end
 		for x = cx, cx+size do
@@ -304,10 +337,8 @@ function grid_mt:get_unconsumed(ox, oy, size)
 		if row == nil then goto continue_row end
 		for x = nx1, nx2 do
 			local tile = row[x]
-			if tile then
-				if tile.amount and not tile.consumed then
+			if tile and tile.amount > 0 and not tile.consumed then
 					count = count + 1
-				end
 			end
 		end
 		::continue_row::

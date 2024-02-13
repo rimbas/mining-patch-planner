@@ -342,6 +342,10 @@ function gui.create_interface(player)
 	do -- Misc selection
 		local table_root, section = create_setting_section(player_data, frame, "misc")
 	end
+
+	do -- Debugging rendering options
+		local table_root, section = create_setting_section(player_data, frame, "debugging")
+	end
 end
 
 ---@param player_data PlayerData
@@ -369,9 +373,15 @@ local function update_miner_selection(player_data)
 		-- TODO: add a warning for coverage somewhere in the gui
 		if miner.radius < far_radius_min or far_radius_max < miner.radius then goto skip_miner end
 
+		local tooltip = {
+			"", miner_proto.localised_name, "\n",
+			{"description.tile-size"}, (": %ix%i\n"):format(miner.size, miner.size),
+			{"description.mining-area"}, (": %ix%i"):format(miner.area, miner.area),
+		}
+
 		values[#values+1] = {
 			value=miner.name,
-			tooltip=miner_proto.localised_name,
+			tooltip=tooltip,
 			icon=("entity/"..miner.name),
 			order=miner_proto.order,
 		}
@@ -420,9 +430,18 @@ local function update_belt_selection(player)
 		if belt.flags and belt.flags.hidden then goto skip_belt end
 		if layout.restrictions.uses_underground_belts and belt.related_underground_belt == nil then goto skip_belt end
 
+		local belt_speed = belt.belt_speed * 60 * 8
+		local specifier = belt_speed % 1 == 0 and ": %.0f " or ": %.1f "
+
+		local tooltip = {
+			"", belt.localised_name, "\n",
+			{"description.belt-speed"}, specifier:format(belt_speed),
+			{"description.belt-items"}, "/s",
+		}
+
 		values[#values+1] = {
 			value=belt.name,
-			tooltip=belt.localised_name,
+			tooltip=tooltip,
 			icon=("entity/"..belt.name),
 			order=belt.order,
 		}
@@ -761,6 +780,43 @@ local function update_blueprint_selection(player_data)
 	end
 end
 
+local function update_debugging_selection(player_data)
+	local choices = player_data.choices
+	local layout = layouts[choices.layout_choice]
+	---@type SettingValueEntry[]
+	local values = {}
+
+	values[#values+1] = {
+		value="draw_drill_struct",
+		tooltip="Draw drill struct overlay",
+		icon=("entity/electric-mining-drill"),
+	}
+
+	values[#values+1] = {
+		value="draw_pole_layout",
+		tooltip="Draw power pole layout",
+		icon=("entity/medium-electric-pole"),
+	}
+
+	values[#values+1] = {
+		value="draw_built_things",
+		tooltip="Draw built tile values",
+		icon=("mpp_print_placement_info_enabled"),
+	}
+
+	values[#values+1] = {
+		value="draw_drill_convolution",
+		tooltip="Draw a drill convolution preview",
+		icon=("mpp_debugging_grid_convolution"),
+	}
+
+	local debugging_section = player_data.gui.section["debugging"]
+	debugging_section.visible = #values > 0
+
+	local table_root = player_data.gui.tables["debugging"]
+	create_setting_selector(player_data, table_root, "mpp_action", "debugging", values)
+end
+
 ---@param player LuaPlayer
 local function update_selections(player)
 	local player_data = global.players[player.index]
@@ -772,6 +828,9 @@ local function update_selections(player)
 	update_pole_selection(player_data)
 	update_blueprint_selection(player_data)
 	update_misc_selection(player)
+	if __DebugAdapter then
+		update_debugging_selection(player_data)
+	end
 end
 
 ---@param player LuaPlayer
@@ -834,7 +893,10 @@ local function on_gui_click(event)
 		local value = evt_ele_tags["value"]
 		local last_value = player_data.choices[action.."_choice"]
 
+		if player_data.gui.selections[action][last_value] then
 		player_data.gui.selections[action][last_value].style = style_helper_selection(false)
+		end
+		
 		event.element.style = style_helper_selection(true)
 		player_data.choices[action.."_choice"] = value
 	elseif evt_ele_tags["mpp_toggle"] then

@@ -229,10 +229,11 @@ function algorithm.on_player_selected_area(event)
 		return nil, {"mpp.msg_miner_err_0"}
 	end
 
-	if player_data.last_state then
-		local renderables = player_data.last_state._render_objects
+	local last_state = player_data.last_state
+	if last_state ~= nil then
+		local renderables = last_state._render_objects
 
-		local old_resources = player_data.last_state.resources
+		local old_resources = last_state.resources
 
 		local same = true
 		for i, v in pairs(old_resources) do
@@ -242,11 +243,13 @@ function algorithm.on_player_selected_area(event)
 			end
 		end
 
+		same = same or mpp_util.coords_overlap(coords, last_state.coords)
+
 		if same then
 			for _, id in ipairs(renderables) do
 				rendering.destroy(id)
 			end
-			state._previous_state = player_data.last_state
+			state._previous_state = last_state
 		else
 			local ttl = mpp_util.get_display_duration(event.player_index)
 			for _, id in ipairs(renderables) do
@@ -255,7 +258,7 @@ function algorithm.on_player_selected_area(event)
 				end
 			end
 		end
-		player_data.last_state = nil
+		last_state = nil
 	end
 
 	local validation_result, error = layout:validate(state)

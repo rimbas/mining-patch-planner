@@ -209,4 +209,12 @@ data:extend{
 		mipmap_count = 1,
 		flags = { "icon" },
 	},
+	{
+		type = "sprite",
+		name = "mpp_debugging_grid_convolution",
+		filename = graphics.."grid_convolution.png",
+		size = 64,
+		mipmap_count = 1,
+		flags = { "icon" },
+	},
 }

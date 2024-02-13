@@ -7,8 +7,9 @@ pole_grid_mt.__index = pole_grid_mt
 ---@field y number Position in the full grid
 ---@field ix number Position in the pole grid
 ---@field iy number Position in the pole grid
----@field built boolean Is the pole really built
----@field entity LuaEntity Pole ghost LuaEntity
+---@field built boolean? Is the pole really built
+---@field entity LuaEntity? Pole ghost LuaEntity
+---@field has_consumers boolean Does pole cover any powered items
 
 ---@param x number
 ---@param y number

@@ -31,6 +31,7 @@ local conf = {}
 ---@field force_pipe_placement_choice boolean
 ---@field print_debug_info_choice boolean
 ---@field display_lane_filling_choice boolean
+---@field debugging_choice string Debugging only value
 
 ---@class PlayerGui
 ---@field section table<string, LuaGuiElement>
@@ -78,7 +79,8 @@ conf.default_config = {
 		pipe_choice = "pipe",
 		module_choice = "none",
 		blueprint_choice = nil,
-		
+		debugging_choice = "none",
+
 		-- non layout/convienence/advanced settings
 		show_non_electric_miners_choice = false,
 		force_pipe_placement_choice = false,

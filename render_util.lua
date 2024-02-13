@@ -168,6 +168,8 @@ end
 ---@field w number?
 ---@field h number?
 ---@field r number?
+---@field color Color?
+---@field width number?
 ---@field c Color?
 ---@field left_top MapPosition?
 ---@field right_bottom MapPosition?
@@ -182,7 +184,7 @@ function render_util.renderer(event)
 
 		for k, v in pairs(overlay or {}) do t[k] = v end
 		if t.x and t.y then t.origin = {t.x, t.y} end
-		local target = t.origin or t.left_top
+		local target = t.origin or t.left_top --[[@as MapPosition]]
 		local left_top, right_bottom = t.left_top or t.origin or target, t.right_bottom or t.origin
 
 		if t.origin and t.w or t.h then
@@ -282,9 +284,10 @@ function render_util.renderer(event)
 	return setmetatable({}, meta)
 end
 
+---Draws the properties of a mining drill
 ---@param player_data PlayerData
 ---@param event EventData.on_player_reverse_selected_area
-function render_util.draw_mining_drill_overlay(player_data, event)
+function render_util.draw_drill_struct(player_data, event)
 
 	local renderer = render_util.renderer(event)
 
@@ -389,19 +392,177 @@ function render_util.draw_mining_drill_overlay(player_data, event)
 		to={fx1+drill.size+.3, y+drill.pipe_left+.5},
 	}
 
+	renderer.draw_text{
+		target={fx1 + drill.extent_negative, fy1 + drill.extent_negative-.5},
+		text = string.format("skip_outer: %s", drill.skip_outer),
+		alignment = "left",
+		vertical_alignment="middle",
+	}
+
 	renderer.draw_circle{x = fx1, y = fy1, r = 0.1}
 	--renderer.draw_circle{ x = fx2, y = fy2, r = 0.15, color={1, 0, 0} }
 end
 
-function render_util.draw_patch_edge(state)
+---Preview the pole coverage
+---@param player_data PlayerData
+---@param event EventData.on_player_reverse_selected_area
+function render_util.draw_pole_layout(player_data, event)
+	rendering.clear("mining-patch-planner")
 
-	local layout_categories = get_miner_categories(state, layout)
-	local coords, filtered, found_resources, requires_fluid, resource_counts = process_entities(event.entities, layout_categories)
-	state.coords = coords
-	state.resources = filtered
-	state.found_resources = found_resources
-	state.requires_fluid = requires_fluid
-	state.resource_counts = resource_counts
+	local renderer = render_util.renderer(event)
+
+	local fx1, fy1 = event.area.left_top.x, event.area.left_top.y
+	fx1, fy1 = floor(fx1), floor(fy1)
+
+	--renderer.draw_cross{x=fx1, y=fy1, w=fx2-fx1, h=fy2-fy1}
+	--renderer.draw_cross{x=fx1, y=fy1, w=2}
+
+	local drill = mpp_util.miner_struct(player_data.choices.miner_choice)
+	local pole = mpp_util.pole_struct(player_data.choices.pole_choice)
+
+	local function draw_lane(x, y, count)
+		for i = 0, count-1 do
+			renderer.draw_rectangle{
+				x = x + drill.size * i + 0.15 , y = y+.15,
+				w = drill.size-.3, h=1-.3,
+				color = i % 2 == 0 and {143/255, 86/255, 59/255} or {223/255, 113/255, 38/255},
+				width=2,
+			}
+		end
+
+		---@diagnostic disable-next-line: param-type-mismatch
+		local coverage = mpp_util.calculate_pole_coverage(player_data.choices, count, 1)
+
+		renderer.draw_circle{
+			x=x+.5, y=y-0.5, radius = .25, color={0.7, 0.7, 0.7},
+		}
+		for i = coverage.pole_start, coverage.full_miner_width, coverage.pole_step do
+			renderer.draw_circle{
+				x = x + i + .5,
+				y = y - .5,
+				radius = 0.3, width=2,
+				color = {0, 1, 1},
+			}
+			renderer.draw_line{
+				x = x + i +.5 - pole.supply_width / 2+.2,
+				y = y - .2,
+				h = 0,
+				w = pole.supply_width-.4,
+				color = {0, 1, 1},
+				width = 2,
+			}
+			renderer.draw_line{
+				x = x + i +.5 - pole.supply_width / 2 + .2,
+				y = y - .7,
+				h = .5,
+				w = 0,
+				color = {0, 1, 1},
+				width = 2,
+			}
+			renderer.draw_line{
+				x = x + i +.5 + pole.supply_width / 2 - .2,
+				y = y - .7,
+				h = .5,
+				w = 0,
+				color = {0, 1, 1},
+				width = 2,
+			}
+		end
+	end
+
+	for i = 1, 10 do
+		draw_lane(fx1, fy1+(i-1)*3, i)
+	end
+
+end
+
+---Displays the labels of built things on the grid
+---@param player_data PlayerData
+---@param event EventData.on_player_reverse_selected_area
+function render_util.draw_built_things(player_data, event)
+	rendering.clear("mining-patch-planner")
+
+	local renderer = render_util.renderer(event)
+
+	local state = player_data.last_state
+
+	if not state then return end
+
+	local C = state.coords
+	local G = state.grid
+
+	for _, row in pairs(G) do
+		for _, tile in pairs(row) do
+			---@cast tile GridTile
+			local thing = tile.built_on
+			if thing then
+				-- renderer.draw_circle{
+				-- 	x = C.gx + tile.x, y = C.gy + tile.y,
+				-- 	w = 1,
+				-- 	color = {0, 0.5, 0, 0.1},
+				-- 	r = 0.5,
+				-- }
+				renderer.draw_rectangle{
+					x = C.ix1 + tile.x -.9, y = C.iy1 + tile.y -.9,
+					w = .8,
+					color = {0, 0.2, 0, 0.1},
+				}
+				renderer.draw_text{
+					x = C.gx + tile.x, y = C.gy + tile.y - .3,
+					alignment = "center",
+					vertical_alignment = "top",
+					--vertical_alignment = tile.x % 2 == 1 and "top" or "bottom",
+					text = thing,
+					scale = 0.6,
+				}
+			end
+		end
+	end
+
+end
+
+---@param player_data PlayerData
+---@param event EventData.on_player_reverse_selected_area
+function render_util.draw_drill_convolution(player_data, event)
+	rendering.clear("mining-patch-planner")
+
+	local renderer = render_util.renderer(event)
+	
+	local fx1, fy1 = event.area.left_top.x, event.area.left_top.y
+	fx1, fy1 = floor(fx1), floor(fy1)
+
+	local state = player_data.last_state
+	if not state then return end
+
+	local C = state.coords
+	local grid = state.grid
+
+	for _, row in pairs(grid) do
+		for _, tile in pairs(row) do
+			---@cast tile GridTile
+			--local c1, c2 = tile.neighbor_counts[m_size], tile.neighbor_counts[m_area]
+			local c1, c2 = tile.neighbors_inner, tile.neighbors_outer
+			if c1 == 0 and c2 == 0 then goto continue end
+
+			rendering.draw_circle{
+				surface = state.surface, filled=false, color = {0.3, 0.3, 1},
+				width=1, radius = 0.5,
+				target={C.gx + tile.x, C.gy + tile.y},
+			}
+			local stagger = (.5 - (tile.x % 2)) * .25
+			local col = c1 == 0 and {0.3, 0.3, 0.3} or {0.6, 0.6, 0.6}
+			rendering.draw_text{
+				surface = state.surface, filled = false, color = col,
+				target={C.gx + tile.x, C.gy + tile.y + stagger},
+				text = string.format("%i,%i", c1, c2),
+				alignment = "center",
+				vertical_alignment="middle",
+			}
+
+			::continue::
+		end
+	end 
+
 end
 
 return render_util

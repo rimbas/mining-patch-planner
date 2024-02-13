@@ -59,24 +59,27 @@ end
 ---@class MinerStruct
 ---@field name string
 ---@field size number Physical miner size
+---@field size_sq number Size squared
 ---@field parity (-1|0) Parity offset for even sized drills, -1 when odd
 ---@field resource_categories table<string, boolean>
 ---@field radius float Mining area reach
 ---@field area number Full coverage span of the miner
+---@field area_sq number Squared area
 ---@field module_inventory_size number
 ---@field x number Drill x origin
 ---@field y number Drill y origin
 ---@field w number Collision width
 ---@field h number Collision height
+---@field middle number "Center" x position
 ---@field drop_pos MapPosition Raw drop position
 ---@field out_x integer Resource drop position x
 ---@field out_y integer Resource drop position y
 ---@field extent_negative number 
 ---@field extent_positive number
 ---@field supports_fluids boolean
+---@field skip_outer boolean Skip outer area calculations
 ---@field pipe_left number Y height on left side
 ---@field pipe_right number Y height on right side
-
 
 ---@type table<string, MinerStruct>
 local miner_struct_cache = {}
@@ -99,15 +102,18 @@ function mpp_util.miner_struct(mining_drill_name)
 		-- we have a problem ?
 	end
 	miner.size = miner.w
+	miner.size_sq = miner.size ^ 2
 	miner.parity = miner.size % 2 - 1
 	miner.x, miner.y = miner.w / 2 - 0.5, miner.h / 2 - 0.5
 	miner.radius = miner_proto.mining_drill_radius
 	miner.area = ceil(miner_proto.mining_drill_radius * 2)
+	miner.area_sq = miner.area ^ 2
 	miner.resource_categories = miner_proto.resource_categories
 	miner.name = miner_proto.name
 	miner.module_inventory_size = miner_proto.module_inventory_size
 	miner.extent_negative = floor(miner.size * 0.5) - floor(miner_proto.mining_drill_radius) + miner.parity
 	miner.extent_positive = miner.extent_negative + miner.area - 1
+	miner.middle = floor(miner.size / 2) + miner.parity
 
 	local nauvis = game.get_surface("nauvis") --[[@as LuaSurface]]
 
@@ -140,10 +146,17 @@ function mpp_util.miner_struct(mining_drill_name)
 
 		miner.pipe_left = floor(miner.size / 2) + miner.parity
 		miner.pipe_right = floor(miner.size / 2) + miner.parity
-
+		miner.supports_fluids = true
 	else
 		miner.supports_fluids = false
 	end
+
+	-- If larger than a large mining drill
+	if miner.size > 7 or miner.area > 13 then
+		miner.skip_outer = true
+	end
+	miner.skip_outer = false
+
 
 	return miner
 end
@@ -154,6 +167,7 @@ end
 ---@field radius number Power supply reach
 ---@field supply_width number Full width of supply reach
 ---@field wire number Max wire distance
+---@field supply_area_distance number
 
 ---@type table<string, PoleStruct>
 local pole_struct_cache = {}
@@ -170,6 +184,7 @@ function mpp_util.pole_struct(pole_name)
 		local cbox = pole_proto.collision_box
 		pole.size = ceil(cbox.right_bottom.x - cbox.left_top.x)
 		local radius = pole_proto.supply_area_distance
+		pole.supply_area_distance = radius
 		pole.supply_width = radius * 2 + ((radius * 2 % 2) == 0 and 1 or 0)
 		pole.radius = pole.supply_width / 2
 		pole.wire = pole_proto.max_wire_distance
@@ -212,18 +227,15 @@ end
 function mpp_util.calculate_pole_coverage(state, miner_count, lane_count, shifted)
 	shifted = shifted or false
 	local cov = {}
-	local pole_proto = game.entity_prototypes[state.pole_choice]
 	local m = mpp_util.miner_struct(state.miner_choice)
 	local p = mpp_util.pole_struct(state.pole_choice)
-
-	local miner_coverage = max((miner_count-1)*m.size+miner_count, 1)
 
 	-- Shift subtract
 	local shift_subtract = shifted and 2 or 0
 	local covered_miners = ceil((p.supply_width - shift_subtract) / m.size)
 	local miner_step = covered_miners * m.size
-	local miner_coverage_excess = ceil(miner_count / covered_miners) * covered_miners - miner_count
 
+	-- Special handling to shift back small radius power poles so they don't poke out
 	local capable_span = false
 	if floor(p.wire) >= miner_step and m.size ~= p.supply_width then
 		capable_span = true
@@ -231,10 +243,10 @@ function mpp_util.calculate_pole_coverage(state, miner_count, lane_count, shifte
 		miner_step = floor(p.wire)
 	end
 
-	local pole_start = m.size
+	local pole_start = m.middle
 	if capable_span then
 		if covered_miners % 2 == 0 then
-			pole_start = m.size * 2
+			pole_start = m.size-1
 		elseif miner_count % covered_miners == 0 then
 			pole_start = pole_start + m.size
 		end
@@ -252,40 +264,6 @@ function mpp_util.calculate_pole_coverage(state, miner_count, lane_count, shifte
 		cov.lane_start = (ceil(lane_pairs / 2) % 2 == 0 and 1 or 0) * (m.size * 2 + 2)
 		cov.lane_step = lane_coverage * (m.size * 2 + 2)
 	end
-
-	return cov
-end
-
----Calculates needed power pole count
----@param state SimpleState
-function mpp_util.calculate_shifted_pole_coverage(state, miner_count)
-	local cov = {}
-	local pole_proto = game.entity_prototypes[state.pole_choice]
-	local m = mpp_util.miner_struct(state.miner_choice)
-	local p = mpp_util.pole_struct(state.pole_choice)
-
-	local miner_coverage = max((miner_count-1)*m.size+miner_count, 1)
-
-	-- Shift subtract
-	local covered_miners = ceil(p.supply_width / m.size)
-	local miner_step = covered_miners * m.size
-	local miner_coverage_excess = ceil(miner_count / covered_miners) * covered_miners - miner_count
-
-	if floor(p.wire) < miner_step and covered_miners > 1 then
-		covered_miners = covered_miners - 1
-		miner_step = covered_miners * m.size
-	end
-
-	local pole_start = m.size - 1
-	if covered_miners % 2 == 0 then
-		pole_start = m.near * 2
-	elseif covered_miners > 1 and miner_count % covered_miners == 0 then
-		pole_start = pole_start + m.size
-	end
-
-	cov.pole_start = pole_start
-	cov.pole_step = miner_step
-	cov.full_miner_width = miner_count * m.size
 
 	return cov
 end
@@ -441,6 +419,16 @@ end
 
 function mpp_util.wrap_tooltip(tooltip)
 	return tooltip and {"", "     ", tooltip}
+end
+
+---@param c1 Coords
+---@param c2 Coords
+function mpp_util.coords_overlap(c1, c2)
+	local x = (c1.ix1 <= c2.ix1 and c2.ix1 <= c1.ix2) or (c1.ix1 <= c2.ix2 and c2.ix2 <= c1.ix2) or
+		(c2.ix1 <= c1.ix1 and c1.ix1 <= c2.ix2) or (c2.ix1 <= c1.ix2 and c1.ix2 <= c2.ix2)
+	local y = (c1.iy1 <= c2.iy1 and c2.iy1 <= c1.iy2) or (c1.iy1 <= c2.iy2 and c2.iy2 <= c1.iy2) or
+		(c2.iy1 <= c1.iy1 and c1.iy1 <= c2.iy2) or (c2.iy1 <= c1.iy2 and c1.iy2 <= c2.iy2)
+	return x and y
 end
 
 return mpp_util

@@ -92,5 +92,6 @@
 ---@field draw_line LuaRenderingFunction
 ---@field draw_circle LuaRenderingFunction
 ---@field draw_rectangle LuaRenderingFunction
+---@field draw_text LuaRenderingFunction
 
 table.deepcopy = function(t) end
