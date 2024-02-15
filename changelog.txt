@@ -2,8 +2,9 @@
 Version: 1.6.0
   Features:
     - Built-in layouts no longer limited to odd-sized mining drills
-    - Now removes previous ghosts if new selection overlaps the previous selection
-    - Tooltip improvements
+    - Now removes existing ghosts if new selection overlaps the previous selection
+    - Tooltip and information display improvements
+    - Added button hiding for drill/belt/power/logistic choices (Shift+Right-click on an icon)
 ---------------------------------------------------------------------------------------------------
 Version: 1.5.8
 Date: 2023-11-29

@@ -1,4 +1,5 @@
 local enums = require("enums")
+local blacklist = require("blacklist")
 local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
 
@@ -135,13 +136,13 @@ function mpp_util.miner_struct(mining_drill_name)
 		miner.out_y = dy
 	end
 
-	--[[ pipe height stuff ]]
+	--pipe height stuff
 	if miner_proto.fluidbox_prototypes and #miner_proto.fluidbox_prototypes > 0 then
 		local connections = miner_proto.fluidbox_prototypes[1].pipe_connections
 
 		for _, conn in pairs(connections) do
 			---@cast conn FluidBoxConnection
-			--game.print(conn)
+			-- pray a mod that does weird stuff with pipe connections doesn't appear
 		end
 
 		miner.pipe_left = floor(miner.size / 2) + miner.parity
@@ -429,6 +430,16 @@ function mpp_util.coords_overlap(c1, c2)
 	local y = (c1.iy1 <= c2.iy1 and c2.iy1 <= c1.iy2) or (c1.iy1 <= c2.iy2 and c2.iy2 <= c1.iy2) or
 		(c2.iy1 <= c1.iy1 and c1.iy1 <= c2.iy2) or (c2.iy1 <= c1.iy2 and c1.iy2 <= c2.iy2)
 	return x and y
+end
+
+---@param player_data PlayerData
+---@param thing LuaEntityPrototype|MinerStruct
+---@return boolean|nil
+function mpp_util.check_filtered(player_data, thing)
+	return
+		blacklist[thing.name]
+		or (not player_data.entity_filtering_mode and player_data.filtered_entities[thing.name])
+		or (thing.flags and thing.flags.hidden)
 end
 
 return mpp_util

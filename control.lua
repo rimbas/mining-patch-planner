@@ -91,7 +91,7 @@ script.on_event(defines.events.on_player_selected_area, function(event)
 end)
 
 script.on_event(defines.events.on_player_alt_reverse_selected_area, function(event)
-	---@cast event EventData.on_player_reverse_selected_area
+	---@cast event EventData.on_player_alt_reverse_selected_area
 	local player = game.get_player(event.player_index)
 	if not player then return end
 	local cursor_stack = player.cursor_stack

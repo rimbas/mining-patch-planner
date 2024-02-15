@@ -49,7 +49,7 @@ local layout = table.deepcopy(base)
 layout.name = "simple"
 layout.translation = {"mpp.settings_layout_choice_simple"}
 
-layout.restrictions.miner_near_radius = {1, 10e3}
+layout.restrictions.miner_near_radius = {0, 10e3}
 layout.restrictions.miner_far_radius = {0, 10e3}
 layout.restrictions.pole_omittable = true
 layout.restrictions.pole_width = {1, 1}
@@ -652,7 +652,7 @@ function layout:_get_pipe_layout_specification(state)
 	for _, pre_lane in ipairs(state.miner_lanes) do
 		if not pre_lane[1] then goto continue_lanes end
 		local y = pre_lane[1].y + M.pipe_left
-		local sx = state.best_attempt.sx
+		local sx = state.best_attempt.sx - 1
 		local lane = table.mapkey(pre_lane, function(t) return t.column end) -- make array with intentional gaps between miners
 
 		-- Calculate a list of run-length gaps
@@ -691,8 +691,8 @@ function layout:_get_pipe_layout_specification(state)
 		local lane = attempt.lane_layout[i]
 		pipe_layout[#pipe_layout+1] = {
 			structure="cap_vertical",
-			x=attempt.sx,
-			y=lane.y,
+			x=attempt.sx-1,
+			y=lane.y + M.pipe_left,
 			skip_up=i == 1,
 			skip_down=i == state.miner_lane_count,
 		}
@@ -701,6 +701,9 @@ function layout:_get_pipe_layout_specification(state)
 	return pipe_layout
 end
 
+---@param self SimpleLayout
+---@param state SimpleState
+---@return CallbackState
 function layout:prepare_pipe_layout(state)
 	local builder_pipes = {}
 	state.builder_pipes = builder_pipes

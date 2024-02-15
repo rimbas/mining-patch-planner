@@ -217,4 +217,28 @@ data:extend{
 		mipmap_count = 1,
 		flags = { "icon" },
 	},
+	{
+		type = "sprite",
+		name = "mpp_entity_filtering_mode_enabled",
+		filename = graphics.."entity_filtering_mode_enabled.png",
+		size = 64,
+		mipmap_count = 1,
+		flags = { "icon" },
+	},
+	{
+		type = "sprite",
+		name = "mpp_entity_filtering_mode_disabled",
+		filename = graphics.."entity_filtering_mode_disabled.png",
+		size = 64,
+		mipmap_count = 1,
+		flags = { "icon" },
+	},
+	{
+		type = "sprite",
+		name = "mpp_entity_filtered_overlay",
+		filename = graphics.."entity_filtered_overlay.png",
+		size = 64,
+		mipmap_count = 0,
+		flags = { "icon" },
+	},
 }

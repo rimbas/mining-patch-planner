@@ -20,8 +20,8 @@ layout.defaults.pipe = "pipe"
 ---@diagnostic disable-next-line: missing-fields
 layout.restrictions = {}
 layout.restrictions.miner_available = true
-layout.restrictions.miner_near_radius = {1, 10e3}
-layout.restrictions.miner_far_radius = {1, 10e3}
+layout.restrictions.miner_near_radius = {0, 10e3}
+layout.restrictions.miner_far_radius = {0, 10e3}
 layout.restrictions.belt_available = true
 layout.restrictions.uses_underground_belts = false
 layout.restrictions.pole_available = true

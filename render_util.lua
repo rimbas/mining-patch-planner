@@ -284,6 +284,10 @@ function render_util.renderer(event)
 	return setmetatable({}, meta)
 end
 
+function render_util.draw_clear_rendering(player_data, event)
+	rendering.clear("mining-patch-planner")
+end
+
 ---Draws the properties of a mining drill
 ---@param player_data PlayerData
 ---@param event EventData.on_player_reverse_selected_area
@@ -378,22 +382,22 @@ function render_util.draw_drill_struct(player_data, event)
 		dash_length=0.5,
 	}
 
-	-- pipe connections
-	renderer.draw_line{
-		width=4, color = {0, .7, 1},
-		from={fx1-.3, y+drill.pipe_left-.5},
-		to={fx1-.3, y+drill.pipe_left+.5},
-	}
-
-	-- pipe connections
-	renderer.draw_line{
-		width=4, color = {.7, .7, 0},
-		from={fx1+drill.size+.3, y+drill.pipe_left-.5},
-		to={fx1+drill.size+.3, y+drill.pipe_left+.5},
-	}
+	if drill.supports_fluids then
+		-- pipe connections
+		renderer.draw_line{
+			width=4, color = {0, .7, 1},
+			from={fx1-.3, y+drill.pipe_left-.5},
+			to={fx1-.3, y+drill.pipe_left+.5},
+		}
+		renderer.draw_line{
+			width=4, color = {.7, .7, 0},
+			from={fx1+drill.size+.3, y+drill.pipe_left-.5},
+			to={fx1+drill.size+.3, y+drill.pipe_left+.5},
+		}
+	end
 
 	renderer.draw_text{
-		target={fx1 + drill.extent_negative, fy1 + drill.extent_negative-.5},
+		target={fx1 + drill.extent_negative, fy1 + drill.extent_negative-1.5},
 		text = string.format("skip_outer: %s", drill.skip_outer),
 		alignment = "left",
 		vertical_alignment="middle",

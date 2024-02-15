@@ -2,7 +2,6 @@ local algorithm = require("algorithm")
 local mpp_util = require("mpp_util")
 local enums = require("enums")
 local blueprint_meta = require("blueprintmeta")
-local blacklist = require("blacklist")
 local compatibility = require("compatibility")
 
 local layouts = algorithm.layouts
@@ -15,6 +14,26 @@ local gui = {}
 	mpp_toggle - a toggle for a boolean "*_choice"
 ]]
 
+---@alias MppSettingSections
+---| "layout"
+---| "direction"
+---| "miner"
+---| "belt"
+---| "space_belt"
+---| "logistics"
+---| "pole"
+---| "misc"
+---| "debugging"
+
+---@type table<MppSettingSections, true>
+local entity_sections = {
+	miner = true,
+	belt=true,
+	space_belt=true,
+	logistics=true,
+	pole=true
+}
+
 ---@class SettingValueEntry
 ---@field type string|nil Button type
 ---@field value string Value name
@@ -22,8 +41,9 @@ local gui = {}
 ---@field icon SpritePath
 ---@field icon_enabled SpritePath?
 ---@field order string?
----@field default string?
+---@field default number? For "drop-down" element
 ---@field refresh boolean? Update selections?
+---@field filterable boolean? Can entity be hidden
 
 ---@class SettingValueEntryPrototype : SettingValueEntry
 ---@field action "mpp_prototype" Action tag override
@@ -31,15 +51,20 @@ local gui = {}
 ---@field elem_filters PrototypeFilter?
 ---@field elem_value string?
 
+---@class TagsSimpleChoiceButton
+---@field value string
+---@field default string
+---@field mpp_filterable boolean
+
 ---Creates a setting section (label + table)
 ---Can be hidden
 ---@param player_data PlayerData
 ---@param root any
----@param name any
+---@param name MppSettingSections
 ---@return LuaGuiElement, LuaGuiElement
 local function create_setting_section(player_data, root, name, opts)
 	opts = opts or {}
-	local section = root.add{type="flow", direction="vertical"}
+	local section = root.add{type="flow", direction="vertical", style="mpp_section"}
 	player_data.gui.section[name] = section
 	section.add{type="label", style="subheader_caption_label", caption={"mpp.settings_"..name.."_label"}}
 	local table_root = section.add{
@@ -65,9 +90,10 @@ local function style_helper_blueprint_toggle(check)
 	return check and "mpp_blueprint_mode_button_active" or "mpp_blueprint_mode_button"
 end
 
----@param player_data any global player GUI reference object
+---@param player_data PlayerData global player GUI reference object
 ---@param root LuaGuiElement
 ---@param action_type string Default action tag
+---@param action MppSettingSections
 ---@param values (SettingValueEntry | SettingValueEntryPrototype)[]
 local function create_setting_selector(player_data, root, action_type, action, values)
 	local action_class = {}
@@ -76,11 +102,18 @@ local function create_setting_selector(player_data, root, action_type, action, v
 	local selected = player_data.choices[action.."_choice"]
 
 	for _, value in ipairs(values) do
+
+		local is_filtered = player_data.filtered_entities[value.value]
+		if not player_data.entity_filtering_mode and is_filtered then
+			goto continue
+		end
+
 		local action_type_override = value.action or action_type
 		local toggle_value = action_type == "mpp_toggle" and player_data.choices[value.value.."_choice"]
 		local style_check = value.value == selected or toggle_value
 		local button
 		if value.type == "choose-elem-button" then
+			---@type LuaGuiElement
 			button = root.add{
 				type="choose-elem-button",
 				style=style_helper_selection(),
@@ -101,6 +134,7 @@ local function create_setting_selector(player_data, root, action_type, action, v
 		else
 			local icon = value.icon
 			if style_check and value.icon_enabled then icon = value.icon_enabled end
+			---@type LuaGuiElement
 			button = root.add{
 				type="sprite-button",
 				style=style_helper_selection(style_check),
@@ -112,11 +146,25 @@ local function create_setting_selector(player_data, root, action_type, action, v
 					refresh=value.refresh,
 					mpp_icon_default=value.icon,
 					mpp_icon_enabled=value.icon_enabled,
+					mpp_filterable=value.filterable,
 				},
 				tooltip=mpp_util.wrap_tooltip(value.tooltip),
 			}
+			if is_filtered then
+				---@type LuaGuiElement
+				local hidden =  button.add{
+					type="sprite",
+					style="mpp_filtered_entity",
+					name="filtered",
+					sprite="mpp_entity_filtered_overlay",
+					ignored_by_interaction=true,
+				}
+				--hidden.style.stretch_image_to_widget_size = true
+			end
 		end
 		action_class[value.value] = button
+
+		::continue::
 	end
 end
 
@@ -241,6 +289,13 @@ function gui.create_interface(player)
 		tooltip=mpp_util.wrap_tooltip{"mpp.advanced_settings"},
 		tags={mpp_advanced_settings=true},
 	}
+	player_gui.filtering_settings = titlebar.add{
+		type="sprite-button",
+		style=style_helper_advanced_toggle(player_data.entity_filtering_mode),
+		sprite="mpp_entity_filtering_mode_enabled",
+		tooltip=mpp_util.wrap_tooltip{"mpp.entity_filtering_mode"},
+		tags={mpp_entity_filtering_mode=true},
+	}
 
 	do -- layout selection
 		local table_root, section = create_setting_section(player_data, frame, "layout")
@@ -286,6 +341,18 @@ function gui.create_interface(player)
 
 	do -- Miner selection
 		local table_root, section = create_setting_section(player_data, frame, "miner")
+		section.add{
+			type="label", style="mpp_label_warning_style", visible=true,
+			name="label_insufficient_area", caption={"mpp.label_insufficient_area"},
+		}
+		section.add{
+			type="label", style="mpp_label_warning_style", visible=true,
+			name="label_no_fluid_mining", caption={"mpp.label_no_fluid_mining"},
+		}
+		section.add{
+			type="label", style="mpp_label_warning_style", visible=true,
+			name="label_oversized_drill", caption={"mpp.label_oversized_drill"},
+		}
 	end
 
 	do -- Belt selection
@@ -364,12 +431,11 @@ local function update_miner_selection(player_data)
 	local cached_miners, cached_resources = enums.get_available_miners()
 
 	for _, miner_proto in pairs(cached_miners) do
-		if blacklist[miner_proto.name] then goto skip_miner end
+		if mpp_util.check_filtered(player_data, miner_proto) then goto skip_miner end
+		if not player_data.entity_filtering_mode and player_data.filtered_entities[miner_proto.name] then goto skip_miner end
 		local miner = mpp_util.miner_struct(miner_proto.name)
 
-		if not player_data.choices.show_non_electric_miners_choice and not miner_proto.electric_energy_source_prototype then goto skip_miner end
-		--if miner.size % 2 == 0 then goto skip_miner end -- Algorithm doesn't support even size miners
-		--if miner.radius < near_radius_min or near_radius_max < miner.radius then goto skip_miner end
+		if miner.radius < near_radius_min or near_radius_max < miner.radius then goto skip_miner end
 		-- TODO: add a warning for coverage somewhere in the gui
 		if miner.radius < far_radius_min or far_radius_max < miner.radius then goto skip_miner end
 
@@ -384,6 +450,7 @@ local function update_miner_selection(player_data)
 			tooltip=tooltip,
 			icon=("entity/"..miner.name),
 			order=miner_proto.order,
+			filterable=true,
 		}
 		if miner.name == player_choices.miner_choice then existing_choice_is_valid = true end
 
@@ -406,6 +473,14 @@ local function update_miner_selection(player_data)
 		}
 	end
 
+	if existing_choice_is_valid then
+		local section = player_data.gui.section["miner"]
+		local miner = mpp_util.miner_struct(player_choices.miner_choice)
+		section.label_insufficient_area.visible = miner.area <= miner.size
+		section.label_no_fluid_mining.visible = not miner.supports_fluids
+		section.label_oversized_drill.visible = miner.skip_outer
+	end
+
 	local table_root = player_data.gui.tables["miner"]
 	create_setting_selector(player_data, table_root, "mpp_action", "miner", values)
 end
@@ -426,8 +501,7 @@ local function update_belt_selection(player)
 
 	local belts = game.get_filtered_entity_prototypes{{filter="type", type="transport-belt"}}
 	for _, belt in pairs(belts) do
-		if blacklist[belt.name] then goto skip_belt end
-		if belt.flags and belt.flags.hidden then goto skip_belt end
+		if mpp_util.check_filtered(player_data, belt) then goto skip_belt end
 		if layout.restrictions.uses_underground_belts and belt.related_underground_belt == nil then goto skip_belt end
 
 		local belt_speed = belt.belt_speed * 60 * 8
@@ -444,18 +518,27 @@ local function update_belt_selection(player)
 			tooltip=tooltip,
 			icon=("entity/"..belt.name),
 			order=belt.order,
+			filterable=true,
 		}
 		if belt.name == choices.belt_choice then existing_choice_is_valid = true end
 
 		::skip_belt::
 	end
 
-	if not existing_choice_is_valid then
+	if not existing_choice_is_valid and #values > 0 then
 		if mpp_util.table_find(values, function(v) return v.value == layout.defaults.belt end) then
 			choices.belt_choice = layout.defaults.belt
 		else
 			choices.belt_choice = values[1].value
 		end
+	elseif #values == 0 then
+		player_data.choices.belt_choice = "none"
+		values[#values+1] = {
+			value="none",
+			tooltip={"mpp.choice_none"},
+			icon="mpp_no_entity",
+			order="",
+		}
 	end
 
 	local table_root = player_data.gui.tables["belt"]
@@ -478,8 +561,7 @@ local function update_space_belt_selection(player)
 
 	local belts = game.get_filtered_entity_prototypes{{filter="type", type="transport-belt"}}
 	for _, belt in pairs(belts) do
-		if blacklist[belt.name] then goto skip_belt end
-		if belt.flags and belt.flags.hidden then goto skip_belt end
+		if mpp_util.check_filtered(player_data, belt) then goto skip_belt end
 		if layout.restrictions.uses_underground_belts and belt.related_underground_belt == nil then goto skip_belt end
 		if is_space and not string.match(belt.name, "^se%-") then goto skip_belt end
 
@@ -488,18 +570,27 @@ local function update_space_belt_selection(player)
 			tooltip=belt.localised_name,
 			icon=("entity/"..belt.name),
 			order=belt.order,
+			filterable=true,
 		}
 		if belt.name == choices.space_belt_choice then existing_choice_is_valid = true end
 
 		::skip_belt::
 	end
 
-	if not existing_choice_is_valid then
+	if not existing_choice_is_valid and #values > 0 then
 		if mpp_util.table_find(values, function(v) return v.value == layout.defaults.belt end) then
 			choices.space_belt_choice = "se-space-transport-belt"
 		else
 			choices.space_belt_choice = values[1].value
 		end
+	elseif #values == 0 then
+		player_data.choices.belt_choice = "none"
+		values[#values+1] = {
+			value="none",
+			tooltip={"mpp.choice_none"},
+			icon="mpp_no_entity",
+			order="",
+		}
 	end
 
 	local table_root = player_data.gui.tables["space_belt"]
@@ -526,8 +617,7 @@ local function update_logistics_selection(player_data)
 	local existing_choice_is_valid = false
 	local logistics = game.get_filtered_entity_prototypes{{filter="type", type="logistic-container"}}
 	for _, chest in pairs(logistics) do
-		if chest.flags and chest.flags.hidden then goto skip_chest end
-		if blacklist[chest.name] then goto skip_chest end
+		if mpp_util.check_filtered(player_data, chest) then goto skip_chest end
 		local cbox = chest.collision_box
 		local size = math.ceil(cbox.right_bottom.x - cbox.left_top.x)
 		if size > 1 then goto skip_chest end
@@ -538,18 +628,27 @@ local function update_logistics_selection(player_data)
 			tooltip=chest.localised_name,
 			icon=("entity/"..chest.name),
 			order=chest.order,
+			filterable=true,
 		}
 		if chest.name == choices.logistics_choice then existing_choice_is_valid = true end
 
 		::skip_chest::
 	end
 
-	if not existing_choice_is_valid then
+	if not existing_choice_is_valid and #values > 0 then
 		if mpp_util.table_find(values, function(v) return v.value == layout.defaults.logistics end) then
 			choices.logistics_choice = layout.defaults.logistics
 		else
 			choices.logistics_choice = values[1].value
 		end
+	elseif #values == 0 then
+		player_data.choices.belt_choice = "none"
+		values[#values+1] = {
+			value="none",
+			tooltip={"mpp.choice_none"},
+			icon="mpp_no_entity",
+			order="",
+		}
 	end
 
 	local table_root = player_data.gui.tables["logistics"]
@@ -579,8 +678,7 @@ local function update_pole_selection(player_data)
 	local existing_choice_is_valid = ("none" == choices.pole_choice)
 	local poles = game.get_filtered_entity_prototypes{{filter="type", type="electric-pole"}}
 	for _, pole in pairs(poles) do
-		if pole.flags and pole.flags.hidden then goto skip_pole end
-		if blacklist[pole.name] then goto skip_pole end
+		if mpp_util.check_filtered(player_data, pole) then goto skip_pole end
 		local cbox = pole.collision_box
 		local size = math.ceil(cbox.right_bottom.x - cbox.left_top.x)
 		local supply_area = pole.supply_area_distance
@@ -592,6 +690,7 @@ local function update_pole_selection(player_data)
 			tooltip=pole.localised_name,
 			icon=("entity/"..pole.name),
 			order=pole.order,
+			filterable=true,
 		}
 		if pole.name == choices.pole_choice then existing_choice_is_valid = true end
 
@@ -627,7 +726,6 @@ local function update_misc_selection(player)
 			value="module",
 			tooltip={"gui.module"},
 			icon=("mpp_no_module"),
-			--default="mining-patch-planner-module",
 			elem_type="item",
 			elem_filters={{filter="type", type="module"}},
 			elem_value = existing_choice,
@@ -657,7 +755,6 @@ local function update_misc_selection(player)
 			value="pipe",
 			tooltip={"entity-name.pipe"},
 			icon=("mpp_no_pipe"),
-			--default="mining-patch-planner-module",
 			elem_type="entity",
 			elem_filters={{filter="type", type="pipe"}},
 			elem_value = existing_choice,
@@ -749,15 +846,6 @@ local function update_misc_selection(player)
 				icon_enabled=("mpp_force_pipe_enabled"),
 			}
 		end
-
-		if layout.restrictions.miner_available then
-			values[#values+1] = {
-				value="show_non_electric_miners",
-				tooltip={"mpp.show_non_electric_miners"},
-				icon=("mpp_show_all_miners"),
-				refresh=true,
-			}
-		end
 	end
 
 	local misc_section = player_data.gui.section["misc"]
@@ -781,10 +869,21 @@ local function update_blueprint_selection(player_data)
 end
 
 local function update_debugging_selection(player_data)
-	local choices = player_data.choices
-	local layout = layouts[choices.layout_choice]
+
+	local is_debugging = not not __DebugAdapter
+	player_data.gui.section["debugging"].visible = is_debugging
+	if not is_debugging then
+		return
+	end
+
 	---@type SettingValueEntry[]
 	local values = {}
+
+	values[#values+1] = {
+		value="draw_clear_rendering",
+		tooltip="Clear rendering",
+		icon=("mpp_no_entity"),
+	}
 
 	values[#values+1] = {
 		value="draw_drill_struct",
@@ -828,9 +927,7 @@ local function update_selections(player)
 	update_pole_selection(player_data)
 	update_blueprint_selection(player_data)
 	update_misc_selection(player)
-	if __DebugAdapter then
-		update_debugging_selection(player_data)
-	end
+	update_debugging_selection(player_data)
 end
 
 ---@param player LuaPlayer
@@ -879,13 +976,19 @@ local function on_gui_click(event)
 	if evt_ele_tags["mpp_advanced_settings"] then
 		abort_blueprint_mode(player)
 
-		local last_value = player_data.advanced
-		local value = not last_value
+		local value = not player_data.advanced
 		player_data.advanced = value
-
 		update_selections(player)
-
 		player_data.gui["advanced_settings"].style = style_helper_advanced_toggle(value)
+
+	elseif evt_ele_tags["mpp_entity_filtering_mode"] then
+		abort_blueprint_mode(player)
+
+		local value = not player_data.entity_filtering_mode
+		player_data.entity_filtering_mode = value
+		update_selections(player)
+		player_data.gui["filtering_settings"].style = style_helper_advanced_toggle(value)
+
 	elseif evt_ele_tags["mpp_action"] then
 		abort_blueprint_mode(player)
 
@@ -894,11 +997,35 @@ local function on_gui_click(event)
 		local last_value = player_data.choices[action.."_choice"]
 
 		if player_data.gui.selections[action][last_value] then
-		player_data.gui.selections[action][last_value].style = style_helper_selection(false)
+			player_data.gui.selections[action][last_value].style = style_helper_selection(false)
+		end
+
+		if event.shift and event.button == defines.mouse_button_type.right and evt_ele_tags.mpp_filterable then
+			local is_filtered = player_data.filtered_entities[evt_ele_tags.value]
+			
+			local visible_values = 0
+			for _, element in pairs(event.element.parent.children) do
+				---@cast element LuaGuiElement
+				if not element.filtered then visible_values = visible_values + 1 end
+			end
+
+			if #event.element.parent.children < 2 then
+				player.print({"mpp.msg_print_cant_hide_last_choice"})
+			elseif is_filtered then
+				player_data.filtered_entities[evt_ele_tags.value] = nil
+			elseif visible_values > 1 then
+				player_data.filtered_entities[evt_ele_tags.value] = true
+			else
+				player.print({"mpp.msg_print_cant_hide_last_choice"})
+			end
+
+			update_selections(player)
+			return
 		end
 		
 		event.element.style = style_helper_selection(true)
 		player_data.choices[action.."_choice"] = value
+		update_selections(player)
 	elseif evt_ele_tags["mpp_toggle"] then
 		abort_blueprint_mode(player)
 

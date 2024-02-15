@@ -103,3 +103,23 @@ default_style.mpp_fake_blueprint_sprite = {
 	size=16,
 	stretch_image_to_widget_size=true,
 }
+
+default_style.mpp_filtered_entity = {
+	type="image_style",
+	size=32,
+	stretch_image_to_widget_size=true,
+}
+
+default_style.mpp_section = {
+	type="vertical_flow_style",
+	parent="vertical_flow",
+	natural_width=240,
+}
+
+default_style.mpp_label_warning_style = {
+	type = "label_style",
+	font_color = {1, 1, 0},
+	single_line = false,
+	horizontally_squashable = "on",
+	horizontally_stretchable = "on",
+}

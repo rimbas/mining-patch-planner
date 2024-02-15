@@ -4,11 +4,13 @@ local conf = {}
 ---@class PlayerData
 ---@field advanced boolean Preserve in migrations
 ---@field blueprint_add_mode boolean Preserve in migrations
+---@field entity_filtering_mode boolean Preserve in migrations
 ---@field gui PlayerGui
 ---@field blueprint_items LuaInventory Preserve in migrations
 ---@field choices PlayerChoices Preserve in migrations
 ---@field blueprints PlayerGuiBlueprints 
 ---@field last_state State? Preserve in migrations
+---@field filtered_entities table<string, true>
 
 ---@class PlayerChoices
 ---@field layout_choice string
@@ -34,10 +36,11 @@ local conf = {}
 ---@field debugging_choice string Debugging only value
 
 ---@class PlayerGui
----@field section table<string, LuaGuiElement>
+---@field section table<MppSettingSections, LuaGuiElement>
 ---@field tables table<string, LuaGuiElement>
 ---@field selections table<string, LuaGuiElement>
 ---@field advanced_settings LuaGuiElement
+---@field filtering_settings LuaGuiElement
 ---@field layout_dropdown LuaGuiElement
 ---@field blueprint_add_button LuaGuiElement
 ---@field blueprint_add_section LuaGuiElement
@@ -58,9 +61,11 @@ local nil_element_placeholder = nil
 ---@type PlayerData
 conf.default_config = {
 	advanced = false,
+	entity_filtering_mode = false,
 	blueprint_add_mode = false,
 ---@diagnostic disable-next-line: assign-type-mismatch
 	blueprint_items = nil,
+	filtered_entities = {},
 
 	choices = {
 		layout_choice = "simple",
@@ -93,6 +98,7 @@ conf.default_config = {
 		tables = {},
 		selections = {},
 		advanced_settings = nil_element_placeholder,
+		filtering_settings = nil_element_placeholder,
 		blueprint_add_button = nil_element_placeholder,
 		blueprint_add_section = nil_element_placeholder,
 		blueprint_receptacle = nil_element_placeholder,
