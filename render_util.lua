@@ -565,7 +565,7 @@ function render_util.draw_drill_convolution(player_data, event)
 
 			::continue::
 		end
-	end 
+	end
 
 end
 

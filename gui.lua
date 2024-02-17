@@ -14,6 +14,18 @@ local gui = {}
 	mpp_toggle - a toggle for a boolean "*_choice"
 ]]
 
+---@alias MppTagAction
+---| "mpp_advanced_settings"
+---| "mpp_entity_filtering_mode"
+---| "mpp_action"
+---| "mpp_toggle"
+---| "mpp_blueprint_add_mode"
+---| "mpp_blueprint_receptacle"
+---| "mpp_fake_blueprint_button"
+---| "mpp_delete_blueprint_button"
+---| "mpp_drop_down"
+---| "mpp_undo"
+
 ---@alias MppSettingSections
 ---| "layout"
 ---| "direction"
@@ -88,6 +100,14 @@ end
 
 local function style_helper_blueprint_toggle(check)
 	return check and "mpp_blueprint_mode_button_active" or "mpp_blueprint_mode_button"
+end
+
+---@param player_data PlayerData
+local function helper_undo_available(player_data)
+	if player_data.last_state then
+		return #player_data.last_state._collected_ghosts > 0
+	end
+	return false
 end
 
 ---@param player_data PlayerData global player GUI reference object
@@ -295,6 +315,14 @@ function gui.create_interface(player)
 		sprite="mpp_entity_filtering_mode_enabled",
 		tooltip=mpp_util.wrap_tooltip{"mpp.entity_filtering_mode"},
 		tags={mpp_entity_filtering_mode=true},
+	}
+	player_gui.undo_button = titlebar.add{
+		type="sprite-button",
+		style=style_helper_advanced_toggle(),
+		sprite="mpp_undo",
+		tooltip=mpp_util.wrap_tooltip{"controls.undo"},
+		tags={mpp_undo=true},
+		enabled=helper_undo_available(player_data),
 	}
 
 	do -- layout selection
@@ -918,8 +946,10 @@ end
 
 ---@param player LuaPlayer
 local function update_selections(player)
+	---@type PlayerData
 	local player_data = global.players[player.index]
 	player_data.gui.blueprint_add_button.visible = player_data.choices.layout_choice == "blueprints"
+	player_data.gui.undo_button.enabled = helper_undo_available(player_data)
 	update_miner_selection(player_data)
 	update_belt_selection(player)
 	update_space_belt_selection(player)

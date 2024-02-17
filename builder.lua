@@ -5,8 +5,7 @@ local builder = {}
 ---@class GhostSpecification : LuaSurface.create_entity_param.entity_ghost
 ---@field grid_x number Grid x coordinate
 ---@field grid_y number Grid x coordinate
----@field padding_pre number?
----@field padding_post number?
+---@field radius number? Object radius or default to 0.5 if nil
 ---@field thing string Enum for the grid
 
 ---@class PowerPoleGhostSpecification : GhostSpecification

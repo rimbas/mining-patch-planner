@@ -30,6 +30,7 @@ require_layout("blueprints")
 ---@field is_space boolean
 ---@field player LuaPlayer
 ---@field resources LuaEntity[] Filtered resources
+---@field resource_tiles GridTile
 ---@field found_resources LuaEntity[] Resource name -> resource category mapping
 ---@field resource_counts {name: string, count: number}[] Highest count resource first
 ---@field requires_fluid boolean
@@ -89,7 +90,7 @@ local function create_state(event)
 	state._collected_ghosts = {}
 	state._render_objects = {}
 	state._lane_info_rendering = {}
-	
+
 	---@type PlayerData
 	local player_data = global.players[event.player_index]
 

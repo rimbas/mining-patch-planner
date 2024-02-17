@@ -26,8 +26,6 @@ local layout = table.deepcopy(base)
 ---@field best_attempt PlacementAttempt
 ---@field best_attempt_score number Heuristic value
 ---@field best_attempt_index number
----@field resourcs LuaEntity[]
----@field resource_tiles GridTile
 ---@field resource_iter number
 ---@field longest_belt number For pole alignment information
 ---@field pole_gap number Vertical gap size in the power pole lane
@@ -230,8 +228,9 @@ function layout:process_grid(state)
 	local i = state.resource_iter or 1
 	while i <= #resources and cost < budget do
 		local ent = resources[i]
-		local x, y = ent.position.x - gx, ent.position.y - gy
+		local x, y = ent.position.x - gx - .5, ent.position.y - gy - .5
 		local tx, ty = conv(x, y, c.w, c.h)
+		tx, ty = floor(tx + 1), floor(ty + 1)
 		local tile = grid:get_tile(tx, ty) --[[@as GridTile]]
 		tile.amount = ent.amount
 		--[[
@@ -252,6 +251,7 @@ function layout:process_grid(state)
 	state.resource_iter = i
 
 	--[[ debug visualisation - resource and coord
+
 	for _, tile in ipairs(resource_tiles) do
 		---@cast tile GridTile
 		state._render_objects[#state._render_objects+1] = rendering.draw_circle{
@@ -567,7 +567,7 @@ function layout:prepare_miner_layout(state)
 		-- 	build_check_type = 
 		-- }
 
-		local x, y = c.ix1+miner.x-1, c.iy1+miner.y-1
+		--local x, y = c.ix1+miner.x-1, c.iy1+miner.y-1
 
 		--[[ debug visualisation - miner
 		rendering.draw_rectangle{
@@ -590,13 +590,12 @@ function layout:prepare_miner_layout(state)
 
 		-- used for deconstruction, not ghost placement
 		-- TODO: fix rotation
-		local build_x, build_y = miner.x + M.x, miner.y + M.y
+		--local build_x, build_y = miner.x + M.x, miner.y + M.y
 		builder_miners[#builder_miners+1] = {
 			thing="miner",
-			grid_x = miner.x-1,
-			grid_y = miner.y-1,
-			padding_pre = M.extent_negative,
-			padding_post = M.extent_positive,
+			grid_x = miner.origin_x,
+			grid_y = miner.origin_y,
+			radius = M.size / 2,
 		}
 	end
 	state.miner_lane_count = miner_lane_count
@@ -990,29 +989,17 @@ function layout:expensive_deconstruct(state)
 	for _, t in pairs(self:_get_deconstruction_objects(state)) do
 		for _, object in ipairs(t) do
 			---@cast object GhostSpecification
-			local cx, cy = object.grid_x, object.grid_y
-			local pad_left, pad_right =  object.padding_pre, object.padding_post
+			local radius = object.radius or 0.5
 
-			local tpos1, tpos2 = { cx, cy }, { cx, cy }
-			if pad_left ~= nil and pad_right ~= nil then
-				pad_left, pad_right = pad_left or 0, pad_right or 0
-				tpos1[1], tpos1[2] = cx - pad_left, cy - pad_left
-				tpos2[1], tpos2[2] = cx + pad_right, cy + pad_right
-			end
-			
-			local pos1 = mpp_util.revert(c.gx, c.gy, DIR, tpos1[1], tpos1[2], c.tw, c.th)
-			local pos2 = mpp_util.revert(c.gx, c.gy, DIR, tpos2[1], tpos2[2], c.tw, c.th)
-			
-			-- ugh
-			pos1[1], pos2[1] = min(pos1[1], pos2[1]), max(pos1[1], pos2[1])
-			pos1[2], pos2[2] = min(pos1[2], pos2[2]), max(pos1[2], pos2[2])
+			local pos = mpp_util.revert(c.gx, c.gy, DIR, object.grid_x-.5, object.grid_y-.5, c.tw, c.th)
+			local x, y = pos[1]+.5, pos[2]+.5
 
 			surface.deconstruct_area{
 				force=player.force,
 				player=player.index,
 				area={
-					left_top={pos1[1]-.5,pos1[2]-.5},
-					right_bottom={pos2[1]+.5,pos2[2]+.5},
+					left_top={x-radius, y-radius},
+					right_bottom={x+radius, y+radius},
 				},
 				item=deconstructor,
 			}
@@ -1024,8 +1011,8 @@ function layout:expensive_deconstruct(state)
 				filled=false,
 				width=3,
 				color={1, 0, 0},
-				left_top={pos1[1]-.4,pos1[2]-.4},
-				right_bottom={pos2[1]+.4,pos2[2]+.4},
+				left_top={x-radius+.1,y-radius+.1},
+				right_bottom={x+radius-.1,y+radius-.1},
 			} --]]
 		end
 	end

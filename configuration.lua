@@ -41,6 +41,7 @@ local conf = {}
 ---@field selections table<string, LuaGuiElement>
 ---@field advanced_settings LuaGuiElement
 ---@field filtering_settings LuaGuiElement
+---@field undo_button LuaGuiElement
 ---@field layout_dropdown LuaGuiElement
 ---@field blueprint_add_button LuaGuiElement
 ---@field blueprint_add_section LuaGuiElement
@@ -99,6 +100,7 @@ conf.default_config = {
 		selections = {},
 		advanced_settings = nil_element_placeholder,
 		filtering_settings = nil_element_placeholder,
+		undo_button = nil_element_placeholder,
 		blueprint_add_button = nil_element_placeholder,
 		blueprint_add_section = nil_element_placeholder,
 		blueprint_receptacle = nil_element_placeholder,

@@ -241,4 +241,20 @@ data:extend{
 		mipmap_count = 0,
 		flags = { "icon" },
 	},
+	{
+		type = "sprite",
+		name = "mpp_undo_enabled",
+		filename = graphics.."undo_enabled.png",
+		size = 64,
+		mipmap_count = 1,
+		flags = { "icon" },
+	},
+	{
+		type = "sprite",
+		name = "mpp_undo_disabled",
+		filename = graphics.."undo_disabled.png",
+		size = 64,
+		mipmap_count = 1,
+		flags = { "icon" },
+	},
 }
