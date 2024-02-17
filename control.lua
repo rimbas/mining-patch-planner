@@ -5,6 +5,7 @@ local gui = require("gui")
 local algorithm = require("algorithm")
 local bp_meta = require("blueprintmeta")
 local render_util = require("render_util")
+local mpp_util = require("mpp_util")
 
 ---@class __MiningPatchPlanner__global
 ---@field tasks any
@@ -57,6 +58,7 @@ local function task_runner(event)
 
 		table.remove(global.tasks, 1)
 		player.play_sound{path="utility/build_blueprint_medium"}
+		mpp_util.update_undo_button(player_data)
 	elseif tick_result ~= true then
 		state._callback = tick_result
 	end

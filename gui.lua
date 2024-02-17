@@ -104,10 +104,7 @@ end
 
 ---@param player_data PlayerData
 local function helper_undo_available(player_data)
-	if player_data.last_state then
-		return #player_data.last_state._collected_ghosts > 0
-	end
-	return false
+	return player_data.last_state and #player_data.last_state._collected_ghosts > 0
 end
 
 ---@param player_data PlayerData global player GUI reference object
@@ -319,7 +316,7 @@ function gui.create_interface(player)
 	player_gui.undo_button = titlebar.add{
 		type="sprite-button",
 		style=style_helper_advanced_toggle(),
-		sprite="mpp_undo",
+		sprite="mpp_undo_enabled",
 		tooltip=mpp_util.wrap_tooltip{"controls.undo"},
 		tags={mpp_undo=true},
 		enabled=helper_undo_available(player_data),
@@ -949,7 +946,7 @@ local function update_selections(player)
 	---@type PlayerData
 	local player_data = global.players[player.index]
 	player_data.gui.blueprint_add_button.visible = player_data.choices.layout_choice == "blueprints"
-	player_data.gui.undo_button.enabled = helper_undo_available(player_data)
+	mpp_util.update_undo_button(player_data)
 	update_miner_selection(player_data)
 	update_belt_selection(player)
 	update_space_belt_selection(player)
@@ -1148,6 +1145,18 @@ local function on_gui_click(event)
 		player_blueprints.delete[deleted_number] = nil
 		player_blueprints.cache[deleted_number] = nil
 		player_blueprints.original_id[deleted_number] = nil
+	elseif evt_ele_tags["mpp_undo"] then
+		local state = player_data.last_state
+		if not state then return end
+		local force, ply = state.player.force, state.player
+		for _, ghost in pairs(state._collected_ghosts) do
+			if ghost.valid then
+				ghost.order_deconstruction(force, ply)
+			end
+		end
+		state._collected_ghosts = {}
+		mpp_util.update_undo_button(player_data)
+		return
 	end
 end
 script.on_event(defines.events.on_gui_click, on_gui_click)

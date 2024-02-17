@@ -442,4 +442,16 @@ function mpp_util.check_filtered(player_data, thing)
 		or (thing.flags and thing.flags.hidden)
 end
 
+---@param player_data PlayerData
+function mpp_util.update_undo_button(player_data)
+
+	local undo_button = player_data.gui.undo_button
+	local last_state = player_data.last_state
+
+	local enabled = (last_state and last_state._collected_ghosts and #last_state._collected_ghosts > 0) or false
+
+	undo_button.enabled = enabled
+	undo_button.sprite = enabled and "mpp_undo_enabled" or "mpp_undo_disabled"
+end
+
 return mpp_util
