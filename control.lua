@@ -55,6 +55,7 @@ local function task_runner(event)
 		---@type PlayerData
 		local player_data = global.players[player.index]
 		player_data.last_state, state._previous_state = state, nil
+		player_data.tick_expires = math.huge
 
 		table.remove(global.tasks, 1)
 		player.play_sound{path="utility/build_blueprint_medium"}
@@ -93,13 +94,13 @@ script.on_event(defines.events.on_player_selected_area, function(event)
 end)
 
 script.on_event(defines.events.on_player_alt_reverse_selected_area, function(event)
-	---@cast event EventData.on_player_alt_reverse_selected_area
 	local player = game.get_player(event.player_index)
 	if not player then return end
 	local cursor_stack = player.cursor_stack
 	if not cursor_stack or not cursor_stack.valid or not cursor_stack.valid_for_read then return end
 	if cursor_stack and cursor_stack.valid and cursor_stack.valid_for_read and cursor_stack.name ~= "mining-patch-planner" then return end
 
+	if not __DebugAdapter then return end
 
 	---@type PlayerData
 	local player_data = global.players[event.player_index]
@@ -124,9 +125,16 @@ script.on_event(defines.events.on_player_alt_reverse_selected_area, function(eve
 end)
 
 script.on_event(defines.events.on_player_reverse_selected_area, function(event)
+	local player = game.get_player(event.player_index)
+	if not player then return end
+	local cursor_stack = player.cursor_stack
+	if not cursor_stack or not cursor_stack.valid or not cursor_stack.valid_for_read then return end
+	if cursor_stack and cursor_stack.valid and cursor_stack.valid_for_read and cursor_stack.name ~= "mining-patch-planner" then return end
+
+	if not __DebugAdapter then return end
+
 	rendering.clear("mining-patch-planner")
 end)
-
 
 script.on_load(function()
 	if global.players then
@@ -151,6 +159,7 @@ script.on_load(function()
 end)
 
 local function cursor_stack_check(e)
+	---@cast e EventData.on_player_cursor_stack_changed
 	local player = game.get_player(e.player_index)
 	if not player then return end
 	---@type PlayerData
@@ -170,6 +179,10 @@ local function cursor_stack_check(e)
 		gui.show_interface(player)
 		algorithm.on_gui_open(player_data)
 	else
+		local duration = mpp_util.get_display_duration(e.player_index)
+		if e.tick < player_data.tick_expires then
+			player_data.tick_expires = e.tick + duration
+		end
 		gui.hide_interface(player)
 		algorithm.on_gui_close(player_data)
 	end

@@ -200,7 +200,7 @@ function algorithm.on_player_selected_area(event)
 	local layout = layouts[player_data.choices.layout_choice]
 
 	if state.miner_choice == "none" then
-		return nil, {"msg_miner_err_3"}
+		return nil, {"mpp.msg_miner_err_3"}
 	end
 
 	local layout_categories = get_miner_categories(state, layout)

@@ -2,7 +2,7 @@ local common = {}
 
 local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
-local sqrt = math.sqrt
+local sqrt, log = math.sqrt, math.log
 
 ---@alias HeuristicMinerPlacement fun(tile: GridTile): boolean
 
@@ -32,21 +32,18 @@ end
 
 ---@param heuristic HeuristicsBlock
 function common.simple_layout_heuristic(heuristic)
-	--local lane_weigth = 0.05 * ((#heuristic.lane_layout) ^ (1/3) - 1) + 1
-	--return heuristic.inner_density --+ heuristic.empty_space
 	local lane_mult = 1 + ceil(heuristic.lane_count / 2) * 0.05
-	return (heuristic.inner_density + heuristic.empty_space / heuristic.drill_count) * heuristic.centricity * lane_mult
-
-	--return heuristic.inner_density / heuristic.miner_count * lane_weigth
-	--return (heuristic.real_density - heuristic.inner_density) -- * math.log(#heuristic.lane_layout)
+	local unconsumed = 1 + log(max(1, heuristic.unconsumed), 10)
+	local value = (heuristic.inner_density + heuristic.empty_space / heuristic.drill_count) * heuristic.centricity * lane_mult * unconsumed
+	return value
 end
 
 ---@param heuristic HeuristicsBlock
 function common.overfill_layout_heuristic(heuristic)
-	local lane_mult = 2 ^ heuristic.lane_count
-	--return (heuristic.inner_density-heuristic.real_density) / heuristic.miner_count
-	--return heuristic.inner_density - heuristic.real_density -- * math.log(#heuristic.lane_layout)
-	return heuristic.outer_density * heuristic.centricity * lane_mult
+	local lane_mult = 1 + ceil(heuristic.lane_count / 2) * 0.05
+	local unconsumed = 1 + log(max(1, heuristic.unconsumed), 10)
+	local value = heuristic.outer_density * heuristic.centricity * lane_mult * unconsumed
+	return value
 end
 
 ---@class HeuristicsBlock
@@ -199,6 +196,10 @@ function common.save_state_to_file(state, type_)
 		game.print(string.format("Dumped data to %s ", filename))
 		game.write_file("mpp-inspect/"..filename, serpent.dump(state, {}), false, state.player.index)
 	end
+end
+
+function common.calculate_patch_slack(state)
+
 end
 
 return common

@@ -445,19 +445,20 @@ local function update_miner_selection(player_data)
 	local player_choices = player_data.choices
 	local layout = layouts[player_choices.layout_choice]
 	local restrictions = layout.restrictions
-	
+
 	player_data.gui.section["miner"].visible = restrictions.miner_available
 	if not restrictions.miner_available then return end
 
 	local near_radius_min, near_radius_max = restrictions.miner_near_radius[1], restrictions.miner_near_radius[2]
 	local far_radius_min, far_radius_max = restrictions.miner_far_radius[1], restrictions.miner_far_radius[2]
+	---@type SettingValueEntry[]
 	local values = {}
 	local existing_choice_is_valid = false
 	local cached_miners, cached_resources = enums.get_available_miners()
 
 	for _, miner_proto in pairs(cached_miners) do
-		if mpp_util.check_filtered(player_data, miner_proto) then goto skip_miner end
-		if not player_data.entity_filtering_mode and player_data.filtered_entities[miner_proto.name] then goto skip_miner end
+		if mpp_util.check_filtered(miner_proto) then goto skip_miner end
+		if mpp_util.check_entity_hidden(player_data, "miner", miner_proto) then goto skip_miner end
 		local miner = mpp_util.miner_struct(miner_proto.name)
 
 		if miner.radius < near_radius_min or near_radius_max < miner.radius then goto skip_miner end
@@ -526,7 +527,7 @@ local function update_belt_selection(player)
 
 	local belts = game.get_filtered_entity_prototypes{{filter="type", type="transport-belt"}}
 	for _, belt in pairs(belts) do
-		if mpp_util.check_filtered(player_data, belt) then goto skip_belt end
+		if mpp_util.check_entity_hidden(player_data, "belt", belt) then goto skip_belt end
 		if layout.restrictions.uses_underground_belts and belt.related_underground_belt == nil then goto skip_belt end
 
 		local belt_speed = belt.belt_speed * 60 * 8
@@ -586,7 +587,7 @@ local function update_space_belt_selection(player)
 
 	local belts = game.get_filtered_entity_prototypes{{filter="type", type="transport-belt"}}
 	for _, belt in pairs(belts) do
-		if mpp_util.check_filtered(player_data, belt) then goto skip_belt end
+		if mpp_util.check_entity_hidden(player_data, "belt", belt) then goto skip_belt end
 		if layout.restrictions.uses_underground_belts and belt.related_underground_belt == nil then goto skip_belt end
 		if is_space and not string.match(belt.name, "^se%-") then goto skip_belt end
 
@@ -642,7 +643,7 @@ local function update_logistics_selection(player_data)
 	local existing_choice_is_valid = false
 	local logistics = game.get_filtered_entity_prototypes{{filter="type", type="logistic-container"}}
 	for _, chest in pairs(logistics) do
-		if mpp_util.check_filtered(player_data, chest) then goto skip_chest end
+		if mpp_util.check_entity_hidden(player_data, "logistics", chest) then goto skip_chest end
 		local cbox = chest.collision_box
 		local size = math.ceil(cbox.right_bottom.x - cbox.left_top.x)
 		if size > 1 then goto skip_chest end
@@ -703,7 +704,7 @@ local function update_pole_selection(player_data)
 	local existing_choice_is_valid = ("none" == choices.pole_choice)
 	local poles = game.get_filtered_entity_prototypes{{filter="type", type="electric-pole"}}
 	for _, pole in pairs(poles) do
-		if mpp_util.check_filtered(player_data, pole) then goto skip_pole end
+		if mpp_util.check_entity_hidden(player_data, "pole", pole) then goto skip_pole end
 		local cbox = pole.collision_box
 		local size = math.ceil(cbox.right_bottom.x - cbox.left_top.x)
 		local supply_area = pole.supply_area_distance
@@ -1003,6 +1004,15 @@ local function on_gui_click(event)
 	if evt_ele_tags["mpp_advanced_settings"] then
 		abort_blueprint_mode(player)
 
+		if __DebugAdapter and event.alt then
+			local setting = player.mod_settings["mpp-dump-heuristics-data"].value
+
+			player.mod_settings["mpp-dump-heuristics-data"] = {value = not setting}
+
+			player.print("Set dumping option to "..tostring(not setting))
+			return
+		end
+
 		local value = not player_data.advanced
 		player_data.advanced = value
 		update_selections(player)
@@ -1028,7 +1038,9 @@ local function on_gui_click(event)
 		end
 
 		if event.shift and event.button == defines.mouse_button_type.right and evt_ele_tags.mpp_filterable then
-			local is_filtered = player_data.filtered_entities[evt_ele_tags.value]
+
+			local entity = action..":"..value
+			local is_filtered = player_data.filtered_entities[entity]
 			
 			local visible_values = 0
 			for _, element in pairs(event.element.parent.children) do
@@ -1039,9 +1051,9 @@ local function on_gui_click(event)
 			if #event.element.parent.children < 2 then
 				player.print({"mpp.msg_print_cant_hide_last_choice"})
 			elseif is_filtered then
-				player_data.filtered_entities[evt_ele_tags.value] = nil
+				player_data.filtered_entities[entity] = nil
 			elseif visible_values > 1 then
-				player_data.filtered_entities[evt_ele_tags.value] = true
+				player_data.filtered_entities[entity] = true
 			else
 				player.print({"mpp.msg_print_cant_hide_last_choice"})
 			end

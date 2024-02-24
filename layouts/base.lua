@@ -46,6 +46,11 @@ layout.restrictions.lane_filling_info_available = false
 ---@param state State
 function layout:on_load(state) end
 
+---@param proto MinerStruct
+function layout:restriction_miner(proto)
+	return true
+end
+
 --- Validate the selection
 ---@param self Layout
 ---@param state State

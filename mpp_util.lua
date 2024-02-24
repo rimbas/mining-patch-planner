@@ -432,26 +432,45 @@ function mpp_util.coords_overlap(c1, c2)
 	return x and y
 end
 
----@param player_data PlayerData
 ---@param thing LuaEntityPrototype|MinerStruct
 ---@return boolean|nil
-function mpp_util.check_filtered(player_data, thing)
+function mpp_util.check_filtered(thing)
 	return
 		blacklist[thing.name]
-		or (not player_data.entity_filtering_mode and player_data.filtered_entities[thing.name])
 		or (thing.flags and thing.flags.hidden)
+end
+
+---@param player_data any
+---@param category MppSettingSections
+---@param name string
+function mpp_util.set_entity_hidden(player_data, category, name, value)
+	player_data.filtered_entities[category..":"..name] = value
+end
+
+---comment
+---@param player_data any
+---@param category MppSettingSections
+---@param thing any
+---@return false
+function mpp_util.check_entity_hidden(player_data, category, thing)
+	return (not player_data.entity_filtering_mode and player_data.filtered_entities[category..":"..thing.name])
 end
 
 ---@param player_data PlayerData
 function mpp_util.update_undo_button(player_data)
-
+	
+	local enabled = false
 	local undo_button = player_data.gui.undo_button
 	local last_state = player_data.last_state
-
-	local enabled = (last_state and last_state._collected_ghosts and #last_state._collected_ghosts > 0) or false
+	
+	if last_state then
+		local duration = mpp_util.get_display_duration(last_state.player.index)
+		enabled = enabled or (last_state and last_state._collected_ghosts and #last_state._collected_ghosts > 0 and game.tick < player_data.tick_expires)
+	end
 
 	undo_button.enabled = enabled
 	undo_button.sprite = enabled and "mpp_undo_enabled" or "mpp_undo_disabled"
+	undo_button.tooltip = mpp_util.wrap_tooltip(enabled and {"controls.undo"} or {"", {"controls.undo"}," (", {"gui.not-available"}, ")"})
 end
 
 return mpp_util

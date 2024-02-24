@@ -45,7 +45,7 @@ local layout = table.deepcopy(base)
 ---@field builder_lamps GhostSpecification[]
 
 layout.name = "simple"
-layout.translation = {"mpp.settings_layout_choice_simple"}
+layout.translation = {"", "[entity=electric-mining-drill] ", {"mpp.settings_layout_choice_simple"}}
 
 layout.restrictions.miner_near_radius = {0, 10e3}
 layout.restrictions.miner_far_radius = {0, 10e3}
@@ -117,8 +117,6 @@ end
 ---@param self SimpleLayout
 ---@param state SimpleState
 function layout:start(state)
-
-
 	return "deconstruct_previous_ghosts"
 end
 
@@ -430,7 +428,11 @@ function layout:prepare_layout_attempts(state)
 	state.best_attempt_index = 1
 	state.attempt_index = 1 -- first attempt is used up
 	--local ext_behind, ext_forward = -m.far, m.far - m.near
-	local ext_behind, ext_forward = m.extent_negative, m.extent_positive-1-m.parity
+	local outer = floor((m.area - m.size)/2)
+	local ext_forward = max(outer, 2)
+	local ext_behind = min(-outer, 0)
+
+	-- game.print(string.format("forward: %i\n behind: %i\nspan: %i", ext_forward, ext_behind, ext_forward-ext_behind))
 
 	--for sy = ext_behind, ext_forward do
 	--	for sx = ext_behind, ext_forward do
@@ -483,9 +485,9 @@ function layout:init_layout_attempt(state)
 
 	state.best_attempt = self:_placement_attempt(state, attempt[1], attempt[2])
 	state.best_attempt_score = self:_get_layout_heuristic(state)(state.best_attempt.heuristics)
+	state.best_attempt.heuristic_score = state.best_attempt_score
 
 	if state.debug_dump then
-		state.best_attempt.heuristic_score = state.best_attempt_score
 		state.saved_attempts = {}
 		state.saved_attempts[#state.saved_attempts+1] = state.best_attempt
 	end
@@ -528,7 +530,7 @@ function layout:layout_attempt(state)
 		state.saved_attempts[#state.saved_attempts+1] = current_attempt
 	end
 
-	if current_attempt.unconsumed == 0 and current_attempt_score < state.best_attempt_score  then
+	if current_attempt_score < state.best_attempt_score or current_attempt.unconsumed < state.best_attempt.unconsumed then
 		state.best_attempt_index = state.attempt_index
 		state.best_attempt = current_attempt
 		state.best_attempt_score = current_attempt_score

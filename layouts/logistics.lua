@@ -10,7 +10,7 @@ local pole_grid_mt = require("pole_grid_mt")
 local layout = table.deepcopy(simple)
 
 layout.name = "logistics"
-layout.translation = {"mpp.settings_layout_choice_logistics"}
+layout.translation = {"", "[entity=logistic-chest-passive-provider] ", {"mpp.settings_layout_choice_logistics"}}
 
 layout.restrictions.belt_available = false
 layout.restrictions.logistics_available = true

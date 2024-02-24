@@ -10,10 +10,10 @@ local EAST, NORTH, SOUTH, WEST = mpp_util.directions()
 local layout = table.deepcopy(simple)
 
 layout.name = "compact"
-layout.translation = {"mpp.settings_layout_choice_compact"}
+layout.translation = {"", "[entity=electric-mining-drill] ", {"mpp.settings_layout_choice_compact"}}
 
-layout.restrictions.miner_near_radius = {1, 1}
-layout.restrictions.miner_far_radius = {1, 10e3}
+layout.restrictions.miner_near_radius = {0, 10e3}
+layout.restrictions.miner_far_radius = {0, 10e3}
 layout.restrictions.uses_underground_belts = true
 layout.restrictions.pole_omittable = true
 layout.restrictions.pole_width = {1, 1}
@@ -28,42 +28,35 @@ layout.restrictions.pipe_available = true
 ---@return PlacementAttempt
 function layout:_placement_attempt(state, shift_x, shift_y)
 	local grid = state.grid
-	local size, near, far = state.miner.size, state.miner.near, state.miner.far
-	local fullsize = state.miner.full_size
-	local neighbor_sum = 0
-	local far_neighbor_sum = 0
-	local simple_density = 0
-	local real_density = 0
+	local M = state.miner
+	local size = M.size
 	local miners, postponed = {}, {}
-	local leech_sum = 0
-	local empty_space = 0
+	local heuristic_values = common.init_heuristic_values()
 	local lane_layout = {}
+	local bx, by = shift_x + M.size - 1, shift_y + M.size - 1
 	
 	local heuristic = self:_get_miner_placement_heuristic(state)
 
 	local row_index = 1
-	for ry = 1 + shift_y, state.coords.th + near, size + 0.5 do
-		local y = ceil(ry)
+	for y_float = 1 + shift_y, state.coords.th + size, size + 0.5 do
+		local y = ceil(y_float)
 		local column_index = 1
-		lane_layout[#lane_layout+1] = {y = y+near, row_index = row_index}
+		lane_layout[#lane_layout+1] = {y = y, row_index = row_index}
 		for x = 1 + shift_x, state.coords.tw, size do
-			local tile = grid:get_tile(x, y)
-			local center = grid:get_tile(x+near, y+near) --[[@as GridTile]]
+			local tile = grid:get_tile(x, y) --[[@as GridTile]]
 			local miner = {
+				x = x,
+				y = y,
+				origin_x = x + M.x,
+				origin_y = y + M.y,
 				tile = tile,
 				line = row_index,
 				column = column_index,
-				center = center,
 			}
-			if heuristic(center) then
+			if tile.neighbors_outer > 0 and heuristic(tile) then
 				miners[#miners+1] = miner
-				neighbor_sum = neighbor_sum + center.neighbor_count
-				far_neighbor_sum = far_neighbor_sum + center.far_neighbor_count
-				empty_space = empty_space + (size^2) - center.neighbor_count
-				real_density = real_density + center.far_neighbor_count / (fullsize ^ 2)
-				simple_density = simple_density + center.neighbor_count / (size ^ 2)
-				leech_sum = leech_sum + max(0, center.far_neighbor_count - center.neighbor_count)
-			elseif center.far_neighbor_count > 0 then
+				common.add_heuristic_values(heuristic_values, M, tile)
+			elseif tile.neighbors_outer > 0 then
 				postponed[#postponed+1] = miner
 			end
 			column_index = column_index + 1
@@ -72,22 +65,20 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 	end
 	
 	local result = {
-		sx=shift_x, sy=shift_y,
-		miners=miners,
-		miner_count=#miners,
-		lane_layout=lane_layout,
-		postponed=postponed,
-		neighbor_sum=neighbor_sum,
-		far_neighbor_sum=far_neighbor_sum,
-		leech_sum=leech_sum,
-		simple_density=simple_density,
-		real_density=real_density,
-		empty_space=empty_space,
-		unconsumed_count=0,
-		postponed_count=0,
+		sx = shift_x,
+		sy = shift_y,
+		bx = bx,
+		by = by,
+		miners = miners,
+		lane_layout = lane_layout,
+		heuristics = heuristic_values,
+		heuristic_score = -(0/0),
+		unconsumed = 0,
 	}
 
 	common.process_postponed(state, result, miners, postponed)
+
+	common.finalize_heuristic_values(result, heuristic_values, state.coords)
 
 	return result
 end
@@ -105,13 +96,13 @@ function layout:prepare_belt_layout(state)
 	state.belts = belts
 	state.builder_belts = {}
 
-	if supply_area < 3 or wire_reach < 9 then
-		state.pole_step = 6
-		self:_placement_belts_small(state)
-	else
-		state.pole_step = 9
-		self:_placement_belts_large(state)
-	end
+	-- if supply_area < 3 or wire_reach < 9 then
+	-- 	state.pole_step = 6
+	-- 	self:_placement_belts_small(state)
+	-- else
+	-- 	state.pole_step = 9
+	-- 	self:_placement_belts_large(state)
+	-- end
 
 	return "prepare_pole_layout"
 end
@@ -366,6 +357,10 @@ end
 ---@param self CompactLayout
 ---@param state SimpleState
 function layout:prepare_lamp_layout(state)
+	local next_step = "expensive_deconstruct"
+
+	if state.lamp_choice ~= true then return next_step end
+
 	local lamps = {}
 	state.builder_lamps = lamps
 
@@ -373,7 +368,7 @@ function layout:prepare_lamp_layout(state)
 
 	local sx, sy = -1, 0
 	local lamp_spacing = true
-	if state.pole_step > 7 then lamp_spacing = false end
+	if state.pole.wire > 7 then lamp_spacing = false end
 
 	for _, pole in ipairs(state.builder_power_poles) do
 		local x, y = pole.grid_x, pole.grid_y
@@ -390,7 +385,7 @@ function layout:prepare_lamp_layout(state)
 		end
 	end
 
-	return "expensive_deconstruct"
+	return next_step
 end
 
 ---@param self CompactLayout

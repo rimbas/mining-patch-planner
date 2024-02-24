@@ -11,6 +11,7 @@ local conf = {}
 ---@field blueprints PlayerGuiBlueprints 
 ---@field last_state State? Preserve in migrations
 ---@field filtered_entities table<string, true>
+---@field tick_expires integer When was gui closed, for undo button disabling
 
 ---@class PlayerChoices
 ---@field layout_choice string
@@ -67,6 +68,7 @@ conf.default_config = {
 ---@diagnostic disable-next-line: assign-type-mismatch
 	blueprint_items = nil,
 	filtered_entities = {},
+	tick_expires = 0,
 
 	choices = {
 		layout_choice = "simple",

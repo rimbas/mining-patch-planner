@@ -39,7 +39,7 @@ local layout = table.deepcopy(base)
 ---@field direction defines.direction
 
 layout.name = "blueprints"
-layout.translation = {"mpp.settings_layout_choice_blueprints"}
+layout.translation = {"", "[item=blueprint] ", {"mpp.settings_layout_choice_blueprints"}}
 
 layout.restrictions.miner_available = false
 layout.restrictions.belt_available = false
