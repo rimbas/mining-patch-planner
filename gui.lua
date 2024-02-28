@@ -3,6 +3,7 @@ local mpp_util = require("mpp_util")
 local enums = require("enums")
 local blueprint_meta = require("blueprintmeta")
 local compatibility = require("compatibility")
+local common = require("layouts.common")
 
 local layouts = algorithm.layouts
 
@@ -56,6 +57,7 @@ local entity_sections = {
 ---@field default number? For "drop-down" element
 ---@field refresh boolean? Update selections?
 ---@field filterable boolean? Can entity be hidden
+---@field disabled boolean? Is button disabled
 
 ---@class SettingValueEntryPrototype : SettingValueEntry
 ---@field action "mpp_prototype" Action tag override
@@ -120,7 +122,7 @@ local function create_setting_selector(player_data, root, action_type, action, v
 
 	for _, value in ipairs(values) do
 
-		local is_filtered = player_data.filtered_entities[value.value]
+		local is_filtered = mpp_util.get_entity_hidden(player_data, action, value.value)
 		if not player_data.entity_filtering_mode and is_filtered then
 			goto continue
 		end
@@ -165,7 +167,8 @@ local function create_setting_selector(player_data, root, action_type, action, v
 					mpp_icon_enabled=value.icon_enabled,
 					mpp_filterable=value.filterable,
 				},
-				tooltip=mpp_util.wrap_tooltip(value.tooltip),
+				tooltip=mpp_util.tooltip_entity_not_available(value.disabled, value.tooltip),
+				enabled=not value.disabled,
 			}
 			if is_filtered then
 				---@type LuaGuiElement
@@ -176,7 +179,6 @@ local function create_setting_selector(player_data, root, action_type, action, v
 					sprite="mpp_entity_filtered_overlay",
 					ignored_by_interaction=true,
 				}
-				--hidden.style.stretch_image_to_widget_size = true
 			end
 		end
 		action_class[value.value] = button
@@ -449,26 +451,26 @@ local function update_miner_selection(player_data)
 	player_data.gui.section["miner"].visible = restrictions.miner_available
 	if not restrictions.miner_available then return end
 
-	local near_radius_min, near_radius_max = restrictions.miner_near_radius[1], restrictions.miner_near_radius[2]
-	local far_radius_min, far_radius_max = restrictions.miner_far_radius[1], restrictions.miner_far_radius[2]
+	local near_radius_min, near_radius_max = restrictions.miner_size[1], restrictions.miner_size[2]
+	local far_radius_min, far_radius_max = restrictions.miner_radius[1], restrictions.miner_radius[2]
 	---@type SettingValueEntry[]
 	local values = {}
 	local existing_choice_is_valid = false
 	local cached_miners, cached_resources = enums.get_available_miners()
-
+	
 	for _, miner_proto in pairs(cached_miners) do
 		if mpp_util.check_filtered(miner_proto) then goto skip_miner end
 		if mpp_util.check_entity_hidden(player_data, "miner", miner_proto) then goto skip_miner end
 		local miner = mpp_util.miner_struct(miner_proto.name)
 
-		if miner.radius < near_radius_min or near_radius_max < miner.radius then goto skip_miner end
-		-- TODO: add a warning for coverage somewhere in the gui
-		if miner.radius < far_radius_min or far_radius_max < miner.radius then goto skip_miner end
+		local is_restricted = common.is_miner_restricted(miner, restrictions) or not layout:restriction_miner(miner)
+		if not player_data.entity_filtering_mode and is_restricted then goto skip_miner end
 
 		local tooltip = {
 			"", miner_proto.localised_name, "\n",
-			{"description.tile-size"}, (": %ix%i\n"):format(miner.size, miner.size),
-			{"description.mining-area"}, (": %ix%i"):format(miner.area, miner.area),
+			"[img=mpp_tooltip_category_size] ", {"description.tile-size"}, (": %ix%i\n"):format(miner.size, miner.size),
+			"[img=mpp_tooltip_category_area] ", {"description.mining-area"}, (": %ix%i"):format(miner.area, miner.area),
+			miner.power_source_tooltip and "\n" or nil, miner.power_source_tooltip,
 		}
 
 		values[#values+1] = {
@@ -477,6 +479,7 @@ local function update_miner_selection(player_data)
 			icon=("entity/"..miner.name),
 			order=miner_proto.order,
 			filterable=true,
+			disabled=is_restricted,
 		}
 		if miner.name == player_choices.miner_choice then existing_choice_is_valid = true end
 
@@ -489,6 +492,7 @@ local function update_miner_selection(player_data)
 		else
 			player_choices.miner_choice = values[1].value
 		end
+		existing_choice_is_valid = true
 	elseif #values == 0 then
 		player_choices.miner_choice = "none"
 		values[#values+1] = {
@@ -499,12 +503,16 @@ local function update_miner_selection(player_data)
 		}
 	end
 
+	local section = player_data.gui.section["miner"]
 	if existing_choice_is_valid then
-		local section = player_data.gui.section["miner"]
 		local miner = mpp_util.miner_struct(player_choices.miner_choice)
 		section.label_insufficient_area.visible = miner.area <= miner.size
 		section.label_no_fluid_mining.visible = not miner.supports_fluids
 		section.label_oversized_drill.visible = miner.skip_outer
+	else
+		section.label_insufficient_area.visible = false
+		section.label_no_fluid_mining.visible = false
+		section.label_oversized_drill.visible = false
 	end
 
 	local table_root = player_data.gui.tables["miner"]
@@ -527,8 +535,11 @@ local function update_belt_selection(player)
 
 	local belts = game.get_filtered_entity_prototypes{{filter="type", type="transport-belt"}}
 	for _, belt in pairs(belts) do
+		local belt_struct = mpp_util.belt_struct(belt.name)
 		if mpp_util.check_entity_hidden(player_data, "belt", belt) then goto skip_belt end
-		if layout.restrictions.uses_underground_belts and belt.related_underground_belt == nil then goto skip_belt end
+
+		local is_restricted = common.is_belt_restricted(belt_struct, restrictions)
+		if not player_data.entity_filtering_mode and is_restricted then goto skip_belt end
 
 		local belt_speed = belt.belt_speed * 60 * 8
 		local specifier = belt_speed % 1 == 0 and ": %.0f " or ": %.1f "
@@ -539,12 +550,17 @@ local function update_belt_selection(player)
 			{"description.belt-items"}, "/s",
 		}
 
+		if restrictions.uses_underground_belts and not belt_struct.related_underground_belt then
+			table.insert(tooltip, {"", "\n[color=yellow]", {"mpp.label_belt_find_underground"}, "[/color]"})
+		end
+
 		values[#values+1] = {
 			value=belt.name,
 			tooltip=tooltip,
 			icon=("entity/"..belt.name),
 			order=belt.order,
 			filterable=true,
+			disabled=is_restricted,
 		}
 		if belt.name == choices.belt_choice then existing_choice_is_valid = true end
 
@@ -557,6 +573,7 @@ local function update_belt_selection(player)
 		else
 			choices.belt_choice = values[1].value
 		end
+		existing_choice_is_valid = true
 	elseif #values == 0 then
 		player_data.choices.belt_choice = "none"
 		values[#values+1] = {
@@ -922,6 +939,12 @@ local function update_debugging_selection(player_data)
 		tooltip="Draw power pole layout",
 		icon=("entity/medium-electric-pole"),
 	}
+	
+	values[#values+1] = {
+		value="draw_pole_layout_compact",
+		tooltip="Draw power pole layout compact",
+		icon=("entity/medium-electric-pole"),
+	}
 
 	values[#values+1] = {
 		value="draw_built_things",
@@ -1045,7 +1068,9 @@ local function on_gui_click(event)
 			local visible_values = 0
 			for _, element in pairs(event.element.parent.children) do
 				---@cast element LuaGuiElement
-				if not element.filtered then visible_values = visible_values + 1 end
+				if not element.filtered and element.enabled then
+					visible_values = visible_values + 1
+				end
 			end
 
 			if #event.element.parent.children < 2 then

@@ -202,4 +202,34 @@ function common.calculate_patch_slack(state)
 
 end
 
+---@param miner MinerStruct
+---@param restrictions Restrictions
+---@return boolean
+function common.is_miner_restricted(miner, restrictions)
+	return false
+		or miner.size < restrictions.miner_size[1]
+		or restrictions.miner_size[2] < miner.size
+		or miner.radius < restrictions.miner_radius[1]
+		or restrictions.miner_radius[2] < miner.radius
+end
+
+---@param belt BeltStruct
+---@param restrictions Restrictions
+function common.is_belt_restricted(belt, restrictions)
+	return false
+		or (restrictions.uses_underground_belts and not belt.related_underground_belt)
+end
+
+---@param pole PoleStruct
+---@param restrictions Restrictions
+function common.is_pole_restricted(pole, restrictions)
+	return false
+		or pole.size < restrictions.pole_width[1]
+		or restrictions.pole_width[2] < pole.size
+		or pole.supply_area_distance < restrictions.pole_supply_area[1]
+		or restrictions.pole_supply_area[2] < pole.supply_area_distance
+		or pole.wire < restrictions.pole_length[1]
+		or restrictions.pole_length[2] < pole.wire
+end
+
 return common

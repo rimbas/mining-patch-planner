@@ -61,6 +61,7 @@ end
 ---@field name string
 ---@field size number Physical miner size
 ---@field size_sq number Size squared
+---@field symmetric boolean
 ---@field parity (-1|0) Parity offset for even sized drills, -1 when odd
 ---@field resource_categories table<string, boolean>
 ---@field radius float Mining area reach
@@ -81,6 +82,8 @@ end
 ---@field skip_outer boolean Skip outer area calculations
 ---@field pipe_left number Y height on left side
 ---@field pipe_right number Y height on right side
+---@field output_rotated table<defines.direction, MapPosition.1> Rotated output positions in reference to (0, 0) origin
+---@field power_source_tooltip (string|table)?
 
 ---@type table<string, MinerStruct>
 local miner_struct_cache = {}
@@ -104,6 +107,7 @@ function mpp_util.miner_struct(mining_drill_name)
 	end
 	miner.size = miner.w
 	miner.size_sq = miner.size ^ 2
+	miner.symmetric = miner.size % 2 == 1
 	miner.parity = miner.size % 2 - 1
 	miner.x, miner.y = miner.w / 2 - 0.5, miner.h / 2 - 0.5
 	miner.radius = miner_proto.mining_drill_radius
@@ -135,6 +139,15 @@ function mpp_util.miner_struct(mining_drill_name)
 		miner.out_x = dx
 		miner.out_y = dy
 	end
+	
+	local output_rotated = {
+		[defines.direction.north] = {miner.out_x, miner.out_y},
+		[defines.direction.south] = {miner.size - miner.out_x -1, miner.size },
+		[defines.direction.west] = {miner.size, miner.out_x},
+		[defines.direction.east] = {-1, miner.size - miner.out_x -1},
+	}
+
+	miner.output_rotated = output_rotated
 
 	--pipe height stuff
 	if miner_proto.fluidbox_prototypes and #miner_proto.fluidbox_prototypes > 0 then
@@ -153,11 +166,32 @@ function mpp_util.miner_struct(mining_drill_name)
 	end
 
 	-- If larger than a large mining drill
-	if miner.size > 7 or miner.area > 13 then
-		miner.skip_outer = true
-	end
-	miner.skip_outer = false
+	miner.skip_outer = miner.size > 7 or miner.area > 13
 
+	if miner_proto.electric_energy_source_prototype then
+		miner.power_source_tooltip = {
+			"", " [img=tooltip-category-electricity] ",
+			{"tooltip-category.consumes"}, " ", {"tooltip-category.electricity"},
+		}
+	elseif miner_proto.burner_prototype then
+		local burner = miner_proto.burner_prototype --[[@as LuaBurnerPrototype]]
+		if burner.fuel_categories["nuclear"] then
+			miner.power_source_tooltip = {
+				"", "[img=tooltip-category-nuclear]",
+				{"tooltip-category.consumes"}, " ", {"fuel-category-name.nuclear"},
+			}
+		else
+			miner.power_source_tooltip = {
+				"", "[img=tooltip-category-chemical]",
+				{"tooltip-category.consumes"}, " ", {"fuel-category-name.chemical"},
+			}
+		end
+	elseif miner_proto.fluid_energy_source_prototype then
+		miner.power_source_tooltip = {
+			"", "[img=tooltip-category-water]",
+			{"tooltip-category.consumes"}, " ", {"tooltip-category.fluid"},
+		}
+	end
 
 	return miner
 end
@@ -223,17 +257,59 @@ function mpp_util.revert(gx, gy, direction, x, y, w, h)
 	return {gx + tx, gy + ty}
 end
 
+---@class BeltStruct
+---@field name string
+---@field related_underground_belt string?
+---@field underground_reach number?
+
+---@type table<string, BeltStruct>
+local belt_struct_cache = {}
+
+function mpp_util.belt_struct(belt_name)
+	local cached = belt_struct_cache[belt_name]
+	if cached then return cached end
+
+	---@diagnostic disable-next-line: missing-fields
+	local belt = {} --[[@as BeltStruct]]
+	local belt_proto = game.entity_prototypes[belt_name]
+
+	belt.name = belt_name
+
+	local related = belt_proto.related_underground_belt
+	if related then
+		belt.related_underground_belt = related
+		belt.underground_reach = related.max_underground_distance
+	else
+		local match_attempts = {
+			transport = "underground",
+			["belt"] = "underground-belt",
+		}
+		for pattern, replacement in pairs(match_attempts) do
+			local new_name = string.gsub(belt_name, pattern, replacement)
+			if new_name == belt_name then goto continue end
+			related = game.entity_prototypes[new_name]
+			if related then
+				belt.related_underground_belt = new_name
+				belt.underground_reach = related.max_underground_distance
+				break
+			end
+			::continue::
+		end
+	end
+
+	belt_struct_cache[belt_name] = belt
+	return belt
+end
+
 ---Calculates needed power pole count
 ---@param state SimpleState
-function mpp_util.calculate_pole_coverage(state, miner_count, lane_count, shifted)
-	shifted = shifted or false
+function mpp_util.calculate_pole_coverage(state, miner_count, lane_count)
 	local cov = {}
 	local m = mpp_util.miner_struct(state.miner_choice)
 	local p = mpp_util.pole_struct(state.pole_choice)
 
 	-- Shift subtract
-	local shift_subtract = shifted and 2 or 0
-	local covered_miners = ceil((p.supply_width - shift_subtract) / m.size)
+	local covered_miners = ceil(p.supply_width / m.size)
 	local miner_step = covered_miners * m.size
 
 	-- Special handling to shift back small radius power poles so they don't poke out
@@ -267,6 +343,16 @@ function mpp_util.calculate_pole_coverage(state, miner_count, lane_count, shifte
 	end
 
 	return cov
+end
+
+---Calculates the spacing for belt interleaved power poles
+---@param state State
+---@param lane_count any
+function mpp_util.calculate_pole_spacing(state, lane_count)
+	local M = mpp_util.miner_struct(state.miner_choice)
+	local P = mpp_util.pole_struct(state.pole_choice)
+
+	local size = M.size
 end
 
 ---@param t table
@@ -418,8 +504,15 @@ function mpp_util.get_dump_state(player_index)
 	return settings.get_player_settings(player_index)["mpp-dump-heuristics-data"].value --[[@as boolean]]
 end
 
-function mpp_util.wrap_tooltip(tooltip)
-	return tooltip and {"", "     ", tooltip}
+function mpp_util.wrap_tooltip(...)
+	return select(1, ...) and {"", "     ", ...} or nil
+end
+
+function mpp_util.tooltip_entity_not_available(check, arg)
+	if check then
+		return mpp_util.wrap_tooltip(arg, "\n[color=red]", {"mpp.label_not_available"}, "[/color]")
+	end
+	return mpp_util.wrap_tooltip(arg)
 end
 
 ---@param c1 Coords
@@ -432,6 +525,7 @@ function mpp_util.coords_overlap(c1, c2)
 	return x and y
 end
 
+---Checks if thing (entity) should never appear as a choice
 ---@param thing LuaEntityPrototype|MinerStruct
 ---@return boolean|nil
 function mpp_util.check_filtered(thing)
@@ -447,10 +541,14 @@ function mpp_util.set_entity_hidden(player_data, category, name, value)
 	player_data.filtered_entities[category..":"..name] = value
 end
 
----comment
+function mpp_util.get_entity_hidden(player_data, category, name)
+	return player_data.filtered_entities[category..":"..name]
+end
+
+---Checks if a player has hidden the entity choice
 ---@param player_data any
 ---@param category MppSettingSections
----@param thing any
+---@param thing MinerStruct|LuaEntityPrototype
 ---@return false
 function mpp_util.check_entity_hidden(player_data, category, thing)
 	return (not player_data.entity_filtering_mode and player_data.filtered_entities[category..":"..thing.name])

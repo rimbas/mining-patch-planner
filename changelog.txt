@@ -1,7 +1,7 @@
 ---------------------------------------------------------------------------------------------------
 Version: 1.6.0
   Features:
-    - Built-in layouts no longer limited to odd-sized mining drills (2x2 and 4x4 drills work now)
+    - Built-in layouts no longer limited to odd-sized mining drills (2x2 and 4x4 drills work now)(barring other restrictions)
     - Now removes existing ghosts if new selection overlaps the previous selection
     - Tooltip and information display improvements
     - Added button hiding for drill/belt/power/logistic choices (Shift+Right-click on an icon)

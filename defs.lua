@@ -52,8 +52,8 @@
 
 ---@class Restrictions
 ---@field miner_available boolean
----@field miner_near_radius number[] Supported near radius of a miner
----@field miner_far_radius number[] Supported far radius of a miner
+---@field miner_size number[] Supported size of a mining drill
+---@field miner_radius number[] Supported radius of mining drill
 ---@field belt_available boolean
 ---@field uses_underground_belts boolean
 ---@field pole_available boolean

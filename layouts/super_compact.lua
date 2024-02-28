@@ -14,8 +14,8 @@ local layout = table.deepcopy(simple)
 layout.name = "super_compact"
 layout.translation = {"", "[entity=electric-mining-drill] ", {"mpp.settings_layout_choice_super_compact"}}
 
-layout.restrictions.miner_near_radius = {1, 1}
-layout.restrictions.miner_far_radius = {1, 10e3}
+layout.restrictions.miner_size = {3, 5}
+layout.restrictions.miner_radius = {1, 20}
 layout.restrictions.uses_underground_belts = true
 layout.restrictions.pole_omittable = true
 layout.restrictions.pole_width = {1, 1}
@@ -45,6 +45,12 @@ function layout:validate(state)
 	end
 	return true
 end
+
+---@param proto MinerStruct
+function layout:restriction_miner(proto)
+	return proto.symmetric
+end
+
 
 ---@param self SuperCompactLayout
 ---@param state SimpleState

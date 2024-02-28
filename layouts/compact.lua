@@ -12,8 +12,8 @@ local layout = table.deepcopy(simple)
 layout.name = "compact"
 layout.translation = {"", "[entity=electric-mining-drill] ", {"mpp.settings_layout_choice_compact"}}
 
-layout.restrictions.miner_near_radius = {0, 10e3}
-layout.restrictions.miner_far_radius = {0, 10e3}
+layout.restrictions.miner_size = {3, 10e3}
+layout.restrictions.miner_radius = {1, 10e3}
 layout.restrictions.uses_underground_belts = true
 layout.restrictions.pole_omittable = true
 layout.restrictions.pole_width = {1, 1}
@@ -34,7 +34,7 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 	local heuristic_values = common.init_heuristic_values()
 	local lane_layout = {}
 	local bx, by = shift_x + M.size - 1, shift_y + M.size - 1
-	
+
 	local heuristic = self:_get_miner_placement_heuristic(state)
 
 	local row_index = 1

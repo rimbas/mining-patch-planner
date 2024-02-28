@@ -11,8 +11,8 @@ local layout = table.deepcopy(simple) --[[@as Layout]]
 layout.name = "sparse"
 layout.translation = {"", "[entity=electric-mining-drill] ", {"mpp.settings_layout_choice_sparse"}}
 
-layout.restrictions.miner_near_radius = {1, 10e3}
-layout.restrictions.miner_far_radius = {2, 10e3}
+layout.restrictions.miner_size = {1, 10e3}
+layout.restrictions.miner_radius = {2, 10e3}
 layout.restrictions.pole_omittable = true
 layout.restrictions.pole_width = {1, 1}
 layout.restrictions.pole_length = {7.5, 10e3}

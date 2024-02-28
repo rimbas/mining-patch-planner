@@ -320,6 +320,16 @@ function render_util.draw_drill_struct(player_data, event)
 		r = 0.3,
 	}
 
+	for _, pos in pairs(drill.output_rotated) do
+		renderer.draw_cross{
+			x = fx1 + 0.5 + pos[1],
+			y = fy1 + 0.5 + pos[2],
+			r = 0.15,
+			width = 3,
+			c={0, 0, 0},
+		}
+	end
+
 	renderer.draw_line{
 		from={x + drill.x, y},
 		to={x + drill.x, y + 2},
@@ -480,6 +490,29 @@ function render_util.draw_pole_layout(player_data, event)
 
 end
 
+---Preview the pole coverage
+---@param player_data PlayerData
+---@param event EventData.on_player_reverse_selected_area
+function render_util.draw_pole_layout_compact(player_data, event)
+	rendering.clear("mining-patch-planner")
+
+	local renderer = render_util.renderer(event)
+
+	local fx1, fy1 = event.area.left_top.x, event.area.left_top.y
+	fx1, fy1 = floor(fx1), floor(fy1)
+
+	--renderer.draw_cross{x=fx1, y=fy1, w=fx2-fx1, h=fy2-fy1}
+	--renderer.draw_cross{x=fx1, y=fy1, w=2}
+
+	local drill = mpp_util.miner_struct(player_data.choices.miner_choice)
+	local pole = mpp_util.pole_struct(player_data.choices.pole_choice)
+
+	local function draw_lane(x, y, count)
+
+	end
+
+end
+
 ---Displays the labels of built things on the grid
 ---@param player_data PlayerData
 ---@param event EventData.on_player_reverse_selected_area
@@ -531,7 +564,7 @@ function render_util.draw_drill_convolution(player_data, event)
 	rendering.clear("mining-patch-planner")
 
 	local renderer = render_util.renderer(event)
-	
+
 	local fx1, fy1 = event.area.left_top.x, event.area.left_top.y
 	fx1, fy1 = floor(fx1), floor(fy1)
 
