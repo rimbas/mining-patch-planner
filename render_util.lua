@@ -1,4 +1,5 @@
 local mpp_util = require("mpp_util")
+local color = require("color")
 
 local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
@@ -326,7 +327,7 @@ function render_util.draw_drill_struct(player_data, event)
 			y = fy1 + 0.5 + pos[2],
 			r = 0.15,
 			width = 3,
-			c={0, 0, 0},
+			c={0, 0, 0, .5},
 		}
 	end
 
@@ -353,6 +354,14 @@ function render_util.draw_drill_struct(player_data, event)
 		y = fy1 + 0.5,
 		width = 2,
 		r = 0.4,
+	}
+
+	renderer.draw_text{
+		target={fx1 + .5, fy1 + .5},
+		text = "(0, 0)",
+		alignment = "center",
+		vertical_alignment="middle",
+		scale = 0.6,
 	}
 
 	-- negative extent - cyan
@@ -508,7 +517,57 @@ function render_util.draw_pole_layout_compact(player_data, event)
 	local pole = mpp_util.pole_struct(player_data.choices.pole_choice)
 
 	local function draw_lane(x, y, count)
+		for i = 0, count-1 do
+			renderer.draw_rectangle{
+				x = x + drill.size * i + 0.15 , y = y+.15,
+				w = drill.size-.3, h=1-.3,
+				color = i % 2 == 0 and {143/255, 86/255, 59/255} or {223/255, 113/255, 38/255},
+				width=2,
+			}
+		end
 
+		---@diagnostic disable-next-line: param-type-mismatch
+		local coverage = mpp_util.calculate_pole_spacing(player_data.choices, count, 1)
+
+		renderer.draw_circle{
+			x=x+.5, y=y-0.5, radius = .25, color={0.7, 0.7, 0.7},
+		}
+		for i = coverage.pole_start, coverage.full_miner_width, coverage.pole_step do
+			renderer.draw_circle{
+				x = x + i + .5,
+				y = y - .5,
+				radius = 0.3, width=2,
+				color = {0, 1, 1},
+			}
+			renderer.draw_line{
+				x = x + i +.5 - pole.supply_width / 2+.2,
+				y = y - .2,
+				h = 0,
+				w = pole.supply_width-.4,
+				color = {0, 1, 1},
+				width = 2,
+			}
+			renderer.draw_line{
+				x = x + i +.5 - pole.supply_width / 2 + .2,
+				y = y - .7,
+				h = .5,
+				w = 0,
+				color = {0, 1, 1},
+				width = 2,
+			}
+			renderer.draw_line{
+				x = x + i +.5 + pole.supply_width / 2 - .2,
+				y = y - .7,
+				h = .5,
+				w = 0,
+				color = {0, 1, 1},
+				width = 2,
+			}
+		end
+	end
+
+	for i = 1, 10 do
+		draw_lane(fx1, fy1+(i-1)*3, i)
 	end
 
 end
@@ -599,6 +658,54 @@ function render_util.draw_drill_convolution(player_data, event)
 			::continue::
 		end
 	end
+
+end
+
+
+---@param player_data PlayerData
+---@param event EventData.on_player_reverse_selected_area
+function render_util.draw_power_grid(player_data, event)
+	local renderer = render_util.renderer(event)
+
+	local fx1, fy1 = event.area.left_top.x, event.area.left_top.y
+	fx1, fy1 = floor(fx1), floor(fy1)
+
+	local state = player_data.last_state
+	if not state then return end
+
+	local C = state.coords
+	local grid = state.grid
+
+	local connectivity = state.power_connectivity
+	if not connectivity then
+		game.print("No connectivity exists")
+		return
+	end
+	local rendered = {}
+
+	for set_id, set in pairs(connectivity) do
+		local set_color = color.hue_sequence(set_id)
+		if set_id == 0 then set_color = {0, 0, 0} end
+		for pole, _ in pairs(set) do
+			---@cast pole GridPole
+			if rendered[pole] then goto continue end
+			rendered[pole] = true
+			local pole_color = set_color
+			if not pole.has_consumers and pole.backtracked then
+				pole_color = {1, 1, 1}
+			end
+
+			rendering.draw_circle{
+				surface = state.surface,
+				filled = false,
+				color = pole_color,
+				width = 5,
+				target = {C.gx + pole.grid_x, C.gy + pole.grid_y},
+				radius = 0.4,
+			}
+			::continue::
+		end
+	end --]]
 
 end
 

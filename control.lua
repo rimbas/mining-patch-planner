@@ -1,3 +1,4 @@
+require("__mining-patch-planner__/global_extends")
 local conf = require("configuration")
 local compatibility = require("compatibility")
 require("migration")

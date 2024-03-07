@@ -55,9 +55,42 @@ do
 	}
 end
 
+
+---@class EntityStruct
+---@field name string
+---@field w number Collision width
+---@field h number Collision height
+---@field x number x origin 
+---@field y number y origin
+---@field size number? Size if 
+
+---@type table<string, EntityStruct>
+local entity_cache = {}
+
+---comment
+---@param entity_name any
+function mpp_util.entity_struct(entity_name)
+	local cached = entity_cache[entity_name]
+	if cached then return cached end
+	---@diagnostic disable-next-line: missing-fields
+	local struct = {} --[[@as EntityStruct]]
+	local proto = game.entity_prototypes[entity_name]
+
+	local cbox = proto.collision_box
+	local cbox_tl, cbox_br = cbox.left_top, cbox.right_bottom
+	local cw, ch = cbox_br.x - cbox_tl.x, cbox_br.y - cbox_tl.y
+	struct.w, struct.h = ceil(cw), ceil(ch)
+	struct.size = max(struct.w, struct.h)
+	struct.x = ceil(struct.w / 2 - 0.5)
+	struct.y = ceil(struct.h / 2 - 0.5)
+
+	entity_cache[entity_name] = struct
+	return struct
+end
+
 ---A mining drill's origin (0, 0) is the top left corner
 ---The spawn location is (x, y), rotations need to rotate around
----@class MinerStruct
+---@class MinerStruct : EntityStruct
 ---@field name string
 ---@field size number Physical miner size
 ---@field size_sq number Size squared
@@ -68,10 +101,6 @@ end
 ---@field area number Full coverage span of the miner
 ---@field area_sq number Squared area
 ---@field module_inventory_size number
----@field x number Drill x origin
----@field y number Drill y origin
----@field w number Collision width
----@field h number Collision height
 ---@field middle number "Center" x position
 ---@field drop_pos MapPosition Raw drop position
 ---@field out_x integer Resource drop position x
@@ -97,19 +126,13 @@ function mpp_util.miner_struct(mining_drill_name)
 	
 	local miner_proto = game.entity_prototypes[mining_drill_name]
 	---@diagnostic disable-next-line: missing-fields
-	local miner = {} --[[@as MinerStruct]]
-	local cbox = miner_proto.collision_box
-	local cbox_tl, cbox_br = cbox.left_top, cbox.right_bottom
-	local cw, ch = cbox_br.x - cbox_tl.x, cbox_br.y - cbox_tl.y
-	miner.w, miner.h = ceil(cw), ceil(ch)
+	local miner = mpp_util.entity_struct(mining_drill_name) --[[@as MinerStruct]]
 	if miner.w ~= miner.h then
 		-- we have a problem ?
 	end
-	miner.size = miner.w
 	miner.size_sq = miner.size ^ 2
 	miner.symmetric = miner.size % 2 == 1
 	miner.parity = miner.size % 2 - 1
-	miner.x, miner.y = miner.w / 2 - 0.5, miner.h / 2 - 0.5
 	miner.radius = miner_proto.mining_drill_radius
 	miner.area = ceil(miner_proto.mining_drill_radius * 2)
 	miner.area_sq = miner.area ^ 2
@@ -197,6 +220,7 @@ function mpp_util.miner_struct(mining_drill_name)
 end
 
 ---@class PoleStruct
+---@field name string
 ---@field place boolean Flag if poles are to be actually placed
 ---@field size number
 ---@field radius number Power supply reach
@@ -215,7 +239,10 @@ function mpp_util.pole_struct(pole_name)
 
 	local pole_proto = game.entity_prototypes[pole_name]
 	if pole_proto then
-		local pole = {place=true}
+		local pole = {
+			place = true,
+			name = pole_name,
+		}
 		local cbox = pole_proto.collision_box
 		pole.size = ceil(cbox.right_bottom.x - cbox.left_top.x)
 		local radius = pole_proto.supply_area_distance
@@ -319,6 +346,7 @@ function mpp_util.calculate_pole_coverage(state, miner_count, lane_count)
 	else
 		miner_step = floor(p.wire)
 	end
+	cov.capable_span = capable_span
 
 	local pole_start = m.middle
 	if capable_span then
@@ -347,12 +375,59 @@ end
 
 ---Calculates the spacing for belt interleaved power poles
 ---@param state State
----@param lane_count any
-function mpp_util.calculate_pole_spacing(state, lane_count)
-	local M = mpp_util.miner_struct(state.miner_choice)
-	local P = mpp_util.pole_struct(state.pole_choice)
+---@param miner_count number
+---@param lane_count number
+---@param force_capable (number|true)?
+function mpp_util.calculate_pole_spacing(state, miner_count, lane_count, force_capable)
+	local cov = {}
+	local m = mpp_util.miner_struct(state.miner_choice)
+	local p = mpp_util.pole_struct(state.pole_choice)
 
-	local size = M.size
+	-- Shift subtract
+	local covered_miners = ceil(p.supply_width / m.size)
+	local miner_step = covered_miners * m.size
+	if force_capable then
+		miner_step = force_capable == true and miner_step or force_capable
+		force_capable = miner_step
+	end
+
+	-- Special handling to shift back small radius power poles so they don't poke out
+	local capable_span = false
+
+	if floor(p.wire) >= miner_step and m.size ~= p.supply_width then
+		capable_span = true
+	elseif force_capable and force_capable > 0 then
+		return mpp_util.calculate_pole_spacing(
+			state, miner_count, lane_count, miner_step - m.size
+		)
+	else
+		miner_step = floor(p.wire)
+	end
+	cov.capable_span = capable_span
+
+	local pole_start = m.size-1
+	if capable_span then
+		if covered_miners % 2 == 0 then
+			pole_start = m.size-1
+		elseif miner_count % covered_miners == 0 then
+			pole_start = pole_start + m.size
+		end
+	end
+
+	cov.pole_start = pole_start
+	cov.pole_step = miner_step
+	cov.full_miner_width = miner_count * m.size
+
+	cov.lane_start = 0
+	cov.lane_step = m.size * 2 + 2
+	local lane_pairs = floor(lane_count / 2)
+	local lane_coverage = ceil((p.radius-1) / (m.size + 0.5))
+	if lane_coverage > 1 then
+		cov.lane_start = (ceil(lane_pairs / 2) % 2 == 0 and 1 or 0) * (m.size * 2 + 2)
+		cov.lane_step = lane_coverage * (m.size * 2 + 2)
+	end
+
+	return cov
 end
 
 ---@param t table

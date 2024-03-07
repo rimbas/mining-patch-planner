@@ -1,3 +1,5 @@
+local floor, ceil, min, max = math.floor, math.ceil, math.min, math.max
+
 local mpp_util = require("mpp_util")
 
 ---@class GridRow: GridTile[]
@@ -28,6 +30,20 @@ grid_mt.__index = grid_mt
 ---@field extent_x2 number Internal grid dimensions
 ---@field extent_y2 number Internal grid dimensions
 
+---@alias GridBuilding
+---| nil
+---| "miner"
+---| "pole"
+---| "beacon"
+---| "belt"
+---| "inserter"
+
+local need_electricity = {
+	miner = true,
+	beacon = true,
+	inserter = true
+}
+
 ---@class GridTile
 ---@field amount number Amount of resource on tile
 ---@field neighbor_amount number Total resource sum of neighbors (performance killer?)
@@ -37,7 +53,7 @@ grid_mt.__index = grid_mt
 ---@field y integer
 ---@field gx double actual coordinate in surface
 ---@field gy double actual coordinate in surface
----@field built_on boolean|string Is tile occupied by a building entity
+---@field built_on GridBuilding Is tile occupied by a building entity
 ---@field consumed boolean Is a miner consuming this tile
 
 ---@class BlueprintGridTile : GridTile
@@ -205,7 +221,7 @@ end
 ---@param cx number x coord
 ---@param cy number y coord
 ---@param size number
----@param thing string Type of building
+---@param thing GridBuilding Type of building
 function grid_mt:build_thing(cx, cy, size, thing)
 	for y = cy, cy+size do
 		local row = self[y]
@@ -362,6 +378,37 @@ function grid_mt:get_unconsumed_custom(mx, my, w)
 		::continue_row::
 	end
 	return count
+end
+
+---@param mx number
+---@param my number
+---@param pole number|PoleStruct
+---@return boolean
+function grid_mt:needs_power(mx, my, pole)
+	local nx1, nx2, ny1, ny2
+	if type(pole) == "table" then
+		local size = pole.size
+		local extent = ceil((pole.supply_width-size) / 2)
+		nx1, nx2 = mx - extent, mx + extent
+		ny1, ny2 = my - extent, my + extent
+	else
+		nx1, nx2 = mx, mx+pole-1
+		ny1, ny2 = my, my+pole-1
+	end
+
+	for y = ny1, ny2 do
+		local row = self[y]
+		if row == nil then goto continue_row end
+		for x = nx1, nx2 do
+			---@type GridTile
+			local tile = row[x]
+			if tile and need_electricity[tile.built_on] then
+				return true
+			end
+		end
+		::continue_row::
+	end
+	return false
 end
 
 return grid_mt

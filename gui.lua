@@ -958,6 +958,12 @@ local function update_debugging_selection(player_data)
 		icon=("mpp_debugging_grid_convolution"),
 	}
 
+	values[#values+1] = {
+		value="draw_power_grid",
+		tooltip="Draw power grid connectivity",
+		icon=("entity/substation"),
+	}
+
 	local debugging_section = player_data.gui.section["debugging"]
 	debugging_section.visible = #values > 0
 

@@ -14,7 +14,7 @@ local layout = table.deepcopy(simple)
 layout.name = "super_compact"
 layout.translation = {"", "[entity=electric-mining-drill] ", {"mpp.settings_layout_choice_super_compact"}}
 
-layout.restrictions.miner_size = {3, 5}
+layout.restrictions.miner_size = {3, 3}
 layout.restrictions.miner_radius = {1, 20}
 layout.restrictions.uses_underground_belts = true
 layout.restrictions.pole_omittable = true
@@ -57,79 +57,74 @@ end
 ---@return PlacementAttempt
 function layout:_placement_attempt(state, shift_x, shift_y)
 	local grid = state.grid
-	local size, near, fullsize = state.miner.size, state.miner.near, state.miner.full_size
-	local neighbor_sum = 0
-	local far_neighbor_sum = 0
+	local M = state.miner
+	local size, area = M.size, M.area
 	local miners, postponed = {}, {}
-	local simple_density = 0
-	local real_density = 0
-	local leech_sum = 0
-	local empty_space = 0
+	local heuristic_values = common.init_heuristic_values()
 	local lane_layout = {}
+	local bx, by = shift_x + size - 1, shift_y + size - 1
 	
 	--@param tile GridTile
 	--local function heuristic(tile) return tile.neighbor_count > 2 end
 
 	local heuristic = self:_get_miner_placement_heuristic(state)
 	
-	local function miner_stagger(start_x, start_y, direction, stagger_step, mark_lane)
-		local miner_index = 1
+	local function miner_stagger(start_x, start_y, direction, stagger_step, row_start, mark_lane)
+		local row_index = row_start
 		for y = 1 + shift_y + start_y, state.coords.th + 2, size * 3 + 1 do
 			if mark_lane then lane_layout[#lane_layout+1] = {y=y} end
+			local ix = 1
 			for x = 1 + shift_x + start_x, state.coords.tw + 2, size * 2 do
-				local tile = grid:get_tile(x, y)
-				local center = grid:get_tile(x+near, y+near) --[[@as GridTile]]
+				local tile = grid:get_tile(x, y) --[[@as GridTile]]
+				---@type MinerPlacementInit
 				local miner = {
+					x = x,
+					y = y,
+					origin_x = x + M.x,
+					origin_y = y + M.y,
 					tile = tile,
-					center = center,
 					direction = direction,
 					stagger = stagger_step,
-					line = miner_index,
+					line = row_index,
+					column = ix,
 				}
-				if center.far_neighbor_count > 0 then
-					if heuristic(center) then
+				if tile.neighbors_outer > 0 and heuristic(tile) then
 						miners[#miners+1] = miner
-						neighbor_sum = neighbor_sum + center.neighbor_count
-						far_neighbor_sum = far_neighbor_sum + center.far_neighbor_count
-						empty_space = empty_space + (size^2) - center.neighbor_count
-						simple_density = simple_density + center.neighbor_count / (size ^ 2)
-						real_density = real_density + center.far_neighbor_count / (fullsize ^ 2)
-						leech_sum = leech_sum + max(0, center.far_neighbor_count - center.neighbor_count)
-					else
-						postponed[#postponed+1] = miner
-					end
+						common.add_heuristic_values(heuristic_values, M, tile)
+				elseif tile.neighbors_outer > 0 then
+					postponed[#postponed+1] = miner
 				end
+				ix = ix + 1
 			end
-			miner_index = miner_index + 1
+			row_index = row_index + 2
+
 		end
 	end
 
 	miner_stagger(0, -2, "south", 1)
-	miner_stagger(3, 0, "east", 1, true)
+	miner_stagger(3, 0, "east", 1)
 	miner_stagger(0, 2, "north", 1)
 
 	-- the redundant calculation makes it easier to find the stagger offset
 	miner_stagger(0+size, -2+size+2, "south", 2)
-	miner_stagger(3-size, 0+size+2, "east", 2, true)
+	miner_stagger(3-size, 0+size+2, "east", 2)
 	miner_stagger(0+size, 2+size+2, "north", 2)
 
 	local result = {
-		sx=shift_x, sy=shift_y,
+		sx = shift_x,
+		sy = shift_y,
+		bx = bx,
+		by = by,
 		miners = miners,
-		miner_count=#miners,
-		lane_layout=lane_layout,
-		postponed = postponed,
-		neighbor_sum = neighbor_sum,
-		far_neighbor_sum = far_neighbor_sum,
-		leech_sum=leech_sum,
-		simple_density = simple_density,
-		real_density = real_density,
-		empty_space=empty_space,
-		unconsumed_count = 0,
-		postponed_count = 0,
+		lane_layout = lane_layout,
+		heuristics = heuristic_values,
+		heuristic_score = -(0/0),
+		unconsumed = 0,
 	}
 
 	common.process_postponed(state, result, miners, postponed)
+
+	common.finalize_heuristic_values(result, heuristic_values, state.coords)
 
 	return result
 end
@@ -140,22 +135,21 @@ end
 ---@return CallbackState
 function layout:prepare_miner_layout(state)
 	local grid = state.grid
+	local M = state.miner
 
 	local builder_miners = {}
 	state.builder_miners = builder_miners
 
 	for _, miner in ipairs(state.best_attempt.miners) do
-		local center = miner.center
-		grid:build_miner(center.x, center.y)
+		grid:build_miner(miner.x, miner.y, state.miner.size)
 
 		-- used for deconstruction, not ghost placement
 		builder_miners[#builder_miners+1] = {
 			thing="miner",
 			extent_=state.miner.size,
-			grid_x = miner.center.x,
-			grid_y = miner.center.y,
-			padding_pre = state.miner.near,
-			padding_post = state.miner.near,
+			grid_x = miner.origin_x,
+			grid_y = miner.origin_y,
+			radius = M.size / 2,
 		}
 
 		--[[ debug visualisation - miner placement
@@ -230,8 +224,9 @@ function layout:prepare_belt_layout(state)
 		if not belt_lanes[index] then belt_lanes[index] = {} end
 		local line = belt_lanes[index]
 		line._index = index
-		if line.last_x == nil or miner.center.x > line.last_x then
-			line.last_x = miner.center.x
+		local out_x = m.output_rotated[defines.direction[miner.direction]][1]
+		if line.last_x == nil or (miner.x + out_x) > line.last_x then
+			line.last_x = miner.x + out_x
 			line.last_miner = miner
 		end
 		line[#line+1] = miner
@@ -379,17 +374,17 @@ end
 function layout:placement_miners(state)
 	local create_entity = builder.create_entity_builder(state)
 
+	local M = state.miner
 	local grid = state.grid
 	local module_inv_size = state.miner.module_inventory_size --[[@as uint]]
 
 	for _, miner in ipairs(state.best_attempt.miners) do
-		local center = miner.center
 		
-		grid:build_miner(center.x, center.y)
 		local ghost = create_entity{
 			name = state.miner_choice,
-			grid_x = center.x,
-			grid_y = center.y,
+			thing = "miner",
+			grid_x = miner.origin_x,
+			grid_y = miner.origin_y,
 			direction = defines.direction[miner.direction],
 		}
 

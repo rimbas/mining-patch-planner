@@ -33,6 +33,7 @@ local layout = table.deepcopy(base)
 ---@field miner_lane_count number Miner lane count
 ---@field miner_max_column number Miner column span
 ---@field grid Grid
+---@field power_grid PowerPoleGrid For connectivity
 ---@field belts BeltSpecification[]
 ---@field belt_count number For info printout
 ---@field miner_lanes table<number, MinerPlacement[]>
@@ -80,6 +81,9 @@ layout.restrictions.lane_filling_info_available = true
 function layout:on_load(state)
 	if state.grid then
 		setmetatable(state.grid, grid_mt)
+	end
+	if state.power_grid then
+		setmetatable(state.power_grid, pole_grid_mt)
 	end
 end
 
