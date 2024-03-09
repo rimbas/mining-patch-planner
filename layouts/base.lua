@@ -65,6 +65,9 @@ end
 function layout:initialize(state)
 	state.miner = mpp_util.miner_struct(state.miner_choice)
 	state.pole = mpp_util.pole_struct(state.pole_choice)
+	if layout.restrictions.belt_available then
+		state.belt = mpp_util.belt_struct(state.belt_choice)
+	end
 end
 
 ---Starting step

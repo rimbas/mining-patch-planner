@@ -48,7 +48,8 @@ function render_util.draw_belt_lane(state, belt)
 	local c, ttl, player = state.coords, 0, {state.player}
 	local x1, y1, x2, y2 = belt.x1, belt.y, math.max(belt.x1+2, belt.x2), belt.y
 	local function l2w(x, y) -- local to world
-		return mpp_util.revert(c.gx, c.gy, state.direction_choice, x, y, c.tw, c.th)
+		local rev = mpp_util.revert(c.gx, c.gy, state.direction_choice, x-.5, y-.5, c.tw, c.th)
+		return {rev[1]+.5, rev[2]+.5}
 	end
 	local c1, c2, c3 = {.9, .9, .9}, {0, 0, 0}, {.4, .4, .4}
 	local w1, w2 = 4, 10
@@ -708,5 +709,24 @@ function render_util.draw_power_grid(player_data, event)
 	end --]]
 
 end
+
+---@param player_data PlayerData
+---@param event EventData.on_player_reverse_selected_area
+function render_util.draw_centricity(player_data, event)
+	local renderer = render_util.renderer(event)
+
+	local fx1, fy1 = event.area.left_top.x, event.area.left_top.y
+	fx1, fy1 = floor(fx1), floor(fy1)
+
+	local state = player_data.last_state
+	if not state then return end
+
+	local C = state.coords
+	local grid = state.grid
+
+	
+
+end
+
 
 return render_util

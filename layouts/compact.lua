@@ -227,7 +227,7 @@ function layout:_placement_belts_small(state)
 	local m = state.miner
 	local attempt = state.best_attempt
 	local belt_choice = state.belt_choice
-	local underground_belt = game.entity_prototypes[belt_choice].related_underground_belt.name
+	local underground_belt = state.belt.related_underground_belt
 
 	local power_poles = {}
 	state.builder_power_poles = power_poles
@@ -247,11 +247,11 @@ function layout:_placement_belts_small(state)
 	end
 
 	for _, lane in ipairs(miner_lanes) do
-		table.sort(lane, function(a, b) return a.center.x < b.center.x end)
+		table.sort(lane, function(a, b) return a.x < b.x end)
 	end
 
 	---@param lane MinerPlacement[]
-	local function get_lane_length(lane) if lane then return lane[#lane].center.x end return 0 end
+	local function get_lane_length(lane) if lane then return lane[#lane].x + m.out_x end return 0 end
 	---@param lane MinerPlacement[]
 	local function get_lane_column(lane) if lane and #lane > 0 then return lane[#lane].column end return 0 end
 

@@ -247,7 +247,7 @@ function mpp_util.pole_struct(pole_name)
 		pole.size = ceil(cbox.right_bottom.x - cbox.left_top.x)
 		local radius = pole_proto.supply_area_distance
 		pole.supply_area_distance = radius
-		pole.supply_width = radius * 2 + ((radius * 2 % 2) == 0 and 1 or 0)
+		pole.supply_width = radius * 2
 		pole.radius = pole.supply_width / 2
 		pole.wire = pole_proto.max_wire_distance
 
@@ -304,12 +304,12 @@ function mpp_util.belt_struct(belt_name)
 
 	local related = belt_proto.related_underground_belt
 	if related then
-		belt.related_underground_belt = related
+		belt.related_underground_belt = related.name
 		belt.underground_reach = related.max_underground_distance
 	else
 		local match_attempts = {
-			transport = "underground",
-			["belt"] = "underground-belt",
+			["transport"]	= "underground",
+			["belt"]		= "underground-belt",
 		}
 		for pattern, replacement in pairs(match_attempts) do
 			local new_name = string.gsub(belt_name, pattern, replacement)
@@ -369,6 +369,8 @@ function mpp_util.calculate_pole_coverage(state, miner_count, lane_count)
 		cov.lane_start = (ceil(lane_pairs / 2) % 2 == 0 and 1 or 0) * (m.size * 2 + 2)
 		cov.lane_step = lane_coverage * (m.size * 2 + 2)
 	end
+
+	cov.lamp_alter = miner_step < 9 and true or false
 
 	return cov
 end

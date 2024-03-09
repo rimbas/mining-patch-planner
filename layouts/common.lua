@@ -34,7 +34,11 @@ end
 function common.simple_layout_heuristic(heuristic)
 	local lane_mult = 1 + ceil(heuristic.lane_count / 2) * 0.05
 	local unconsumed = 1 + log(max(1, heuristic.unconsumed), 10)
-	local value = (heuristic.inner_density + heuristic.empty_space / heuristic.drill_count) * heuristic.centricity * lane_mult * unconsumed
+	local value =
+		(heuristic.inner_density + heuristic.empty_space / heuristic.drill_count)
+		--* heuristic.centricity
+		* lane_mult
+		* unconsumed
 	return value
 end
 
@@ -42,7 +46,11 @@ end
 function common.overfill_layout_heuristic(heuristic)
 	local lane_mult = 1 + ceil(heuristic.lane_count / 2) * 0.05
 	local unconsumed = 1 + log(max(1, heuristic.unconsumed), 10)
-	local value = heuristic.outer_density * heuristic.centricity * lane_mult * unconsumed
+	local value =
+		heuristic.outer_density
+		--* heuristic.centricity
+		* lane_mult
+		* unconsumed
 	return value
 end
 

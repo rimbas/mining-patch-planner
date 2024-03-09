@@ -34,6 +34,7 @@ local layout = table.deepcopy(base)
 ---@field miner_max_column number Miner column span
 ---@field grid Grid
 ---@field power_grid PowerPoleGrid For connectivity
+---@field power_connectivity table
 ---@field belts BeltSpecification[]
 ---@field belt_count number For info printout
 ---@field miner_lanes table<number, MinerPlacement[]>
@@ -197,7 +198,6 @@ function layout:initialize_grid(state)
 				--neighbor_counts = init_counts(),
 				gx = c.x1 + x, gy = c.y1 + y,
 				consumed = false,
-				built_on = false,
 			} --[[@as GridTile]]
 		end
 	end
@@ -861,35 +861,20 @@ end
 ---@param state SimpleState
 ---@return CallbackState
 function layout:prepare_pole_layout(state)
-	local c = state.coords
-	local m = state.miner
-	local P = state.pole
-	local g = state.grid
+	local C, M, P, G = state.coords, state.miner, state.pole, state.grid
 	local attempt = state.best_attempt
 
 	local supply_area, wire_reach = 3, 9
 	supply_area, wire_reach = P.supply_width, P.wire
 
-	--TODO: figure out double lane coverage with insane supply areas
-	local function get_covered_miners(ix, iy)
-		--for sy = -supply_radius, supply_radius do
-		for sy = -supply_area, supply_area, 1 do
-			for sx = -supply_area, supply_area, 1 do
-				local tile = g:get_tile(ix+sx, iy+sy)
-				if tile and tile.built_on == "miner" then
-					return true
-				end
-			end
-		end
-		return false
-	end
-
-	-----@type PowerPoleGrid
-	--local power_poles_grid = setmetatable({}, pole_grid_mt)
+	---@type PowerPoleGhostSpecification[]
 	local builder_power_poles = {}
 	state.builder_power_poles = builder_power_poles
 
 	local coverage = mpp_util.calculate_pole_coverage(state, state.miner_max_column, state.miner_lane_count)
+
+	local power_grid = pole_grid_mt.new()
+	state.power_grid = power_grid
 
 	-- rendering.draw_circle{
 	-- 	surface = state.surface,
@@ -905,15 +890,30 @@ function layout:prepare_pole_layout(state)
 	--local y = attempt.sy + m.size + (m.size + pole_gap) * (i-1)
 
 	local iy = 1
-	for y = attempt.sy + coverage.lane_start - 1, c.th + m.size, coverage.lane_step do
+	for y = attempt.sy + coverage.lane_start - 1, C.th + M.size, coverage.lane_step do
 		local ix, pole_lane = 1, {}
 		pole_lanes[#pole_lanes+1] = pole_lane
 		for x = attempt.sx + coverage.pole_start, attempt.sx + coverage.full_miner_width + 1, coverage.pole_step do
-			local built = get_covered_miners(x, y)
+			local no_light = coverage.lamp_alter and ix % 2 == 0 or nil
+			--local built = get_covered_miners(x, y)
+			local has_consumers = G:needs_power(x, y, P)
 
 			---@type GridPole
-			local pole = {x=x, y=y, ix=ix, iy=iy, has_consumers=built}
+			local pole = {
+				name = state.pole_choice,
+				thing = "pole",
+				grid_x = x, grid_y = y,
+				ix = ix, iy = iy,
+				has_consumers = has_consumers,
+				backtracked = false,
+				built = has_consumers,
+				connections = {},
+				no_light = no_light,
+			}
 			--power_poles_grid:set_pole(ix, iy, pole)
+
+			power_grid:add_pole(pole)
+
 			pole_lane[ix] = pole
 			ix = ix + 1
 		end
@@ -929,15 +929,20 @@ function layout:prepare_pole_layout(state)
 				builder_power_poles[#builder_power_poles+1] = {
 					name=state.pole_choice,
 					thing="pole",
-					grid_x = backtrack_pole.x,
-					grid_y = backtrack_pole.y,
+					grid_x = backtrack_pole.grid_x,
+					grid_y = backtrack_pole.grid_y,
+					no_light = backtrack_pole.no_light,
 				}
-
 			end
 		end
 
 		iy = iy + 1
 	end
+
+	local connectivity = power_grid:find_connectivity(state.pole)
+	state.power_connectivity = connectivity
+
+	power_grid:ensure_connectivity(connectivity)
 
 	return "prepare_lamp_layout"
 end

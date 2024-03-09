@@ -469,7 +469,7 @@ local function update_miner_selection(player_data)
 		local tooltip = {
 			"", miner_proto.localised_name, "\n",
 			"[img=mpp_tooltip_category_size] ", {"description.tile-size"}, (": %ix%i\n"):format(miner.size, miner.size),
-			"[img=mpp_tooltip_category_area] ", {"description.mining-area"}, (": %ix%i"):format(miner.area, miner.area),
+			"[img=mpp_tooltip_category_mining_area] ", {"description.mining-area"}, (": %ix%i"):format(miner.area, miner.area),
 			miner.power_source_tooltip and "\n" or nil, miner.power_source_tooltip,
 		}
 
@@ -707,9 +707,6 @@ local function update_pole_selection(player_data)
 	player_data.gui.section["pole"].visible = restrictions.pole_available
 	if not restrictions.pole_available then return end
 
-	local pole_width_min, pole_width_max = restrictions.pole_width[1], restrictions.pole_width[2]
-	local pole_supply_min, pole_supply_max = restrictions.pole_supply_area[1], restrictions.pole_supply_area[2]
-
 	local values = {}
 	values[1] = {
 		value="none",
@@ -720,22 +717,32 @@ local function update_pole_selection(player_data)
 
 	local existing_choice_is_valid = ("none" == choices.pole_choice)
 	local poles = game.get_filtered_entity_prototypes{{filter="type", type="electric-pole"}}
-	for _, pole in pairs(poles) do
-		if mpp_util.check_entity_hidden(player_data, "pole", pole) then goto skip_pole end
-		local cbox = pole.collision_box
-		local size = math.ceil(cbox.right_bottom.x - cbox.left_top.x)
-		local supply_area = pole.supply_area_distance
-		if size < pole_width_min or pole_width_max < size then goto skip_pole end
-		if supply_area < pole_supply_min or pole_supply_max < supply_area then goto skip_pole end
+	for _, pole_proto in pairs(poles) do
+		if mpp_util.check_filtered(pole_proto) then goto skip_pole end
+		if mpp_util.check_entity_hidden(player_data, "pole", pole_proto) then goto skip_pole end
+		local pole = mpp_util.pole_struct(pole_proto.name)
+
+		local is_restricted = common.is_pole_restricted(pole, restrictions)
+
+		if not player_data.entity_filtering_mode and is_restricted then goto skip_pole end
+
+
+		local tooltip = {
+			"", pole_proto.localised_name, "\n",
+			"[img=mpp_tooltip_category_size] ", {"description.tile-size"}, (": %ix%i\n"):format(pole.size, pole.size),
+			"[img=mpp_tooltip_category_supply_area]", {"description.supply-area"}, (": %ix%i\n"):format(pole.supply_width, pole.supply_width),
+			" [img=tooltip-category-electricity] ", {"description.wire-reach"}, (": %i"):format(pole.wire),
+		}
 
 		values[#values+1] = {
-			value=pole.name,
-			tooltip=pole.localised_name,
-			icon=("entity/"..pole.name),
-			order=pole.order,
+			value=pole_proto.name,
+			tooltip=tooltip,
+			icon=("entity/"..pole_proto.name),
+			order=pole_proto.order,
 			filterable=true,
+			disabled=is_restricted,
 		}
-		if pole.name == choices.pole_choice then existing_choice_is_valid = true end
+		if pole_proto.name == choices.pole_choice then existing_choice_is_valid = true end
 
 		::skip_pole::
 	end
@@ -962,6 +969,12 @@ local function update_debugging_selection(player_data)
 		value="draw_power_grid",
 		tooltip="Draw power grid connectivity",
 		icon=("entity/substation"),
+	}
+
+	values[#values+1] = {
+		value="draw_centricity",
+		tooltip="Draw layout centricity",
+		icon=("mpp_plus"),
 	}
 
 	local debugging_section = player_data.gui.section["debugging"]

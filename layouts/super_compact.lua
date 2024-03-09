@@ -4,6 +4,7 @@ local simple = require("layouts.simple")
 local mpp_util = require("mpp_util")
 local builder = require("builder")
 
+local table_insert = table.insert
 local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
 local EAST, NORTH, SOUTH, WEST = mpp_util.directions()
@@ -69,10 +70,10 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 
 	local heuristic = self:_get_miner_placement_heuristic(state)
 	
-	local function miner_stagger(start_x, start_y, direction, stagger_step, row_start, mark_lane)
+	local function miner_stagger(start_x, start_y, direction, row_start, mark_lane)
 		local row_index = row_start
 		for y = 1 + shift_y + start_y, state.coords.th + 2, size * 3 + 1 do
-			if mark_lane then lane_layout[#lane_layout+1] = {y=y} end
+			if mark_lane then lane_layout[#lane_layout+1] = {y=y+1, row_index=row_index} end
 			local ix = 1
 			for x = 1 + shift_x + start_x, state.coords.tw + 2, size * 2 do
 				local tile = grid:get_tile(x, y) --[[@as GridTile]]
@@ -84,13 +85,13 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 					origin_y = y + M.y,
 					tile = tile,
 					direction = direction,
-					stagger = stagger_step,
+					stagger = row_start,
 					line = row_index,
 					column = ix,
 				}
 				if tile.neighbors_outer > 0 and heuristic(tile) then
-						miners[#miners+1] = miner
-						common.add_heuristic_values(heuristic_values, M, tile)
+					table_insert(miners, miner)
+					common.add_heuristic_values(heuristic_values, M, tile)
 				elseif tile.neighbors_outer > 0 then
 					postponed[#postponed+1] = miner
 				end
@@ -102,13 +103,13 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 	end
 
 	miner_stagger(0, -2, "south", 1)
-	miner_stagger(3, 0, "east", 1)
-	miner_stagger(0, 2, "north", 1)
+	miner_stagger(3,  0, "east",  1, true)
+	miner_stagger(0,  2, "north", 1)
 
 	-- the redundant calculation makes it easier to find the stagger offset
 	miner_stagger(0+size, -2+size+2, "south", 2)
-	miner_stagger(3-size, 0+size+2, "east", 2)
-	miner_stagger(0+size, 2+size+2, "north", 2)
+	miner_stagger(3-size,  0+size+2, "east",  2, true)
+	miner_stagger(0+size,  2+size+2, "north", 2)
 
 	local result = {
 		sx = shift_x,
@@ -126,6 +127,17 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 
 	common.finalize_heuristic_values(result, heuristic_values, state.coords)
 
+	
+	for _, miner in pairs(miners) do
+		---@cast miner MinerPlacement
+		local current_lane = lane_layout[miner.line]
+		if not current_lane then
+			current_lane = {}
+			lane_layout[miner.line] = current_lane
+		end
+		table_insert(current_lane, miner)
+	end
+
 	return result
 end
 
@@ -141,7 +153,7 @@ function layout:prepare_miner_layout(state)
 	state.builder_miners = builder_miners
 
 	for _, miner in ipairs(state.best_attempt.miners) do
-		grid:build_miner(miner.x, miner.y, state.miner.size)
+		grid:build_miner(miner.x, miner.y, state.miner.size-1)
 
 		-- used for deconstruction, not ghost placement
 		builder_miners[#builder_miners+1] = {
@@ -204,13 +216,13 @@ function layout:prepare_belt_layout(state)
 	local m = state.miner
 	local g = state.grid
 	local attempt = state.best_attempt
-	local underground_belt = game.entity_prototypes[state.belt_choice].related_underground_belt.name
+	local underground_belt = state.belt.related_underground_belt
 
 	local power_poles = {}
 	state.builder_power_poles = power_poles
 	
 	---@type table<number, MinerPlacement[]>
-	local belt_lanes = {}
+	local belt_lanes = attempt.lane_layout
 	local miner_lane_number = 0 -- highest index of a lane, because using # won't do the job if a lane is missing
 
 	local builder_belts = {}
@@ -219,7 +231,7 @@ function layout:prepare_belt_layout(state)
 	state.belt_count = 0
 
 	for _, miner in ipairs(attempt.miners) do
-		local index = miner.line * 2 + miner.stagger - 2
+		local index = miner.line
 		miner_lane_number = max(miner_lane_number, index)
 		if not belt_lanes[index] then belt_lanes[index] = {} end
 		local line = belt_lanes[index]
@@ -234,16 +246,28 @@ function layout:prepare_belt_layout(state)
 
 	local temp_belts = {}
 	for k, v in pairs(belt_lanes) do temp_belts[#temp_belts+1] = v end
-	table.sort(temp_belts, function(a, b) return a._index < b._index end)
+	table.sort(temp_belts, function(a, b) return a.row_index < b.row_index end)
 	state.belts = temp_belts
 
 	local shift_x, shift_y = state.best_attempt.sx, state.best_attempt.sy
 
 	local function place_belts(start_x, end_x, y)
 		local belt_start, belt_end = 1 + shift_x + start_x, end_x
+		local pre_miner = g:get_tile(shift_x+m.size, y)
+		local built_miner = pre_miner and pre_miner.built_on == "miner"
 		if start_x == 0 then
 			-- straight runoff
 			for sx = 0, 2 do
+				que_entity{
+					name=state.belt_choice,
+					thing="belt",
+					grid_x=belt_start-sx,
+					grid_y=y,
+					direction=WEST,
+				}
+			end
+		elseif not built_miner then
+			for sx = 0, m.size+2 do
 				que_entity{
 					name=state.belt_choice,
 					thing="belt",
@@ -270,8 +294,7 @@ function layout:prepare_belt_layout(state)
 				grid_y=y,
 				direction=WEST,
 			}
-			local miner = g:get_tile(shift_x+m.size, y)
-			if miner and miner.built_on == "miner" then
+			if built_miner then
 				power_poles[#power_poles+1] = {
 					name=state.pole_choice,
 					thing="pole",
@@ -285,8 +308,8 @@ function layout:prepare_belt_layout(state)
 			local miner1 = g:get_tile(x, y-1) --[[@as GridTile]]
 			local miner2 = g:get_tile(x, y+1) --[[@as GridTile]]
 			local miner3 = g:get_tile(x+3, y) --[[@as GridTile]]
-			local built = miner1.built_on == "miner" or miner2.built_on == "miner"
-			local capped = miner3.built_on == "miner"
+			local built = (miner1 and miner1.built_on == "miner") or (miner2 and miner2.built_on == "miner")
+			local capped = miner3 and miner3.built_on == "miner"
 			local pole_built = built or capped
 			local last = x + m.size * 2 > end_x
 
@@ -341,12 +364,11 @@ function layout:prepare_belt_layout(state)
 		return belt_start, belt_end
 	end
 
-	local stagger_shift = 1
 	for i = 1, miner_lane_number do
 		local belt = belt_lanes[i]
 		if belt and belt.last_x then
 			local y = m.size + shift_y - 1 + (m.size + 2) * (i-1)
-			local x_start =stagger_shift % 2 == 0 and 3 or 0
+			local x_start = i % 2 == 0 and 3 or 0
 			local bx1, bx2 = place_belts(x_start, belt.last_x, y)
 			belt.x1, belt.x2, belt.y = bx1-3, bx2, y
 			state.belt_count = state.belt_count + 1
@@ -362,7 +384,6 @@ function layout:prepare_belt_layout(state)
 			if #lane2 > 0 then belt.lane2 = lane2 end
 
 		end
-		stagger_shift = stagger_shift + 1
 	end
 
 	return "expensive_deconstruct"

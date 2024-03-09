@@ -19,6 +19,7 @@ pole_grid_mt.__index = pole_grid_mt
 ---@field backtracked boolean
 ---@field connections table<GridPole, true>
 ---@field set_id number?
+---@field no_light boolean?
 
 function pole_grid_mt.new()
 	local new = {
