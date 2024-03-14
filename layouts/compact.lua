@@ -5,6 +5,7 @@ local common = require("layouts.common")
 local simple = require("layouts.simple")
 local mpp_util = require("mpp.mpp_util")
 local pole_grid_mt = require("mpp.pole_grid_mt")
+local drawing      = require("mpp.drawing")
 local EAST, NORTH, SOUTH, WEST = mpp_util.directions()
 local table_insert = table.insert
 
@@ -99,12 +100,11 @@ function layout:prepare_belt_layout(state)
 
 	if coverage.capable_span then
 		self:_placement_capable(state)
-		return "prepare_capable"
 	else
 		self:_placement_incapable(state)
 	end
 
-	return "prepare_lamp_layout"
+	return "prepare_belts"
 end
 
 ---Placement of belts+poles when they tile nicely (enough reach/supply area)
@@ -175,15 +175,14 @@ function layout:_placement_capable(state)
 
 	local connectivity = power_grid:find_connectivity(state.pole)
 	state.power_connectivity = connectivity
-
-	return "prepare_capable"
 end
 
 ---@param self CompactLayout
 ---@param state CompactState
-function layout:prepare_capable(state)
+function layout:prepare_belts(state)
 	local M, C, P, G = state.miner, state.coords, state.pole, state.grid
 
+	local attempt = state.best_attempt
 	local miner_lanes = state.miner_lanes
 	local miner_lane_count = state.miner_lane_count
 
@@ -191,6 +190,7 @@ function layout:prepare_capable(state)
 	local connectivity = state.power_connectivity
 	local power_grid = state.power_grid
 
+	local debug_draw = drawing(state, false, false)
 	local connected = power_grid:ensure_connectivity(connectivity)
 
 	for _, pole in pairs(connected) do
@@ -199,10 +199,17 @@ function layout:prepare_capable(state)
 			thing = "pole",
 			grid_x = pole.grid_x,
 			grid_y = pole.grid_y,
+			ix = pole.ix,
+			iy = pole.iy,
 		})
 	end
 
 	local belt_placement = state.builder_belts
+	local belts = {}
+	state.belts = belts
+	state.belt_count = 0
+
+	local pipe_adjust = state.place_pipes and -1 or 0
 
 	for i_lane = 1, miner_lane_count, 2 do
 		local iy = ceil(i_lane / 2)
@@ -211,26 +218,37 @@ function layout:prepare_capable(state)
 		local power_poles = power_grid[iy]
 		--local transport_layout_lane = transport_layout[ceil(i_lane / 2)]
 
-		local columns1, columns2 = {}, {}
-		if lane1 then for _, v in pairs(lane1) do columns1[v.column] = v end end
-		if lane2 then for _, v in pairs(lane2) do columns2[v.column] = v end end
+		local function get_lane_length(lane, out_x) if lane and lane[#lane] then return lane[#lane].x+out_x end return 0 end
+		local y = attempt.sy + floor((M.size + 0.5) * i_lane)
+		
+		local belt = {x1=attempt.sx + pipe_adjust, x2=attempt.sx, y=y, built=false, lane1=lane1, lane2=lane2}
+		belts[#belts+1] = belt
 
-		if state.place_pipes then
-			-- place underground earlier or 
-		end
+		if not lane1 and not lane2 then goto continue end
 
-		for column = 1, state.miner_max_column do
-			local drill1, drill2 = columns1[column], columns2[column]
+		local x1 = attempt.sx + pipe_adjust
+		local x2 = max(get_lane_length(lane1, M.output_rotated[SOUTH].x), get_lane_length(lane2, M.out_x))
+		state.belt_count = state.belt_count + 1
 
-			if drill1 or drill2 then
-				
+		debug_draw:draw_line{
+			y = y, y2 = y,
+			x = x1-.5, x2 = x2+.5,
+			width = 16,
+		}
+
+		local undergrounds = {}
+		for _, pole in pairs(power_poles) do
+			if pole.built then
+				debug_draw:draw_circle{x = pole.grid_x, y = y, filled=true, color={0.2, 0.2, .8}}
+				debug_draw:draw_circle{x = pole.grid_x, y = y, color={0, 0, 0}}
+				table_insert(undergrounds, pole.grid_x)
 			end
-
 		end
 
+		::continue::
 	end
 	
-	return "expensive_deconstruct"
+	return "prepare_pole_layout"
 end
 
 ---Placement of belts+poles when they don't tile nicely (not enough reach/supply area)

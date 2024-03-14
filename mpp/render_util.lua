@@ -673,6 +673,7 @@ function render_util.draw_power_grid(player_data, event)
 
 	local state = player_data.last_state
 	if not state then return end
+	---@cast state SimpleState
 
 	local C = state.coords
 	local grid = state.grid
@@ -689,20 +690,36 @@ function render_util.draw_power_grid(player_data, event)
 		if set_id == 0 then set_color = {1, 1, 1} end
 		for pole, _ in pairs(set) do
 			---@cast pole GridPole
-			if rendered[pole] then goto continue end
-			rendered[pole] = true
+			-- if rendered[pole] then goto continue end
+			-- rendered[pole] = true
 			local pole_color = set_color
-			if not pole.backtracked and not pole.has_consumers then
-				pole_color = {0, 0, 0}
-			end
+			-- if not pole.backtracked and not pole.has_consumers then
+			-- 	pole_color = {0, 0, 0}
+			-- end
 
-			rendering.draw_circle{
+			renderer.draw_circle{
 				surface = state.surface,
 				filled = not pole.backtracked,
 				color = pole_color,
 				width = 5,
 				target = {C.gx + pole.grid_x, C.gy + pole.grid_y},
-				radius = 0.45,
+				radius = 0.65,
+			}
+			renderer.draw_text{
+				surface = state.surface,
+				target={C.gx + pole.grid_x, C.gy + pole.grid_y},
+				text = set_id,
+				alignment = "center",
+				vertical_alignment="middle",
+				scale = 2,
+			}
+			renderer.draw_text{
+				surface = state.surface,
+				target={C.gx + pole.grid_x, C.gy + pole.grid_y-1.25},
+				text = ("%i,%i"):format(pole.ix, pole.iy),
+				alignment = "center",
+				vertical_alignment="middle",
+				scale = 2,
 			}
 			::continue::
 		end

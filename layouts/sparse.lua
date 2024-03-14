@@ -241,7 +241,6 @@ function layout:prepare_belt_layout(state)
 	local m = state.miner
 	local g = state.grid
 	local attempt = state.best_attempt
-	local debug_draw = drawing(state, false, false)
 
 	local miner_lanes = state.miner_lanes
 	local miner_lane_count = state.miner_lane_count
@@ -266,11 +265,6 @@ function layout:prepare_belt_layout(state)
 		local lane2 = miner_lanes[i+1]
 
 		local y = attempt.sy + m.area - m.outer_span + m.area * (i-1)
-
-		debug_draw:draw_circle{
-			x = 1,
-			y = y,
-		}
 
 		local belt = {x1=attempt.sx + 1, x2=attempt.sx + 1, y=y, built=false, lane1=lane1, lane2=lane2}
 		belt_lanes[#belt_lanes+1] = belt
@@ -377,30 +371,23 @@ function layout:prepare_pole_layout(state)
 		return pole_lane
 	end
 
-	local debug_draw = drawing(state, true, false)
-
 	local initial_y = attempt.sy + m.outer_span - 1
 	local iy = 1
 	local y_max, y_step = initial_y + c.th + m.area + 1, m.area * 2
 	for y = initial_y, y_max, y_step do
 
-		debug_draw:draw_circle{x=0, y=y, filled=true, color={1, 1, 1}}
 		if y + y_step > y_max then -- last pole lane
 			local backstep = m.outer_span * 2 - 1
 			place_pole_lane(y - backstep)
-			debug_draw:draw_circle{ x = 1, y = y - backstep, color = {1, 1, 0},} -- YELLOW
 		elseif (m.outer_span * 2 + 2) > supply_area then -- single pole can't supply two lanes
 			place_pole_lane(y, iy)
-			debug_draw:draw_circle{ x = 1, y = y, color = {0, 0, 1},} -- BLUE
 			if y ~= initial_y then
 				iy = iy + 1
 				place_pole_lane(y - m.outer_span * 2 + 1, iy, true)
-				debug_draw:draw_circle{ x = 1, y = y - m.outer_span * 2 + 1, color = {0, 1, 0},} -- GREEN
 			end
 		else
 			local backstep = y == initial_y and 0 or floor(m.size/2)
 			place_pole_lane(y - backstep)
-			debug_draw:draw_circle{ x = 1, y = y - backstep, color = {1, 0, 1},} -- MAGENTA
 		end
 		iy = iy + 1
 	end

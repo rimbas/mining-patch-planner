@@ -34,6 +34,7 @@ local conf = {}
 ---@field force_pipe_placement_choice boolean
 ---@field print_debug_info_choice boolean
 ---@field display_lane_filling_choice boolean
+---@field dumb_power_connectivity_choice boolean
 ---@field debugging_choice string Debugging only value
 
 ---@class PlayerGui
@@ -87,6 +88,7 @@ conf.default_config = {
 		pipe_choice = "pipe",
 		module_choice = "none",
 		blueprint_choice = nil,
+		dumb_power_connectivity_choice = false,
 		debugging_choice = "none",
 
 		-- non layout/convienence/advanced settings

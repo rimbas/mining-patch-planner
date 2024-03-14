@@ -34,7 +34,7 @@ local layout = table.deepcopy(base)
 ---@field miner_max_column number Miner column span
 ---@field grid Grid
 ---@field power_grid PowerPoleGrid For connectivity
----@field power_connectivity table
+---@field power_connectivity PoleConnectivity
 ---@field belts BeltSpecification[]
 ---@field belt_count number For info printout
 ---@field miner_lanes table<number, MinerPlacement[]>
@@ -830,14 +830,15 @@ function layout:prepare_belt_layout(state)
 		local belt = {x1=attempt.sx + pipe_adjust, x2=attempt.sx, y=y, built=false, lane1=lane1, lane2=lane2}
 		belts[#belts+1] = belt
 		
-		if lane1 or lane2 then
-			state.belt_count = state.belt_count + 1
-			local x1 = belt.x1
-			local x2 = max(get_lane_length(lane1, m.output_rotated[SOUTH][1]), get_lane_length(lane2, m.out_x))
-			longest_belt = max(longest_belt, x2 - x1 + 1)
-			belt.x2, belt.built = x2, true
-		end
+		if not lane1 and not lane2 then goto continue end
 
+		state.belt_count = state.belt_count + 1
+		local x1 = belt.x1
+		local x2 = max(get_lane_length(lane1, m.output_rotated[SOUTH].x), get_lane_length(lane2, m.out_x))
+		longest_belt = max(longest_belt, x2 - x1 + 1)
+		belt.x2, belt.built = x2, true
+
+		::continue::
 	end
 	state.longest_belt = longest_belt
 
@@ -930,15 +931,6 @@ function layout:prepare_pole_layout(state)
 				backtrack_built = true
 				backtrack_pole.backtracked = backtrack_built
 				backtrack_pole.has_consumers = true
-
-				-- TODO: move this out after ensure_connectity call
-				builder_power_poles[#builder_power_poles+1] = {
-					name=state.pole_choice,
-					thing="pole",
-					grid_x = backtrack_pole.grid_x,
-					grid_y = backtrack_pole.grid_y,
-					no_light = backtrack_pole.no_light,
-				}
 			else
 				backtrack_pole.backtracked = backtrack_built
 			end
@@ -950,7 +942,19 @@ function layout:prepare_pole_layout(state)
 	local connectivity = power_grid:find_connectivity(state.pole)
 	state.power_connectivity = connectivity
 
-	power_grid:ensure_connectivity(connectivity)
+	local connected = power_grid:ensure_connectivity(connectivity)
+
+	for _, pole in pairs(connected) do
+		-- TODO: move this out after ensure_connectity call
+		builder_power_poles[#builder_power_poles+1] = {
+			name=state.pole_choice,
+			thing="pole",
+			grid_x = pole.grid_x,
+			grid_y = pole.grid_y,
+			no_light = pole.no_light,
+			ix = pole.ix, iy = pole.iy,
+		}
+	end
 
 	return "prepare_lamp_layout"
 end
@@ -1162,9 +1166,9 @@ function layout:placement_landfill(state)
 	local collected_ghosts = state._collected_ghosts
 
 	for _, fill in ipairs(fill_tiles) do
-		local tx, ty = fill.position.x, fill.position.y
+		local tx, ty = fill.position.x-.5, fill.position.y-.5
 		local x, y = conv(tx-gx, ty-gy, c.w, c.h)
-		local tile = grid:get_tile(x, y)
+		local tile = grid:get_tile(ceil(x), ceil(y))
 
 		if tile and tile.built_on then
 			local tile_ghost = surface.create_entity{

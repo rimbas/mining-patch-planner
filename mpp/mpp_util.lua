@@ -184,7 +184,6 @@ function mpp_util.miner_struct(mining_drill_name)
 	output_rotated[WEST].y = output_rotated[WEST][2]
 	output_rotated[EAST].x = output_rotated[EAST][1]
 	output_rotated[EAST].y = output_rotated[EAST][2]
-	
 
 	miner.output_rotated = output_rotated
 

@@ -51,7 +51,7 @@ function drawing_meta:draw_line(t)
 	if t.x2 and t.y2 then
 		target2 = {x + t.x2, y + t.y2}
 	elseif t.w and t.h then
-		target2 = {x + tx + t.w, y + ty + t.h}
+		target2 = {x + tx + (t.w or 0), y + ty + (t.h or 0)}
 	else
 		return
 	end

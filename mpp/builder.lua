@@ -10,6 +10,8 @@ local builder = {}
 
 ---@class PowerPoleGhostSpecification : GhostSpecification
 ---@field no_light boolean
+---@field ix number
+---@field iy number
 
 --- Builder for a convenience function that automatically translates
 --- internal grid state for a surface.create_entity call

@@ -727,11 +727,12 @@ local function update_pole_selection(player_data)
 		if not player_data.entity_filtering_mode and is_restricted then goto skip_pole end
 
 
+		local specifier = (pole.wire % 1 == 0 and ": %.0f ") or (pole.wire * 10 % 1 == 0 and ": %.1f ") or ": %.2f "
 		local tooltip = {
 			"", pole_proto.localised_name, "\n",
 			"[img=mpp_tooltip_category_size] ", {"description.tile-size"}, (": %ix%i\n"):format(pole.size, pole.size),
 			"[img=mpp_tooltip_category_supply_area] ", {"description.supply-area"}, (": %ix%i\n"):format(pole.supply_width, pole.supply_width),
-			" [img=tooltip-category-electricity] ", {"description.wire-reach"}, (": %i"):format(pole.wire),
+			" [img=tooltip-category-electricity] ", {"description.wire-reach"}, specifier:format(pole.wire),
 		}
 
 		values[#values+1] = {
@@ -887,15 +888,21 @@ local function update_misc_selection(player)
 		}
 	end
 
-	if player_data.advanced then
-		if layout.restrictions.pipe_available then
-			values[#values+1] = {
-				value="force_pipe_placement",
-				tooltip={"mpp.force_pipe_placement"},
-				icon=("mpp_force_pipe_disabled"),
-				icon_enabled=("mpp_force_pipe_enabled"),
-			}
-		end
+	if player_data.advanced and layout.restrictions.pipe_available then
+		values[#values+1] = {
+			value="force_pipe_placement",
+			tooltip={"mpp.force_pipe_placement"},
+			icon=("mpp_force_pipe_disabled"),
+			icon_enabled=("mpp_force_pipe_enabled"),
+		}
+	end
+
+	if player_data.advanced and false then
+		values[#values+1] = {
+			value="dumb_power_connectivity",
+			tooltip={"mpp.dumb_power_connectivity"},
+			icon=("entity/medium-power-pole"),
+		}
 	end
 
 	local misc_section = player_data.gui.section["misc"]

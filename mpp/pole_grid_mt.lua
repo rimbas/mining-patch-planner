@@ -97,7 +97,9 @@ function pole_grid_mt:find_connectivity(P)
 
 	-- Process network connection sets
 	local unconnected = {}
+	---@type number, table<GridPole, true>
 	local set_id, current_set = 1, {}
+	---@type PoleConnectivity
 	local sets = {[0]=unconnected, [1]=current_set}
 	for _, v in pairs(all_poles) do not_visited[v] = true end
 
@@ -133,11 +135,25 @@ function pole_grid_mt:find_connectivity(P)
 				return
 			end
 
-			pole.set_id = set_id
+			if pole.set_id and pole.set_id < set_id then
+				--Encountered a different set, merge to it
+				local target_set_id = pole.set_id
+				local target_set = sets[target_set_id]
+				for current_pole, v in pairs(current_set) do
+					current_set[current_pole], target_set[current_pole] = nil, true
+					current_pole.set_id = target_set_id
+				end
+				set_id = pole.set_id
+				current_set = target_set
+			else
+				pole.set_id = set_id
+			end
 			current_set[pole] = true
 
 			for other, _ in pairs(pole.connections) do
-				if not_visited[other] and depth_remaining > 0 then
+				local other_not_visited = not_visited[other]
+
+				if other_not_visited and depth_remaining > 0 then
 					recurse_pole(other, depth_remaining-1)
 				end
 			end
@@ -156,19 +172,62 @@ function pole_grid_mt:find_connectivity(P)
 	return sets
 end
 
----@param connectivity table<number, table<GridPole, true>>
+---List of sets
+---set at index 0 are unconnected power poles
+---@alias PoleConnectivity table<number, table<GridPole, true>>
+
+---@param connectivity PoleConnectivity
 ---@return GridPole[]
 function pole_grid_mt:ensure_connectivity(connectivity)
 	---@type GridPole[]
 	local connected = {}
+	local unconnecteds_set, main_set = connectivity[0], connectivity[1]
 
-	for set_id, pole_set in pairs(connectivity) do
-		if set_id == 0 then goto skip_unconnected_set end
-		for pole in pairs(pole_set) do
-			table_insert(connected, pole)
+	-- connect trivial power poles
+	for connector_pole in pairs(unconnecteds_set) do
+		--Set id is key and value is merge marker
+		local different_sets = {} --[[@as table<number, boolean>]]
+		for connection in pairs(connector_pole.connections) do
+			if connection.set_id ~= nil then
+				different_sets[connection.set_id] = true
+			end
 		end
-		::skip_unconnected_set::
+		if table_size(different_sets) < 2 then goto skip_pole end
+
+		local target_set_id = different_sets[1] and 1 or next(different_sets)
+		local target_set = connectivity[target_set_id]
+
+		for source_set_id in pairs(different_sets) do
+			if source_set_id == target_set_id then goto skip_merge_set end
+			local source_set = connectivity[source_set_id]
+
+			if different_sets[source_set_id] == true then
+				for source_pole in pairs(source_set) do
+					target_set[source_pole], source_set[source_pole] = true, nil
+					source_pole.set_id = target_set_id
+					different_sets[source_set_id] = false
+				end
+			end
+			::skip_merge_set::
+		end
+
+		connector_pole.built = true
+		connector_pole.set_id = target_set_id
+		target_set[connector_pole] = true
+		unconnecteds_set[connector_pole] = nil
+		
+		::skip_pole::
 	end
+
+	-- append the main set to output list
+	for pole in pairs(main_set) do table_insert(connected, pole) end
+
+	-- for set_id, pole_set in pairs(connectivity) do
+	-- 	if set_id == 0 then goto continue_set end
+	-- 	if set_id == 1 then	goto continue_set end
+
+	-- 	::continue_set::
+	-- end
 
 	return connected
 end
