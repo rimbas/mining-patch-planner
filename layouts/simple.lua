@@ -854,7 +854,7 @@ function layout:prepare_belt_layout(state)
 				thing="belt",
 				grid_x=x,
 				grid_y=y,
-				direction=defines.direction.west,
+				direction=WEST,
 			}
 		end
 

@@ -86,8 +86,8 @@ function mpp_util.entity_struct(entity_name)
 	local cw, ch = cbox_br.x - cbox_tl.x, cbox_br.y - cbox_tl.y
 	struct.w, struct.h = ceil(cw), ceil(ch)
 	struct.size = max(struct.w, struct.h)
-	struct.x = ceil(struct.w / 2 - 0.5)
-	struct.y = ceil(struct.h / 2 - 0.5)
+	struct.x = struct.w / 2 - 0.5
+	struct.y = struct.h / 2 - 0.5
 
 	entity_cache[entity_name] = struct
 	return struct

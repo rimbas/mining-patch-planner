@@ -135,7 +135,7 @@ function layout:_placement_capable(state)
 		--transport_layout[ceil(i / 2)] = transport_layout_lane
 		local backtrack_build = false
 		for step_i = #steps, 1, -1 do
-			local x = attempt.sx + steps[step_i] + 1
+			local x = attempt.sx + steps[step_i]
 
 			local has_consumers = G:needs_power(x, y, P)
 			if backtrack_build or step_i == 1 or has_consumers then
@@ -190,21 +190,26 @@ function layout:prepare_belts(state)
 	local connectivity = state.power_connectivity
 	local power_grid = state.power_grid
 
-	local debug_draw = drawing(state, false, false)
-	local connected = power_grid:ensure_connectivity(connectivity)
+	--local debug_draw = drawing(state, false, false)
 
-	for _, pole in pairs(connected) do
-		table_insert(builder_power_poles, {
-			name = P.name,
-			thing = "pole",
-			grid_x = pole.grid_x,
-			grid_y = pole.grid_y,
-			ix = pole.ix,
-			iy = pole.iy,
-		})
+	if power_grid then
+		local connected = power_grid:ensure_connectivity(connectivity)
+
+		for _, pole in pairs(connected) do
+			table_insert(builder_power_poles, {
+				name = P.name,
+				thing = "pole",
+				grid_x = pole.grid_x,
+				grid_y = pole.grid_y,
+				ix = pole.ix,
+				iy = pole.iy,
+			})
+		end
 	end
 
-	local belt_placement = state.builder_belts
+	local builder_belts = state.builder_belts
+	local belt_name = state.belt.name
+	local underground_name = state.belt.related_underground_belt --[[@as string]]
 	local belts = {}
 	state.belts = belts
 	state.belt_count = 0
@@ -215,37 +220,79 @@ function layout:prepare_belts(state)
 		local iy = ceil(i_lane / 2)
 		local lane1 = miner_lanes[i_lane]
 		local lane2 = miner_lanes[i_lane+1]
-		local power_poles = power_grid[iy]
 		--local transport_layout_lane = transport_layout[ceil(i_lane / 2)]
 
 		local function get_lane_length(lane, out_x) if lane and lane[#lane] then return lane[#lane].x+out_x end return 0 end
 		local y = attempt.sy + floor((M.size + 0.5) * i_lane)
 		
-		local belt = {x1=attempt.sx + pipe_adjust, x2=attempt.sx, y=y, built=false, lane1=lane1, lane2=lane2}
+		local x1 = attempt.sx + pipe_adjust
+		local belt = {x1=x1, x2=attempt.sx, y=y, built=false, lane1=lane1, lane2=lane2}
 		belts[#belts+1] = belt
 
-		if not lane1 and not lane2 then goto continue end
+		if not lane1 and not lane2 then goto continue_lane end
 
-		local x1 = attempt.sx + pipe_adjust
 		local x2 = max(get_lane_length(lane1, M.output_rotated[SOUTH].x), get_lane_length(lane2, M.out_x))
 		state.belt_count = state.belt_count + 1
 
-		debug_draw:draw_line{
-			y = y, y2 = y,
-			x = x1-.5, x2 = x2+.5,
-			width = 16,
-		}
+		belt.x2, belt.built = x2, true
 
-		local undergrounds = {}
-		for _, pole in pairs(power_poles) do
-			if pole.built then
-				debug_draw:draw_circle{x = pole.grid_x, y = y, filled=true, color={0.2, 0.2, .8}}
-				debug_draw:draw_circle{x = pole.grid_x, y = y, color={0, 0, 0}}
-				table_insert(undergrounds, pole.grid_x)
+		-- debug_draw:draw_circle{x = x1, y = y, width = 7}
+		-- debug_draw:draw_circle{x = x2, y = y, width = 7}
+
+		if not power_grid then goto continue_lane end
+
+		local previous_start, first_interval = x1, true
+		local power_poles, pole_count, belt_intervals = power_grid[iy], #power_grid[iy], {}
+		for i, pole in pairs(power_poles) do
+			if not pole.built then goto continue_poles end
+
+			local next_x = pole.grid_x
+			table_insert(belt_intervals, {
+				x1 = previous_start, x2 = min(x2, next_x - 1),
+				is_first = first_interval,
+			})
+			previous_start = next_x + 2
+			first_interval = false
+
+			if x2 < next_x then
+				--debug_draw:draw_circle{x = x2, y = y, color = {1, 0, 0}}
+				break
 			end
+
+			::continue_poles::
+		end
+		
+		if previous_start <= x2 then
+			--debug_draw:draw_circle{x = x2, y = y, color = {0, 1, 0}}
+			table_insert(belt_intervals, {
+				x1 = previous_start, x2 = x2, is_last = true,
+			})
 		end
 
-		::continue::
+		for i, interval in pairs(belt_intervals) do
+			local bx1, bx2 = interval.x1, interval.x2
+			builder_belts[#builder_belts+1] = {
+				name = interval.is_first and belt_name or underground_name,
+				thing = "belt", direction=WEST,
+				grid_x = bx1, grid_y = y,
+				type = not interval.is_first and "input" or nil
+			}
+			for x = bx1 + 1, bx2 - 1 do
+				builder_belts[#builder_belts+1] = {
+					name = belt_name,
+					thing = "belt", direction=WEST,
+					grid_x = x, grid_y = y,
+				}
+			end
+			builder_belts[#builder_belts+1] = {
+				name = i == #belt_intervals and belt_name or underground_name,
+				thing = "belt", direction=WEST,
+				grid_x = bx2, grid_y = y,
+				type = not interval.is_last and "output" or nil
+			}
+		end
+
+		::continue_lane::
 	end
 	
 	return "prepare_pole_layout"

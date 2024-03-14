@@ -219,15 +219,17 @@ function pole_grid_mt:ensure_connectivity(connectivity)
 		::skip_pole::
 	end
 
-	-- append the main set to output list
-	for pole in pairs(main_set) do table_insert(connected, pole) end
+	---- append the main set to output list
+	--for pole in pairs(main_set) do table_insert(connected, pole) end
 
-	-- for set_id, pole_set in pairs(connectivity) do
-	-- 	if set_id == 0 then goto continue_set end
-	-- 	if set_id == 1 then	goto continue_set end
+	for set_id, pole_set in pairs(connectivity) do
+		if set_id == 0 then goto continue_set end
+		--if set_id == 1 then	goto continue_set end
 
-	-- 	::continue_set::
-	-- end
+		for pole in pairs(pole_set) do table_insert(connected, pole) end
+
+		::continue_set::
+	end
 
 	return connected
 end
