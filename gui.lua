@@ -1,8 +1,8 @@
 local algorithm = require("algorithm")
-local mpp_util = require("mpp_util")
-local enums = require("enums")
-local blueprint_meta = require("blueprintmeta")
-local compatibility = require("compatibility")
+local mpp_util = require("mpp.mpp_util")
+local enums = require("mpp.enums")
+local blueprint_meta = require("mpp.blueprintmeta")
+local compatibility = require("mpp.compatibility")
 local common = require("layouts.common")
 
 local layouts = algorithm.layouts
@@ -730,7 +730,7 @@ local function update_pole_selection(player_data)
 		local tooltip = {
 			"", pole_proto.localised_name, "\n",
 			"[img=mpp_tooltip_category_size] ", {"description.tile-size"}, (": %ix%i\n"):format(pole.size, pole.size),
-			"[img=mpp_tooltip_category_supply_area]", {"description.supply-area"}, (": %ix%i\n"):format(pole.supply_width, pole.supply_width),
+			"[img=mpp_tooltip_category_supply_area] ", {"description.supply-area"}, (": %ix%i\n"):format(pole.supply_width, pole.supply_width),
 			" [img=tooltip-category-electricity] ", {"description.wire-reach"}, (": %i"):format(pole.wire),
 		}
 
@@ -1204,14 +1204,7 @@ local function on_gui_click(event)
 	elseif evt_ele_tags["mpp_undo"] then
 		local state = player_data.last_state
 		if not state then return end
-		local force, ply = state.player.force, state.player
-		for _, ghost in pairs(state._collected_ghosts) do
-			if ghost.valid then
-				ghost.order_deconstruction(force, ply)
-			end
-		end
-		state._collected_ghosts = {}
-		mpp_util.update_undo_button(player_data)
+		algorithm.cleanup_last_state(player_data)
 		return
 	end
 end

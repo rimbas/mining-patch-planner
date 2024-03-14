@@ -1,4 +1,4 @@
-local enum = require("enums")
+local enum = require("mpp.enums")
 
 local compatibility = {}
 

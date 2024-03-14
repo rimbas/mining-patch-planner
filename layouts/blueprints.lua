@@ -2,8 +2,8 @@ local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
 
 local base = require("layouts.base")
-local grid_mt = require("grid_mt")
-local mpp_util = require("mpp_util")
+local grid_mt = require("mpp.grid_mt")
+local mpp_util = require("mpp.mpp_util")
 local coord_convert, coord_revert = mpp_util.coord_convert, mpp_util.coord_revert
 local bp_direction = mpp_util.bp_direction
 

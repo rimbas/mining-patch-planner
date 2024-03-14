@@ -1,7 +1,7 @@
 local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
 
-local mpp_util = require("mpp_util")
+local mpp_util = require("mpp.mpp_util")
 
 ---@class Layout
 local layout = {}

@@ -1,3 +1,4 @@
+local table_insert = table.insert
 local min, max = math.min, math.max
 
 -- broke: implement power pole connection calculation yourself
@@ -155,8 +156,21 @@ function pole_grid_mt:find_connectivity(P)
 	return sets
 end
 
+---@param connectivity table<number, table<GridPole, true>>
+---@return GridPole[]
 function pole_grid_mt:ensure_connectivity(connectivity)
+	---@type GridPole[]
+	local connected = {}
 
+	for set_id, pole_set in pairs(connectivity) do
+		if set_id == 0 then goto skip_unconnected_set end
+		for pole in pairs(pole_set) do
+			table_insert(connected, pole)
+		end
+		::skip_unconnected_set::
+	end
+
+	return connected
 end
 
 return pole_grid_mt

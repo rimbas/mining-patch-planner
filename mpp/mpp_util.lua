@@ -1,7 +1,12 @@
-local enums = require("enums")
-local blacklist = require("blacklist")
+local enums = require("mpp.enums")
+local blacklist = require("mpp.blacklist")
 local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
+
+local EAST = defines.direction.east
+local NORTH = defines.direction.north
+local SOUTH = defines.direction.south
+local WEST = defines.direction.west
 
 local mpp_util = {}
 
@@ -100,6 +105,7 @@ end
 ---@field radius float Mining area reach
 ---@field area number Full coverage span of the miner
 ---@field area_sq number Squared area
+---@field outer_span number Lenght between physical size and end of radius
 ---@field module_inventory_size number
 ---@field middle number "Center" x position
 ---@field drop_pos MapPosition Raw drop position
@@ -111,7 +117,7 @@ end
 ---@field skip_outer boolean Skip outer area calculations
 ---@field pipe_left number Y height on left side
 ---@field pipe_right number Y height on right side
----@field output_rotated table<defines.direction, MapPosition.1> Rotated output positions in reference to (0, 0) origin
+---@field output_rotated table<defines.direction, MapPosition> Rotated output positions in reference to (0, 0) origin
 ---@field power_source_tooltip (string|table)?
 
 ---@type table<string, MinerStruct>
@@ -136,6 +142,7 @@ function mpp_util.miner_struct(mining_drill_name)
 	miner.radius = miner_proto.mining_drill_radius
 	miner.area = ceil(miner_proto.mining_drill_radius * 2)
 	miner.area_sq = miner.area ^ 2
+	miner.outer_span = floor((miner.area - miner.size) / 2)
 	miner.resource_categories = miner_proto.resource_categories
 	miner.name = miner_proto.name
 	miner.module_inventory_size = miner_proto.module_inventory_size
@@ -165,10 +172,19 @@ function mpp_util.miner_struct(mining_drill_name)
 	
 	local output_rotated = {
 		[defines.direction.north] = {miner.out_x, miner.out_y},
-		[defines.direction.south] = {miner.size - miner.out_x -1, miner.size },
+		[defines.direction.south] = {miner.size - miner.out_x - 1, miner.size },
 		[defines.direction.west] = {miner.size, miner.out_x},
 		[defines.direction.east] = {-1, miner.size - miner.out_x -1},
 	}
+	output_rotated[NORTH].x = output_rotated[NORTH][1]
+	output_rotated[NORTH].y = output_rotated[NORTH][2]
+	output_rotated[SOUTH].x = output_rotated[SOUTH][1]
+	output_rotated[SOUTH].y = output_rotated[SOUTH][2]
+	output_rotated[WEST].x = output_rotated[WEST][1]
+	output_rotated[WEST].y = output_rotated[WEST][2]
+	output_rotated[EAST].x = output_rotated[EAST][1]
+	output_rotated[EAST].y = output_rotated[EAST][2]
+	
 
 	miner.output_rotated = output_rotated
 
@@ -502,37 +518,6 @@ function mpp_util.blueprint_label(bp)
 	else
 		return {"", {"gui-blueprint.unnamed-blueprint"}, " ", bp.item_number}
 	end
-end
-
----Filters out a list
----@param t any
----@param func any
-function table.filter(t, func)
-	local new = {}
-	for k, v in ipairs(t) do
-		if func(v) then new[#new+1] = v end
-	end
-	return new
-end
-
-function table.map(t, func)
-	local new = {}
-	for k, v in pairs(t) do
-		new[k] = func(v)
-	end
-	return new
-end
-
-function table.mapkey(t, func)
-	local new = {}
-	for k, v in pairs(t) do
-		new[func(v)] = v
-	end
-	return new
-end
-
-function math.divmod(a, b)
-	return math.floor(a / b), a % b
 end
 
 ---@class CollisionBoxProperties

@@ -1,6 +1,6 @@
-local enums = require("enums")
-local mpp_util = require("mpp_util")
-local compatibility = require("compatibility")
+local enums = require("mpp.enums")
+local mpp_util = require("mpp.mpp_util")
+local compatibility = require("mpp.compatibility")
 
 local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
@@ -10,7 +10,7 @@ local algorithm = {}
 ---@type table<string, Layout>
 local layouts = {}
 algorithm.layouts = layouts
-local function require_layout(layout) 
+local function require_layout(layout)
 	layouts[layout] = require("layouts."..layout)
 	layouts[#layouts+1] = layouts[layout]
 end
@@ -320,6 +320,37 @@ function algorithm.on_gui_close(player_data)
 			rendering.destroy(id)
 		end
 	end
+end
+
+---@param player_data PlayerData
+function algorithm.cleanup_last_state(player_data)
+	local state = player_data.last_state
+	if not state then return end
+
+	local force, ply = state.player.force, state.player
+	
+	if type(state._collected_ghosts) == "table" then
+		for _, ghost in pairs(state._collected_ghosts) do
+			if ghost.valid then
+				ghost.order_deconstruction(force, ply)
+			end
+		end
+		state._collected_ghosts = {}
+	end
+
+	if type(state._render_objects) == "table" then
+		for _, id in ipairs(state._render_objects) do
+			if rendering.is_valid(id) then
+				rendering.destroy(id)
+			end
+		end
+		state._render_objects = {}
+	end
+
+	rendering.destroy(state._preview_rectangle)
+	mpp_util.update_undo_button(player_data)
+
+	player_data.last_state = nil
 end
 
 return algorithm

@@ -3,8 +3,8 @@ local min, max = math.min, math.max
 
 local common = require("layouts.common")
 local simple = require("layouts.simple")
-local mpp_util = require("mpp_util")
-local pole_grid_mt = require("pole_grid_mt")
+local mpp_util = require("mpp.mpp_util")
+local pole_grid_mt = require("mpp.pole_grid_mt")
 local EAST, NORTH, SOUTH, WEST = mpp_util.directions()
 local table_insert = table.insert
 
@@ -12,7 +12,6 @@ local table_insert = table.insert
 local layout = table.deepcopy(simple)
 
 ---@class CompactState : SimpleState
----@field transport_layout table<number, TransportLayoutStruct>
 
 layout.name = "compact"
 layout.translation = {"", "[entity=electric-mining-drill] ", {"mpp.settings_layout_choice_compact"}}
@@ -43,11 +42,11 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 	local heuristic = self:_get_miner_placement_heuristic(state)
 
 	local row_index = 1
-	for y_float = 1 + shift_y, state.coords.th + size, size + 0.5 do
+	for y_float = shift_y, state.coords.th + size, size + 0.5 do
 		local y = ceil(y_float)
 		local column_index = 1
 		lane_layout[#lane_layout+1] = {y = y, row_index = row_index}
-		for x = 1 + shift_x, state.coords.tw, size do
+		for x = shift_x, state.coords.tw, size do
 			local tile = grid:get_tile(x, y) --[[@as GridTile]]
 			local miner = {
 				x = x,
@@ -100,6 +99,7 @@ function layout:prepare_belt_layout(state)
 
 	if coverage.capable_span then
 		self:_placement_capable(state)
+		return "prepare_capable"
 	else
 		self:_placement_incapable(state)
 	end
@@ -107,23 +107,15 @@ function layout:prepare_belt_layout(state)
 	return "prepare_lamp_layout"
 end
 
-local function create_entity_que(belts)
-	return function(t) belts[#belts+1] = t end
-end
-
----@class TransportLayoutStruct
-
 ---Placement of belts+poles when they tile nicely (enough reach/supply area)
 ---@param self CompactLayout
 ---@param state CompactState
 function layout:_placement_capable(state)
 	local M, C, P, G = state.miner, state.coords, state.pole, state.grid
 	local attempt = state.best_attempt
-	local miner_lanes = state.miner_lanes
 	local miner_lane_count = state.miner_lane_count
 	local coverage = mpp_util.calculate_pole_spacing(state, state.miner_max_column, state.miner_lane_count, true)
 
-	local builder_power_poles = state.builder_power_poles
 	local steps = {}
 	for i = coverage.pole_start, coverage.full_miner_width, coverage.pole_step do
 		table.insert(steps, i)
@@ -131,14 +123,13 @@ function layout:_placement_capable(state)
 
 	local power_grid = pole_grid_mt.new()
 	state.power_grid = power_grid
-
-	--@type table<number, TransportLayoutStruct[]>
+	
 	--local transport_layout = {}
 	--state.transport_layout = transport_layout
 
 	local iy = 1
 	for i = 1, miner_lane_count, 2 do
-		y = attempt.sy + 1 + floor((M.size + 0.5) * i)
+		y = attempt.sy + floor((M.size + 0.5) * i)
 
 		--local transport_layout_lane = {}
 		--transport_layout[ceil(i / 2)] = transport_layout_lane
@@ -185,13 +176,39 @@ function layout:_placement_capable(state)
 	local connectivity = power_grid:find_connectivity(state.pole)
 	state.power_connectivity = connectivity
 
-	power_grid:ensure_connectivity(connectivity)
+	return "prepare_capable"
+end
+
+---@param self CompactLayout
+---@param state CompactState
+function layout:prepare_capable(state)
+	local M, C, P, G = state.miner, state.coords, state.pole, state.grid
+
+	local miner_lanes = state.miner_lanes
+	local miner_lane_count = state.miner_lane_count
+
+	local builder_power_poles = state.builder_power_poles
+	local connectivity = state.power_connectivity
+	local power_grid = state.power_grid
+
+	local connected = power_grid:ensure_connectivity(connectivity)
+
+	for _, pole in pairs(connected) do
+		table_insert(builder_power_poles, {
+			name = P.name,
+			thing = "pole",
+			grid_x = pole.grid_x,
+			grid_y = pole.grid_y,
+		})
+	end
 
 	local belt_placement = state.builder_belts
 
 	for i_lane = 1, miner_lane_count, 2 do
+		local iy = ceil(i_lane / 2)
 		local lane1 = miner_lanes[i_lane]
 		local lane2 = miner_lanes[i_lane+1]
+		local power_poles = power_grid[iy]
 		--local transport_layout_lane = transport_layout[ceil(i_lane / 2)]
 
 		local columns1, columns2 = {}, {}
@@ -213,7 +230,9 @@ function layout:_placement_capable(state)
 
 	end
 	
+	return "expensive_deconstruct"
 end
+
 ---Placement of belts+poles when they don't tile nicely (not enough reach/supply area)
 ---@param self CompactLayout
 ---@param state CompactState

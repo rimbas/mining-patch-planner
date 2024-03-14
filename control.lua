@@ -1,12 +1,12 @@
-require("__mining-patch-planner__/global_extends")
+require("mpp.global_extends")
 local conf = require("configuration")
-local compatibility = require("compatibility")
+local compatibility = require("mpp.compatibility")
 require("migration")
 local gui = require("gui")
 local algorithm = require("algorithm")
-local bp_meta = require("blueprintmeta")
-local render_util = require("render_util")
-local mpp_util = require("mpp_util")
+local bp_meta = require("mpp.blueprintmeta")
+local render_util = require("mpp.render_util")
+local mpp_util = require("mpp.mpp_util")
 
 ---@class __MiningPatchPlanner__global
 ---@field tasks any
@@ -46,7 +46,19 @@ local function task_runner(event)
 	end
 
 	if tick_result == nil then
-		error("Layout "..state.layout_choice.." missing a callback name")
+		if __DebugAdapter then
+			game.print(("Callback for layout %s after call %s has no result"):format(state.layout_choice, state._callback))
+			table.remove(global.tasks, 1)
+
+			
+			---@type PlayerData
+			local player_data = global.players[state.player.index]
+			player_data.last_state = nil
+			rendering.destroy(state._preview_rectangle)
+			mpp_util.update_undo_button(player_data)
+		else
+			error("Layout "..state.layout_choice.." missing a callback name")
+		end
 	elseif tick_result == false then
 		local player = state.player
 		if state.blueprint then state.blueprint.clear() end

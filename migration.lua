@@ -1,5 +1,5 @@
 local conf = require("configuration")
-local enums = require("enums")
+local enums = require("mpp.enums")
 
 local current_version = 010507 -- 1.5.0
 

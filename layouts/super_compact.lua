@@ -1,8 +1,8 @@
 
 local common = require("layouts.common")
 local simple = require("layouts.simple")
-local mpp_util = require("mpp_util")
-local builder = require("builder")
+local mpp_util = require("mpp.mpp_util")
+local builder = require("mpp.builder")
 
 local table_insert = table.insert
 local floor, ceil = math.floor, math.ceil

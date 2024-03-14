@@ -1,6 +1,6 @@
 local floor, ceil, min, max = math.floor, math.ceil, math.min, math.max
 
-local mpp_util = require("mpp_util")
+local mpp_util = require("mpp.mpp_util")
 
 ---@class GridRow: GridTile[]
 
@@ -37,6 +37,7 @@ grid_mt.__index = grid_mt
 ---| "beacon"
 ---| "belt"
 ---| "inserter"
+---| "lamp"
 
 local need_electricity = {
 	miner = true,

@@ -1,5 +1,5 @@
-local mpp_util = require("mpp_util")
-local color = require("color")
+local mpp_util = require("mpp.mpp_util")
+local color = require("mpp.color")
 
 local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
@@ -686,23 +686,23 @@ function render_util.draw_power_grid(player_data, event)
 
 	for set_id, set in pairs(connectivity) do
 		local set_color = color.hue_sequence(set_id)
-		if set_id == 0 then set_color = {0, 0, 0} end
+		if set_id == 0 then set_color = {1, 1, 1} end
 		for pole, _ in pairs(set) do
 			---@cast pole GridPole
 			if rendered[pole] then goto continue end
 			rendered[pole] = true
 			local pole_color = set_color
-			if not pole.has_consumers and pole.backtracked then
-				pole_color = {1, 1, 1}
+			if not pole.backtracked and not pole.has_consumers then
+				pole_color = {0, 0, 0}
 			end
 
 			rendering.draw_circle{
 				surface = state.surface,
-				filled = false,
+				filled = not pole.backtracked,
 				color = pole_color,
 				width = 5,
 				target = {C.gx + pole.grid_x, C.gy + pole.grid_y},
-				radius = 0.4,
+				radius = 0.45,
 			}
 			::continue::
 		end

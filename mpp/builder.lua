@@ -1,4 +1,4 @@
-local mpp_util = require("mpp_util")
+local mpp_util = require("mpp.mpp_util")
 local coord_revert = mpp_util.revert
 local builder = {}
 
@@ -6,7 +6,7 @@ local builder = {}
 ---@field grid_x number Grid x coordinate
 ---@field grid_y number Grid x coordinate
 ---@field radius number? Object radius or default to 0.5 if nil
----@field thing string Enum for the grid
+---@field thing GridBuilding Enum for the grid
 
 ---@class PowerPoleGhostSpecification : GhostSpecification
 ---@field no_light boolean

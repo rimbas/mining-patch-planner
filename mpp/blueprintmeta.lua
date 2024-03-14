@@ -1,4 +1,4 @@
-local mpp_util = require("mpp_util")
+local mpp_util = require("mpp.mpp_util")
 
 ---@class EvaluatedBlueprint
 ---@field valid boolean Are all blueprint entities valid

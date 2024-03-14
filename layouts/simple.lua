@@ -1,10 +1,10 @@
 local common = require("layouts.common")
 local base = require("layouts.base")
-local grid_mt = require("grid_mt")
-local pole_grid_mt = require("pole_grid_mt")
-local mpp_util = require("mpp_util")
-local builder = require("builder")
-local render_util = require("render_util")
+local grid_mt = require("mpp.grid_mt")
+local pole_grid_mt = require("mpp.pole_grid_mt")
+local mpp_util = require("mpp.mpp_util")
+local builder = require("mpp.builder")
+local render_util = require("mpp.render_util")
 local coord_convert, coord_revert = mpp_util.coord_convert, mpp_util.coord_revert
 local internal_revert, internal_convert = mpp_util.internal_revert, mpp_util.internal_convert
 local miner_direction, opposite = mpp_util.miner_direction, mpp_util.opposite
@@ -64,19 +64,24 @@ layout.restrictions.lane_filling_info_available = true
 
 --[[-----------------------------------
 
-	Basic rundown:
-	* Create a virtual grid from resources
-		* Or restore from a previous state
-	* Run calculations on grid tiles to 
-	* _brute_ force several miner layouts on the grid and find the best one
-	* Mark the area around for deconstruction
+	Basic process rundown:
+	* Create a virtual grid
+	* Rotate the resources for the desired direction
+	* Convolve the resource amounts onto grid tiles
+	* Check several mining drill layouts on the grid
+	* Pick the best one according to a vague heuristic score
+	* Collect placement of mining drills and group them into "lanes"
+	* (If needed) Collect placement pipes between mining drills
+	* Collect placement of transport belts or logistics chests
+	* Collect placement power poles and lamps
+	* Deconstruct in spots where placement locations were collected
 	* Place the entity ghosts and mark built-on tiles
 	* Place landfill
 
 --]]-----------------------------------
 
 --- Called from script.on_load
---- ONLY FOR SETMETATABLE USE
+--- ONLY FOR SETTING UP METATABLES
 ---@param self SimpleLayout
 ---@param state SimpleState
 function layout:on_load(state)
@@ -322,7 +327,7 @@ end
 ---@field stagger number Super compact layout stagger index
 ---@field ent BlueprintEntity|nil
 ---@field unconsumed number Unconsumed resource count for postponed miners
----@field direction string
+---@field direction defines.direction
 ---@field postponed boolean
 
 ---@class PlacementCoords
@@ -654,7 +659,7 @@ function layout:_get_pipe_layout_specification(state)
 	local M = state.miner
 	local attempt = state.best_attempt
 
-	for _, pre_lane in ipairs(state.miner_lanes) do
+	for _, pre_lane in pairs(state.miner_lanes) do
 		if not pre_lane[1] then goto continue_lanes end
 		local y = pre_lane[1].y + M.pipe_left
 		local sx = state.best_attempt.sx - 1
@@ -715,7 +720,8 @@ function layout:prepare_pipe_layout(state)
 
 	local next_step = "prepare_belt_layout"
 	if state.pipe_choice == "none"
-	or (not state.requires_fluid and not state.force_pipe_placement_choice)
+		or (not state.requires_fluid and not state.force_pipe_placement_choice)
+		or (not state.miner.supports_fluids)
 	then
 		state.place_pipes = false
 		return next_step
@@ -806,7 +812,7 @@ function layout:prepare_belt_layout(state)
 	local miner_max_column = state.miner_max_column
 
 	---@param lane MinerPlacement[]
-	local function get_lane_length(lane) if lane and lane[#lane] then return lane[#lane].x+m.size-1 end return 0 end
+	local function get_lane_length(lane, out_x) if lane and lane[#lane] then return lane[#lane].x+out_x end return 0 end
 
 	local pipe_adjust = state.place_pipes and -1 or 0
 
@@ -827,7 +833,7 @@ function layout:prepare_belt_layout(state)
 		if lane1 or lane2 then
 			state.belt_count = state.belt_count + 1
 			local x1 = belt.x1
-			local x2 = max(get_lane_length(lane1), get_lane_length(lane2))
+			local x2 = max(get_lane_length(lane1, m.output_rotated[SOUTH][1]), get_lane_length(lane2, m.out_x))
 			longest_belt = max(longest_belt, x2 - x1 + 1)
 			belt.x2, belt.built = x2, true
 		end
@@ -900,8 +906,6 @@ function layout:prepare_pole_layout(state)
 
 			---@type GridPole
 			local pole = {
-				name = state.pole_choice,
-				thing = "pole",
 				grid_x = x, grid_y = y,
 				ix = ix, iy = iy,
 				has_consumers = has_consumers,
@@ -922,10 +926,12 @@ function layout:prepare_pole_layout(state)
 		for pole_i = #pole_lane, 1, -1 do
 			---@type GridPole
 			local backtrack_pole = pole_lane[pole_i]
-			if backtrack_built or backtrack_pole.has_consumers then
+			if backtrack_pole.has_consumers then
 				backtrack_built = true
+				backtrack_pole.backtracked = backtrack_built
 				backtrack_pole.has_consumers = true
 
+				-- TODO: move this out after ensure_connectity call
 				builder_power_poles[#builder_power_poles+1] = {
 					name=state.pole_choice,
 					thing="pole",
@@ -933,6 +939,8 @@ function layout:prepare_pole_layout(state)
 					grid_y = backtrack_pole.grid_y,
 					no_light = backtrack_pole.no_light,
 				}
+			else
+				backtrack_pole.backtracked = backtrack_built
 			end
 		end
 
@@ -963,13 +971,12 @@ function layout:prepare_lamp_layout(state)
 
 	for _, pole in ipairs(state.builder_power_poles) do
 		---@cast pole PowerPoleGhostSpecification
-		local x, y = pole.grid_x, pole.grid_y
 		if not pole.no_light then
 			lamps[#lamps+1] = {
 				name="small-lamp",
 				thing="lamp",
-				grid_x=x+sx,
-				grid_y=y+sy,
+				grid_x=pole.grid_x+sx,
+				grid_y=pole.grid_y+sy,
 			}
 		end
 	end
@@ -1209,7 +1216,10 @@ function layout:_display_lane_filling(state)
 	local throughput1, throughput2 = 0, 0
 	--local ore_hardness = game.entity_prototypes[state.found_resources
 	for i, belt in pairs(state.belts) do
+		---@cast belt BeltSpecification
 		local function lane_capacity(lane) if lane then return #lane * multiplier end return 0 end
+
+		if not belt.lane1 and not belt.lane2 then goto continue end
 
 		local speed1, speed2 = lane_capacity(belt.lane1), lane_capacity(belt.lane2)
 
@@ -1219,6 +1229,7 @@ function layout:_display_lane_filling(state)
 		render_util.draw_belt_lane(state, belt)
 
 		render_util.draw_belt_stats(state, belt, belt_speed, speed1, speed2)
+		::continue::
 	end
 
 	if #state.belts > 1 then

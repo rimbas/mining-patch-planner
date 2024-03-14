@@ -2,9 +2,9 @@ local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
 
 local simple = require("layouts.simple")
-local mpp_util = require("mpp_util")
+local mpp_util = require("mpp.mpp_util")
 local mpp_revert = mpp_util.revert
-local pole_grid_mt = require("pole_grid_mt")
+local pole_grid_mt = require("mpp.pole_grid_mt")
 
 ---@class LogisticsLayout:SimpleLayout
 local layout = table.deepcopy(simple)
@@ -41,7 +41,7 @@ function layout:prepare_belt_layout(state)
 	state.miner_lane_count = miner_lane_number
 	state.miner_max_column = miner_max_column
 
-	for _, lane in ipairs(miner_lanes) do
+	for _, lane in pairs(miner_lanes) do
 		table.sort(lane, function(a, b) return a.x < b.x end)
 	end
 	---@param lane MinerPlacement[]

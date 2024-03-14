@@ -3,7 +3,7 @@ local min, max = math.min, math.max
 
 local super_compact = require("layouts.super_compact")
 local logistics =require("layouts.logistics")
-local builder = require("builder")
+local builder = require("mpp.builder")
 
 ---@class CompactLogisticsLayout: SuperCompactLayout
 local layout = table.deepcopy(super_compact)
