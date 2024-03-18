@@ -221,13 +221,14 @@ end
 ---Builder function
 ---@param cx number x coord
 ---@param cy number y coord
----@param size number
+---@param size_w number
 ---@param thing GridBuilding Type of building
-function grid_mt:build_thing(cx, cy, size, thing)
-	for y = cy, cy+size do
+function grid_mt:build_thing(cx, cy, thing, size_w, size_h)
+	size_h = size_h or size_w
+	for y = cy, cy + size_w do
 		local row = self[y]
 		if row == nil then goto continue_row end
-		for x = cx, cx+size do
+		for x = cx, cx + size_h do
 			local tile = row[x]
 			if tile then
 				tile.built_on = thing
@@ -282,16 +283,14 @@ end
 ---Finds if an entity type is built near
 ---@param cx number x coord
 ---@param cy number y coord
----@param thing string Type of building
----@param r number Radius
----@param even boolean Is even width building
+---@param thing GridBuilding Type of building
 ---@return boolean
-function grid_mt:find_thing(cx, cy, thing, r, even)
-	local o = even and 1 or 0
-	for y = cy+o-r, cy+r do
+function grid_mt:find_thing(cx, cy, thing, size)
+	local x1, x2 = cx, cx + size
+	for y = cy, cy+size do
 		local row = self[y]
 		if row == nil then goto continue_row end
-		for x = cx+o-r, cx+r do
+		for x = x1, x2 do
 			local tile = row[x]
 			if tile and tile.built_on == thing then
 				return true
@@ -327,21 +326,7 @@ function grid_mt:find_thing_in(cx, cy, things, r, even)
 end
 
 function grid_mt:build_miner(cx, cy, size)
-	self:build_thing(cx, cy, size, "miner")
-end
-
-function grid_mt:build_miner_custom(cx, cy, w)
-	for y = cy-w, cy+w do
-		local row = self[y]
-		if row == nil then goto continue_row end
-		for x = cx-w, cx+w do
-			local tile = row[x]
-			if tile then
-				tile.built_on = "miner"
-			end
-		end
-		::continue_row::
-	end
+	self:build_thing(cx, cy, "miner", size, size)
 end
 
 function grid_mt:get_unconsumed(ox, oy, size)
@@ -356,24 +341,6 @@ function grid_mt:get_unconsumed(ox, oy, size)
 			local tile = row[x]
 			if tile and tile.amount > 0 and not tile.consumed then
 					count = count + 1
-			end
-		end
-		::continue_row::
-	end
-	return count
-end
-
-function grid_mt:get_unconsumed_custom(mx, my, w)
-	local count = 0
-	for y = my-w, my+w do
-		local row = self[y]
-		if row == nil then goto continue_row end
-		for x = mx-w, mx+w do
-			local tile = row[x]
-			if tile then
-				if tile.amount and not tile.consumed then
-					count = count + 1
-				end
 			end
 		end
 		::continue_row::

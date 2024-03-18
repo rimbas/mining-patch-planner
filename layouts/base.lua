@@ -86,4 +86,22 @@ function layout:tick(state)
 	return self[state._callback](self, state)
 end
 
+---@param self Layout
+---@param state State
+function layout:deconstruct_previous_ghosts(state)
+	local next_step = "initialize_grid"
+	if state._previous_state == nil or state._previous_state._collected_ghosts == nil then
+		return next_step
+	end
+
+	local force, player = state.player.force, state.player
+	for _, ghost in pairs(state._previous_state._collected_ghosts) do
+		if ghost.valid then
+			ghost.order_deconstruction(force, player)
+		end
+	end
+
+	return next_step
+end
+
 return layout

@@ -48,8 +48,7 @@ function render_util.draw_belt_lane(state, belt)
 	local c, ttl, player = state.coords, 0, {state.player}
 	local x1, y1, x2, y2 = belt.x1, belt.y, math.max(belt.x1+2, belt.x2), belt.y
 	local function l2w(x, y) -- local to world
-		local rev = mpp_util.revert(c.gx, c.gy, state.direction_choice, x-.5, y-.5, c.tw, c.th)
-		return {rev[1]+.5, rev[2]+.5}
+		return mpp_util.revert(c.gx, c.gy, state.direction_choice, x, y, c.tw, c.th)
 	end
 	local c1, c2, c3 = {.9, .9, .9}, {0, 0, 0}, {.4, .4, .4}
 	local w1, w2 = 4, 10
@@ -742,6 +741,51 @@ function render_util.draw_centricity(player_data, event)
 	local grid = state.grid
 
 	
+
+end
+
+
+---@param player_data PlayerData
+---@param event EventData.on_player_reverse_selected_area
+function render_util.draw_blueprint_data(player_data, event)
+	local renderer = render_util.renderer(event)
+
+	local fx1, fy1 = event.area.left_top.x, event.area.left_top.y
+	fx1, fy1 = floor(fx1), floor(fy1)
+	local x, y = fx1 + 0.5, fy1 + 0.5
+
+	local id = player_data.choices.blueprint_choice and player_data.choices.blueprint_choice.item_number
+	if not id then return end
+	local bp = player_data.blueprints.cache[id]
+	if not bp then return end
+
+	renderer.draw_line{x = fx1, y = fy1-1, w = 0, h = 2}
+	renderer.draw_line{x = fx1-1, y = fy1, w = 2, h = 0}
+
+	renderer.draw_rectangle{
+		x = fx1 + bp.ox,
+		y = fy1 + bp.oy,
+		w = bp.w,
+		h = bp.h,
+	}
+
+	for _, ent in pairs(bp.entities) do
+		local struct = mpp_util.entity_struct(ent.name)
+		local clr = {1, 1, 1}
+		if ent.capstone_x and ent.capstone_y then
+			clr = {0, 1, 1}
+		elseif ent.capstone_x then
+			clr = {0, 1, 0}
+		elseif ent.capstone_y then
+			clr = {0, 0, 1}
+		end
+		renderer.draw_circle{
+			x = fx1 + ent.position.x,
+			y = fy1 + ent.position.y,
+			r = struct.size / 2,
+			color = clr,
+		}
+	end
 
 end
 

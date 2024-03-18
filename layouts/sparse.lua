@@ -13,7 +13,7 @@ local simple = require("layouts.simple")
 local layout = table.deepcopy(simple)
 
 layout.name = "sparse"
-layout.translation = {"", "[entity=electric-mining-drill] ", {"mpp.settings_layout_choice_sparse"}}
+layout.translation = {"", "[entity=transport-belt] ", {"mpp.settings_layout_choice_sparse"}}
 
 layout.restrictions.miner_size = {1, 10e3}
 layout.restrictions.miner_radius = {1, 10e3}

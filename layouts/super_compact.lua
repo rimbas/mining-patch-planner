@@ -13,7 +13,7 @@ local EAST, NORTH, SOUTH, WEST = mpp_util.directions()
 local layout = table.deepcopy(simple)
 
 layout.name = "super_compact"
-layout.translation = {"", "[entity=electric-mining-drill] ", {"mpp.settings_layout_choice_super_compact"}}
+layout.translation = {"", "[entity=underground-belt] ", {"mpp.settings_layout_choice_super_compact"}}
 
 layout.restrictions.miner_size = {3, 3}
 layout.restrictions.miner_radius = {1, 20}

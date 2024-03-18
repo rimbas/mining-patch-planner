@@ -8,8 +8,17 @@ local NORTH = defines.direction.north
 local SOUTH = defines.direction.south
 local WEST = defines.direction.west
 
+---@alias DirectionString
+---| "west"
+---| "east"
+---| "south"
+---| "north"
+
 local mpp_util = {}
 
+---@alias CoordinateConverterFunction fun(number, number, number, number): number, number
+
+---@type table<DirectionString, CoordinateConverterFunction>
 local coord_convert = {
 	west = function(x, y, w, h) return x, y end,
 	east = function(x, y, w, h) return w-x, h-y end,
@@ -18,6 +27,7 @@ local coord_convert = {
 }
 mpp_util.coord_convert = coord_convert
 
+---@type table<DirectionString, CoordinateConverterFunction>
 local coord_revert = {
 	west = coord_convert.west,
 	east = coord_convert.east,
@@ -60,20 +70,21 @@ do
 	}
 end
 
-
 ---@class EntityStruct
 ---@field name string
 ---@field w number Collision width
 ---@field h number Collision height
 ---@field x number x origin 
 ---@field y number y origin
----@field size number? Size if 
+---@field size number?
+---@field extent_w number Half of width
+---@field extent_h number Half of height
 
 ---@type table<string, EntityStruct>
 local entity_cache = {}
 
----comment
----@param entity_name any
+---@param entity_name string
+---@return EntityStruct
 function mpp_util.entity_struct(entity_name)
 	local cached = entity_cache[entity_name]
 	if cached then return cached end
@@ -84,10 +95,12 @@ function mpp_util.entity_struct(entity_name)
 	local cbox = proto.collision_box
 	local cbox_tl, cbox_br = cbox.left_top, cbox.right_bottom
 	local cw, ch = cbox_br.x - cbox_tl.x, cbox_br.y - cbox_tl.y
+	struct.name = entity_name
 	struct.w, struct.h = ceil(cw), ceil(ch)
 	struct.size = max(struct.w, struct.h)
 	struct.x = struct.w / 2 - 0.5
 	struct.y = struct.h / 2 - 0.5
+	struct.extent_w, struct.extent_h = struct.w / 2, struct.h / 2
 
 	entity_cache[entity_name] = struct
 	return struct
@@ -96,7 +109,6 @@ end
 ---A mining drill's origin (0, 0) is the top left corner
 ---The spawn location is (x, y), rotations need to rotate around
 ---@class MinerStruct : EntityStruct
----@field name string
 ---@field size number Physical miner size
 ---@field size_sq number Size squared
 ---@field symmetric boolean
@@ -278,6 +290,31 @@ function mpp_util.pole_struct(pole_name)
 	}
 end
 
+---@class BeaconStruct : EntityStruct
+---@field extent_negative number
+---@field area number
+
+local beacon_cache = {}
+
+---@param beacon_name string
+---@return BeaconStruct
+function mpp_util.beacon_struct(beacon_name)
+	local cached_struct = beacon_cache[beacon_name]
+	if cached_struct then return cached_struct end
+
+	local beacon_proto = game.entity_prototypes[beacon_name]
+	---@diagnostic disable-next-line: missing-fields
+	local beacon = mpp_util.entity_struct(beacon_name) --[[@as BeaconStruct]]
+
+	local distance = beacon_proto.supply_area_distance
+	beacon.area = beacon.size + distance * 2
+	beacon.extent_negative = -distance-1
+
+	beacon_cache[beacon_name] = beacon
+	return beacon
+end
+
+
 local hardcoded_pipes = {}
 
 ---@param pipe_name string Name of the normal pipe
@@ -295,7 +332,27 @@ function mpp_util.find_underground_pipe(pipe_name)
 end
 
 function mpp_util.revert(gx, gy, direction, x, y, w, h)
-	local tx, ty = coord_revert[direction](x, y, w, h)
+	local tx, ty = coord_revert[direction](x-.5, y-.5, w, h)
+	return {gx + tx+.5, gy + ty + .5}
+end
+
+---comment
+---@param gx any
+---@param gy any
+---@param direction any
+---@param x any
+---@param y any
+---@param w any
+---@param h any
+---@return unknown
+---@return unknown
+function mpp_util.revert_ex(gx, gy, direction, x, y, w, h)
+	local tx, ty = coord_revert[direction](x-.5, y-.5, w, h)
+	return gx + tx+.5, gy + ty + .5
+end
+
+function mpp_util.revert_world(gx, gy, direction, x, y, w, h)
+	local tx, ty = coord_revert[direction](x-.5, y-.5, w, h)
 	return {gx + tx, gy + ty}
 end
 
@@ -404,14 +461,14 @@ function mpp_util.calculate_pole_spacing(state, miner_count, lane_count, force_c
 	local covered_miners = ceil(p.supply_width / m.size)
 	local miner_step = covered_miners * m.size
 	if force_capable then
-		miner_step = force_capable == true and miner_step or force_capable
+		miner_step = force_capable == true and miner_step or force_capable --[[@as number]]
 		force_capable = miner_step
 	end
 
 	-- Special handling to shift back small radius power poles so they don't poke out
 	local capable_span = false
 
-	if floor(p.wire) >= miner_step and m.size ~= p.supply_width then
+	if floor(p.wire) >= miner_step then
 		capable_span = true
 	elseif force_capable and force_capable > 0 then
 		return mpp_util.calculate_pole_spacing(
@@ -426,7 +483,7 @@ function mpp_util.calculate_pole_spacing(state, miner_count, lane_count, force_c
 	if capable_span then
 		if covered_miners % 2 == 0 then
 			pole_start = m.size-1
-		elseif miner_count % covered_miners == 0 then
+		elseif miner_count % covered_miners == 0 and miner_step ~= m.size then
 			pole_start = pole_start + m.size
 		end
 	end
@@ -468,20 +525,33 @@ end
 ---@param blueprint LuaItemStack
 function mpp_util.validate_blueprint(player, blueprint)
 	if not blueprint.blueprint_snap_to_grid then
-		player.print({"mpp.msg_blueprint_undefined_grid"})
+		player.print({"", "[color=red]", {"mpp.msg_blueprint_undefined_grid"}, "[/color]"}, {sound_path="utility/cannot_build"})
+		return false
+	end
+
+	local miners, _ = enums.get_available_miners()
+	local cost = blueprint.cost_to_build
+	local drills = {}
+	for name, drill in pairs(miners) do
+		if cost[name] then
+			drills[#drills+1] = drill.localised_name
+		end
+	end
+
+	if #drills > 1 then
+		local msg = {"", "[color=red]", {"mpp.msg_blueprint_different_miners"}, "[/color]" }
+		for _, name in pairs(drills) do
+			msg[#msg+1] = "\n"
+			msg[#msg+1] = name
+		end
+		player.print(msg, {sound_path="utility/cannot_build"})
+		return false
+	elseif #drills == 0 then
+		player.print({"", "[color=red]", {"mpp.msg_blueprint_no_miner"}, "[/color]"}, {sound_path="utility/cannot_build"})
 		return false
 	end
 	
-	local miners, _ = enums.get_available_miners()
-	local cost = blueprint.cost_to_build
-	for name, _ in pairs(miners) do
-		if cost[name] then
-			return true
-		end
-	end
-	
-	player.print({"mpp.msg_blueprint_no_miner"})
-	return false
+	return true
 end
 
 function mpp_util.keys_to_set(...)

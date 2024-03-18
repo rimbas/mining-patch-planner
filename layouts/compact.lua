@@ -15,7 +15,7 @@ local layout = table.deepcopy(simple)
 ---@class CompactState : SimpleState
 
 layout.name = "compact"
-layout.translation = {"", "[entity=electric-mining-drill] ", {"mpp.settings_layout_choice_compact"}}
+layout.translation = {"", "[entity=underground-belt] ", {"mpp.settings_layout_choice_compact"}}
 
 layout.restrictions.miner_size = {3, 10e3}
 layout.restrictions.miner_radius = {1, 10e3}

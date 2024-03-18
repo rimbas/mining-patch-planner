@@ -49,6 +49,14 @@ default_style.mpp_fake_item_placeholder = {
 	size=32,
 }
 
+default_style.mpp_fake_item_placeholder_blueprint = {
+	type="image_style",
+	stretch_image_to_widget_size = true,
+	left_margin=4,
+	top_margin=4,
+	size=32,
+}
+
 default_style.mpp_fake_blueprint_button = {
 	type="button_style",
 	parent="shortcut_bar_button_blue",

@@ -1,11 +1,13 @@
 local mpp_util = require("mpp.mpp_util")
-local coord_revert = mpp_util.revert
+local coord_revert_world = mpp_util.revert_world
 local builder = {}
 
 ---@class GhostSpecification : LuaSurface.create_entity_param.entity_ghost
 ---@field grid_x number Grid x coordinate
 ---@field grid_y number Grid x coordinate
 ---@field radius number? Object radius or default to 0.5 if nil
+---@field extent_w number? Object extent
+---@field extent_h number? Object extent
 ---@field thing GridBuilding Enum for the grid
 
 ---@class PowerPoleGhostSpecification : GhostSpecification
@@ -35,7 +37,7 @@ function builder.create_entity_builder(state)
 		-- Assume default entity size of 1 and subtract 0.5 from grid position 
 		-- because entity origins in Factorio are offset by -0.5 from our grid coordinates
 		-- Larger entities have to be specially handled anyway and can account for the subtraction
-		ghost.position=coord_revert(gx, gy, DIR, ghost.grid_x-.5, ghost.grid_y-.5, tw, th)
+		ghost.position=coord_revert_world(gx, gy, DIR, ghost.grid_x, ghost.grid_y, tw, th)
 		ghost.direction=direction_conv[ghost.direction or defines.direction.north]
 		local result = surface.create_entity(ghost)
 		if result then

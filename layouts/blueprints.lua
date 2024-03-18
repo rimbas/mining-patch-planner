@@ -2,10 +2,16 @@ local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
 
 local base = require("layouts.base")
+local simple = require("layouts.simple")
 local grid_mt = require("mpp.grid_mt")
 local mpp_util = require("mpp.mpp_util")
+local builder = require("mpp.builder")
+local common   = require("layouts.common")
+local drawing  = require("mpp.drawing")
 local coord_convert, coord_revert = mpp_util.coord_convert, mpp_util.coord_revert
 local bp_direction = mpp_util.bp_direction
+
+local EAST, NORTH, SOUTH, WEST = mpp_util.directions()
 
 ---@class BlueprintLayout : Layout
 local layout = table.deepcopy(base)
@@ -13,11 +19,23 @@ local layout = table.deepcopy(base)
 ---@class BlueprintState : SimpleState
 ---@field bp_w number
 ---@field bp_h number
+---@field bp_mining_drills BlueprintEntityEx[]
+---@field bp_category_map table<string, string>
 ---@field attempts BpPlacementAttempt[]
+---@field attempt_index number
 ---@field best_attempt BpPlacementAttempt
+---@field best_attempt_score number Heuristic value
+---@field best_attempt_index number
 ---@field beacons BpPlacementEnt[]
 ---@field builder_power_poles BpPlacementEnt[]
 ---@field lamps BpPlacementEnt[]
+---
+---@field collected_beacons BpPlacementEnt[]
+---@field collected_power BpPlacementEnt[]
+---@field collected_belts BpPlacementEnt[]
+---@field collected_other BpPlacementEnt[]
+---
+---@field builder_all GhostSpecification[]
 
 --- Coordinate space for the attempt
 ---@class BpPlacementAttempt : PlacementAttempt
@@ -25,18 +43,22 @@ local layout = table.deepcopy(base)
 ---@field s_ix number Current blueprint metatile x
 ---@field s_iy number Current blueprint metatile y
 ---@field s_ie number Current entity index
----@field x number x start
----@field y number y start
+---@field sx number x start
+---@field sy number y start
 ---@field cx number number of blueprint repetitions on x axis
 ---@field cy number number of blueprint repetitions on y axis
 
-
 ---@class BpPlacementEnt
+---@field name string
 ---@field ent BlueprintEntityEx
----@field center GridTile
----@field x number
----@field y number
+---@field thing string
+---@field tile GridTile Top-left tile
+---@field x number Top-left tile coordinate
+---@field y number Top-left tile coordinate
+---@field origin_x number Grid-independent position for correct in-world placement
+---@field origin_y number Grid-independent position for correct in-world placement
 ---@field direction defines.direction
+---@field built boolean
 
 layout.name = "blueprints"
 layout.translation = {"", "[item=blueprint] ", {"mpp.settings_layout_choice_blueprints"}}
@@ -66,8 +88,14 @@ end
 
 ---@param self BlueprintLayout
 ---@param state BlueprintState
+function layout:initialize(state)
+	state.miner = mpp_util.miner_struct(state.cache.miner_name)
+	state.miner_choice = state.cache.miner_name
+end
+
+---@param self BlueprintLayout
+---@param state BlueprintState
 function layout:start(state)
-	local grid = {}
 	local c = state.coords
 	local bp = state.cache
 
@@ -79,86 +107,32 @@ function layout:start(state)
 	end
 	c.th, c.tw = th, tw
 
-	for y = -bp.h, th+bp.h do
-		local row = {}
-		grid[y] = row
-		for x = -bp.w, tw+bp.w do
-			row[x] = {
-				resources = 0,
-				x = x, y = y,
-				gx = c.x1 + x, gy = c.y1 + y,
-				consumed = false,
-				built_on = false,
-				neighbor_counts = {},
-			}
-		end
-	end
+	state.bp_mining_drills = bp:get_mining_drills()
+	state.bp_category_map = bp:get_entity_categories()
 
-	state.grid = setmetatable(grid, grid_mt)
-	return "process_grid"
+	state.collected_beacons = {}
+	state.collected_power = {}
+	state.collected_belts = {}
+
+	state.builder_all = {}
+
+	return "deconstruct_previous_ghosts"
 end
 
----Called from script.on_load
----@param self BlueprintLayout
----@param state BlueprintState
-function layout:process_grid(state)
-	local c = state.coords
-	local grid = state.grid
-	local resources = state.resources
-	local conv = coord_convert[state.direction_choice]
-	local gx, gy = state.coords.gx, state.coords.gy
-	local gw, gh = state.coords.w, state.coords.h
-	local resources = state.resources
+layout.initialize_grid = simple.initialize_grid
 
-	state.resource_tiles = state.resource_tiles or {}
-	local resource_tiles = state.resource_tiles
+-- ---@param self BlueprintLayout
+-- ---@param state BlueprintState
+-- function layout:process_grid(state)
+-- 	simple.process_grid(self --[[@as SimpleLayout]], state)
+-- 	return "prepare_layout_attempts"
+-- end
 
-	local convolve_size = 0
-	local convolve_steps = {}
-	for _, miner in pairs(state.cache.miners) do
-		---@cast miner MinerStruct
-		convolve_size = miner.full_size ^ 2 + miner.size ^ 2
-		convolve_steps[miner.far] = true
-		convolve_steps[miner.near] = true
-	end
-	local budget, cost = 12000, 0
-
-	local i = state.resource_iter or 1
-	while i <= #resources and cost < budget do
-		local r = resources[i]
-		local x, y = r.position.x, r.position.y
-		local tx, ty = conv(x-gx, y-gy, gw, gh)
-		local tile = grid:get_tile(tx, ty)
-		tile.amount = r.amount
-		for width, _ in pairs(convolve_steps) do
-			grid:convolve_custom(tx, ty, width)
-		end
-		resource_tiles[#resource_tiles+1] = tile
-		cost = cost + convolve_size
-		i = i + 1
-
-		--[[ debug visualisation - resource
-		rendering.draw_circle{
-			surface = state.surface,
-			filled = false,
-			color = {0, 1, 0.3},
-			width = 1,
-			target = {c.gx + tx, c.gy + ty},
-			radius = 0.5,
-		}
-		--]]
-	end
-	state.resource_iter = i
-
-	if state.resource_iter >= #state.resources then
-		return "init_first_pass"
-	end
-	return true
-end
+layout.process_grid = simple.process_grid
 
 ---@param self BlueprintLayout
 ---@param state BlueprintState
-function layout:init_first_pass(state)
+function layout:prepare_layout_attempts(state)
 	local c = state.coords
 	local bp = state.cache
 	---@type BpPlacementAttempt[]
@@ -168,9 +142,9 @@ function layout:init_first_pass(state)
 	state.attempt_index = 1
 
 	local function calc_slack(tw, bw, offset)
-		local count = ceil((tw-offset) / bw)
-		local overrun = count * bw - tw + offset
-		local start = -floor(overrun / 2)
+		local count = ceil(tw / bw)
+		local overrun = count * bw - tw - offset
+		local start = -ceil(overrun / 2)
 		local slack = overrun % 2
 		return count, start, slack
 	end
@@ -182,21 +156,15 @@ function layout:init_first_pass(state)
 		start_x, slack_x = 0, 0
 	end
 
+	-- TODO: make attempts use 
 	attempts[1] = {
-		x = start_x, y = start_y,
+		sx = start_x, sy = start_y,
 		cx = count_x, cy = count_y,
 		slack_x = slack_x, slack_y = slack_y,
 		miners = {}, postponed = {},
 		other_ents = {},
+		s_ix = 0, s_iy = 0, s_ie = 1,
 	}
-
-	state.bp_grid = {}
-	for iy = 0, start_y - 1 do
-		local row = state.bp_grid[iy]
-		for ix = 0, start_x - 1 do
-			row[ix] = {completed = false}
-		end
-	end
 
 	--[[ debug rendering
 	rendering.draw_rectangle{
@@ -226,51 +194,37 @@ function layout:init_first_pass(state)
 	end
 	--]]
 
-	return "first_pass"
-end
-
----@param miner MinerStruct
-local function miner_heuristic(miner, coverage)
-	local near, far = miner.near, miner.far
-	local full, size = miner.full_size, miner.size
-	local neighbor_cap = ceil((size ^ 2) * 0.5)
-	if coverage then
-		---@param tile GridTile
-		return function(tile)
-			local nearc, farc = tile.neighbor_counts[near], tile.neighbor_counts[far]
-			return nearc and (nearc > 0 or
-				(farc and farc > neighbor_cap and nearc > (size * near))
-			)
-		end
-	end
-	---@param tile GridTile
-	return function(tile)
-		local nearc, farc = tile.neighbor_counts[near], tile.neighbor_counts[far]
-		return nearc and (nearc > neighbor_cap or
-			(farc and farc > neighbor_cap and nearc > (size * near))
-		)
-	end
+	return "init_layout_attempt"
 end
 
 ---@param self BlueprintLayout
 ---@param state BlueprintState
-function layout:first_pass(state)
+---@return BpPlacementAttempt
+function layout:_placement_attempt(state, attempt)
 	local grid = state.grid
 	local bp = state.cache
-	local entities = bp.entities
-	local attempt = state.attempts[state.attempt_index]
-	local sx, sy, countx, county = attempt.x, attempt.y, attempt.cx-1, attempt.cy-1
-	local bpconv = bp_direction[state.direction_choice]
+	local M = state.miner
+	local entities, num_ents = state.bp_mining_drills, #state.bp_mining_drills
+	local sx, sy, countx, county = attempt.sx, attempt.sy, attempt.cx-1, attempt.cy-1
 	local bpw, bph = bp.w, bp.h
-	local heuristics = {}
-	for k, v in pairs(bp.miners) do heuristics[k] = miner_heuristic(v, state.coverage_choice) end
+	local heuristic = simple._get_miner_placement_heuristic(self --[[@as SimpleLayout]], state)
+	local heuristic_values = common.init_heuristic_values()
 	
-	local miners, postponed = attempt.miners, attempt.postponed
+	local debug_draw = drawing(state, true, false)
+
+	-- debug_draw:draw_circle{
+	-- 	x = 0,
+	-- 	y = 0,
+	-- 	color = {0, 0, 0},
+	-- 	radius = 0.5,
+	-- }
+
+	local miners, postponed = attempt.miners, {}
 	local other_ents = attempt.other_ents
 	local s_ix = attempt.s_ix or 0
 	local s_iy = attempt.s_iy or 0
 	local s_ie = attempt.s_ie or 1
-	local progress, progress_cap = 0, 64
+	local progress, progress_cap = 0, 100
 	--local ix, iy, ie = s_ix, s_iy, s_ie
 	for iy = s_iy, county do
 	--while iy <= county do
@@ -278,61 +232,186 @@ function layout:first_pass(state)
 		for ix = s_ix, countx do
 		--while ix <= countx do
 			--for _, ent in pairs(bp.entities) do
-			for ie = s_ie, #entities do
+			for ie = s_ie, num_ents do
 			--while ie <= #entities do
 				local ent = entities[ie]
 				ie = ie + 1
 				local capstone_x = ix == countx
-				if ent.capstone_y and not capstone_y then goto skip_ent end
-				if ent.capstone_x and not capstone_x then goto skip_ent end
-				local bpx, bpy = ceil(ent.position.x), ceil(ent.position.y)
+				if (ent.capstone_y and not capstone_y) or (ent.capstone_x and not capstone_x) then
+					goto skip_ent
+				end
+				
+				local struct = mpp_util.entity_struct(ent.name)
+				local bpx = ceil(ent.position.x - struct.x)
+				local bpy = ceil(ent.position.y - struct.y)
+				local x, y = sx + ix * bpw + bpx, sy + iy * bph + bpy
+				local tile = grid:get_tile(x, y)
+
+				if not tile or M.name ~= ent.name then goto skip_ent end
+
+				local struct = {
+					ent = ent,
+					tile = tile,
+					x = x, y = y,
+					origin_x = x + M.x,
+					origin_y = y + M.y,
+					line = s_iy,
+					column = s_ix,
+					direction = ent.direction,
+					name = ent.name,
+				}
+				if heuristic(tile) then
+					miners[#miners+1] = struct
+					common.add_heuristic_values(heuristic_values, M, tile)
+				else
+					postponed[#postponed+1] = struct
+				end
+
+				::skip_ent::
+			end
+			s_ie = 1
+		end
+		s_ix = 0
+	end
+
+	local result = {
+		sx = sx, sy = sy,
+		cx = attempt.cx, cy = attempt.cy,
+		miners = miners,
+		lane_layout = {},
+		heuristics = heuristic_values,
+		heuristic_score = -(0/0),
+		unconsumed = 0,
+	}
+
+	common.process_postponed(state, result, miners, postponed)
+
+	common.finalize_heuristic_values(result, heuristic_values, state.coords)
+
+	return result
+end
+
+---@param self BlueprintLayout
+---@param state BlueprintState
+---@return CallbackState
+function layout:init_layout_attempt(state)
+	local attempt = state.attempts[state.attempt_index]
+
+	state.best_attempt = self:_placement_attempt(state, attempt)
+	state.best_attempt_score = simple._get_layout_heuristic(self --[[@as SimpleLayout]], state)(state.best_attempt.heuristics)
+	state.best_attempt.heuristic_score = state.best_attempt_score
+
+	if state.debug_dump then
+		state.saved_attempts = {}
+		state.saved_attempts[#state.saved_attempts+1] = state.best_attempt
+	end
+
+	state.attempt_index = state.attempt_index + 1
+	return "layout_attempt"
+end
+
+---@param self BlueprintLayout
+---@param state BlueprintState
+---@return CallbackState
+function layout:layout_attempt(state)
+	return "collect_entities"
+end
+
+---@param self BlueprintLayout
+---@param state BlueprintState
+function layout:_get_deconstruction_objects(state)
+	return {
+		state.builder_miners,
+		state.builder_all,
+		--state.builder_pipes,
+		--state.builder_belts,
+		--state.builder_power_poles,
+		--state.builder_lamps,
+	}
+end
+
+---@param self SimpleLayout
+---@param state BlueprintState
+---@return CallbackState
+function layout:collect_entities(state)
+	local grid = state.grid
+	local bp = state.cache
+	local category_map = state.bp_category_map
+	local attempt = state.best_attempt
+	local entities, num_ents = bp.entities, #bp.entities
+	local sx, sy, countx, county = attempt.sx, attempt.sy, attempt.cx-1, attempt.cy-1
+	local bpw, bph = bp.w, bp.h
+
+	local debug_draw = drawing(state, true, false)
+
+	local collected_beacons = state.collected_beacons
+	local collected_power = state.collected_power
+	local collected_belts = state.collected_belts
+	local collected_other = state.collected_other
+	
+	local s_ix = attempt.s_ix or 0
+	local s_iy = attempt.s_iy or 0
+	local s_ie = attempt.s_ie or 1
+	local progress, progress_cap = 0, 200
+	--local ix, iy, ie = s_ix, s_iy, s_ie
+	for iy = s_iy, county do
+	--while iy <= county do
+		local capstone_y = iy == county
+		for ix = s_ix, countx do
+		--while ix <= countx do
+			--for _, ent in pairs(bp.entities) do
+			for ie = s_ie, num_ents do
+				local ent = entities[ie]
+				local ent_category = category_map[ent.name]
+				ie = ie + 1
+				local capstone_x = ix == countx
+				if
+					ent_category == "mining-drill"
+					or (ent.capstone_y and not capstone_y)
+					or (ent.capstone_x and not capstone_x)
+				then
+					local asdf = "asdf"
+					goto skip_ent
+				end
+				local entity_struct = mpp_util.entity_struct(ent.name)
+				local bpx = ceil(ent.position.x - entity_struct.x)
+				local bpy = ceil(ent.position.y - entity_struct.y)
 				local x, y = sx + ix * bpw + bpx, sy + iy * bph + bpy
 				local tile = grid:get_tile(x, y)
 				if not tile then goto skip_ent end
-				local bptr = bpconv[ent.direction or defines.direction.north]
 
-				local miner = state.cache.miners[ent.name]
-				if state.cache.miners[ent.name] then
-					local struct = {
+				if ent_category == "beacon" then
+					local beacon_struct = mpp_util.beacon_struct(ent.name)
+					collected_beacons[#collected_beacons+1] = {
 						ent = ent,
-						line = s_iy,
-						center = tile,
-						column = s_ix,
-						direction = bptr,
 						name = ent.name,
-						near = miner.near,
-						far = miner.far,
-						x = x, y = y,
+						x = x,
+						y = y,
+						origin_x = x + beacon_struct.x,
+						origin_y = y + beacon_struct.y,
+						tile = tile,
+						thing = "beacon",
+						direction = ent.direction,
+						built = false,
+						extent_negative = beacon_struct.extent_negative,
+						w = beacon_struct.w,
+						h = beacon_struct.h,
+						area = beacon_struct.area,
 					}
-					local count_near = tile.neighbor_counts[miner.near]
-					local count_far = tile.neighbor_counts[miner.far]
-					if heuristics[ent.name](tile) then
-						miners[#miners+1] = struct
-						
-						local even = mpp_util.entity_even_width(ent.name)
-						grid:consume_custom(x, y, miner.far, even[1], even[2])
-					else
-						postponed[#postponed+1] = struct
-					end
-				else
-					other_ents[#other_ents+1] = {
+					local t = true
+				elseif ent_category == "transport-belt" then
+					collected_belts[#collected_belts+1] = {
 						ent = ent,
-						center = tile,
+						thing = "belt",
+						name = ent.name,
 						x = x, y = y,
-						direction = bptr,
 					}
-				end
 
-				--[[ debug rendering
-				rendering.draw_circle{
-					surface = state.surface,
-					player = state.player,
-					filled = false,
-					color = {1,1,1,1},
-					radius= 0.5,
-					target = {c.gx + x, c.gy + y},
-				}
-				--]]
+				elseif ent_category == "electric-pole" then
+
+				else
+					
+				end
 
 				progress = progress + 1
 				if progress > progress_cap then
@@ -346,129 +425,35 @@ function layout:first_pass(state)
 		end
 		s_ix = 0
 	end
-	return "first_pass_finish"
-end
-
----@param self BlueprintLayout
----@param state BlueprintState
-function layout:first_pass_finish(state)
-	local grid = state.grid
-	local attempt = state.attempts[state.attempt_index]
-	local miners, postponed = attempt.miners, attempt.postponed
-
-	-- second pass
-	for _, miner in ipairs(miners) do
-		local even = mpp_util.entity_even_width(miner.ent.name)
-		grid:consume_custom(miner.center.x, miner.center.y, miner.far, even[1], even[2])
-	end
-
-	for _, miner in ipairs(postponed) do
-		local center = miner.center
-		miner.unconsumed = grid:get_unconsumed_custom(center.x, center.y, miner.far)
-	end
-
-	table.sort(postponed, function(a, b)
-		if a.unconsumed == b.unconsumed then
-			local sizes = mpp_util.keys_to_set(a.center.neighbor_counts, b.center.neighbor_counts)
-			for i = #sizes, 1, -1 do
-				local size = sizes[i]
-				local left, right = a.center.neighbor_counts[size], b.center.neighbor_counts[size]
-				if left ~= nil and right ~= nil then
-					return left > right
-				elseif left ~= nil then
-					return true
-				end
-			end
-			return false
-		end
-		return a.unconsumed > b.unconsumed
-	end)
-
-	for _, miner in ipairs(postponed) do
-		local center = miner.center
-		local unconsumed_count = grid:get_unconsumed_custom(center.x, center.y, miner.far)
-		if unconsumed_count > 0 then
-			local even = mpp_util.entity_even_width(miner.ent.name)
-			grid:consume_custom(center.x, center.y, miner.far, even[1], even[2])
-			miners[#miners+1] = miner
-		end
-	end
-
-	state.best_attempt = attempt
-
-	return "simple_deconstruct"
-end
-
----@param self BlueprintLayout
----@param state BlueprintState
-function layout:simple_deconstruct(state)
-	local c = state.coords
-	local m = state.miner
-	local player = state.player
-	local surface = state.surface
-	local bp = state.cache
-
-	local deconstructor = global.script_inventory[state.deconstruction_choice and 2 or 1]
-	surface.deconstruct_area{
-		force=player.force,
-		player=player.index,
-		area={
-			left_top={c.x1-(bp.tw/2), c.y1-(bp.th/2)},
-			right_bottom={c.x2+(bp.tw/2), c.y2+(bp.th/2)}
-		},
-		item=deconstructor,
-	}
-
-	--[[ debug rendering - deconstruction area
-	rendering.draw_rectangle{
-		surface=state.surface,
-		players={state.player},
-		filled=false,
-		width=3,
-		color={1, 0, 0},
-		left_top={c.x1-(bp.tw/2), c.y1-(bp.th/2)},
-		right_bottom={c.x2+(bp.tw/2), c.y2+(bp.th/2)}
-	}
-	]]
-
-	return "place_miners"
-end
-
----@param tile GridTile
----@param ent BlueprintEntity|MinerPlacement
----@return number
----@return number
-local function fix_offgrid(tile, ent)
-	local ex, ey = ent.position.x, ent.position.y
-	local ox, oy = 0, 0
-	if ex == ceil(ex) then ox = 0.5 end
-	if ey == ceil(ey) then oy = 0.5 end
-	return tile.x + ox, tile.y + oy
+	
+	return "prepare_miner_layout"
 end
 
 ---@param self SimpleLayout
 ---@param state BlueprintState
-function layout:place_miners(state)
-	local c = state.coords
-	local grid = state.grid
-	local surface = state.surface
+---@return CallbackState
+function layout:prepare_miner_layout(state)
+	local C, M, G = state.coords, state.miner, state.grid
+
+	local builder_miners = {}
+	state.builder_miners = builder_miners
+
 	for _, miner in ipairs(state.best_attempt.miners) do
-		local center = miner.center
-		--g:build_miner_custom(center.x, center.y, miner.near)
 
-		local even = mpp_util.entity_even_width(miner.ent.name)
-		grid:build_thing(center.x, center.y, "miner", miner.near, even[1])
-		local ex, ey = fix_offgrid(center, miner.ent)
-		local x, y = coord_revert[state.direction_choice](ex, ey, c.tw, c.th)
-		-- local can_place = surface.can_place_entity{
-		-- 	name=state.miner.name,
-		-- 	force = state.player.force,
-		-- 	position={center.gx, center.gy},
-		-- 	direction = defines.direction.north,
-		-- 	build_check_type = 
-		-- }
+		G:build_miner(miner.x, miner.y, M.size-1)
 
-		--[[ debug visualisation - miner placement
+		builder_miners[#builder_miners+1] = {
+			thing = "miner",
+			name = miner.ent.name,
+			direction = miner.direction,
+			grid_x = miner.origin_x,
+			grid_y = miner.origin_y,
+			extent_w = M.extent_w,
+			extent_h = M.extent_h,
+		}
+
+		--[[ debug visualisation - mining drill placement
+		local x, y = miner.origin_x, miner.origin_y
 		local off = state.miner.size / 2
 		rendering.draw_rectangle{
 			surface = state.surface,
@@ -476,31 +461,110 @@ function layout:place_miners(state)
 			color = miner.postponed and {1, 0, 0} or {0, 1, 0},
 			width = 3,
 			--target = {c.x1 + x, c.y1 + y},
-			left_top = {c.gx+x-off, c.gy + y - off},
-			right_bottom = {c.gx+x+off, c.gy + y + off},
+			left_top = {C.gx+x-off, C.gy + y - off},
+			right_bottom = {C.gx+x+off, C.gy + y + off},
 		}
 		--]]
 
-		local target = surface.create_entity{
-			raise_built=true,
-			name="entity-ghost",
-			player=state.player,
-			force = state.player.force,
-			position = {c.gx + x, c.gy + y},
-			direction = miner.direction,
-			inner_name = miner.name,
-		}
-		if miner.ent.items then
-			target.item_requests = miner.ent.items
-		end
 	end
 
-	return "place_other"
+	return "prepare_beacon_layout"
 end
 
 ---@param self BlueprintLayout
 ---@param state BlueprintState
-function layout:place_other(state)
+function layout:prepare_beacon_layout(state)
+	local c = state.coords
+	local surface = state.surface
+	local grid = state.grid
+	local builder_all = state.builder_all
+
+	local debug_draw = drawing(state, true, false)
+
+	for _, beacon in ipairs(state.collected_beacons) do
+		local struct = mpp_util.beacon_struct(beacon.name)
+		local x, y = beacon.x, beacon.y
+		local ext = struct.extent_negative
+		local found = grid:find_thing(x+ext, y+ext, "miner", struct.area)
+
+		if found then
+			grid:build_thing(x, y, "beacon", struct.w-1, struct.h-1)
+
+
+			builder_all[#builder_all+1] = {
+				thing = "beacon",
+				name = struct.name,
+				grid_x = beacon.origin_x,
+				grid_y = beacon.origin_y,
+				extent_w = struct.extent_w,
+				extent_h = struct.extent_h,
+			}
+		end
+
+		if false and grid:find_thing(center.x, center.y, "miner", range+even.near, even[1]) then
+			local ex, ey = fix_offgrid(center, ent)
+			local x, y = coord_revert[state.direction_choice](ex, ey, c.tw, c.th)
+			local target = surface.create_entity{
+				raise_built=true,
+				name="entity-ghost",
+				player=state.player,
+				force=state.player.force,
+				position= {c.gx + x, c.gy + y},
+				direction = other_ent.direction,
+				inner_name = ent.name,
+				type=ent.type,
+			}
+			if ent.items then
+				target.item_requests = ent.items
+			end
+			grid:build_thing(center.x, center.y, "beacon", even.near, even[1])
+		end
+
+		::continue::
+	end
+
+	return "expensive_deconstruct"
+end
+
+---@param self BlueprintLayout
+---@param state BlueprintState
+function layout:prepare_electricity(state)
+	local c = state.coords
+	local surface = state.surface
+	local grid = state.grid
+
+	for _, other_ent in ipairs(state.builder_power_poles) do
+		---@type BlueprintEntity
+		local ent = other_ent.ent
+		local center = other_ent.center
+		
+		local even = mpp_util.entity_even_width(ent.name)
+		local range = floor(game.entity_prototypes[ent.name].supply_area_distance)
+		if grid:find_thing_in(center.x, center.y, {"miner", "beacon"}, range, even[1]) then
+			local ex, ey = fix_offgrid(center, ent)
+			local x, y = coord_revert[state.direction_choice](ex, ey, c.tw, c.th)
+			local target = surface.create_entity{
+				raise_built=true,
+				name="entity-ghost",
+				player=state.player,
+				force=state.player.force,
+				position= {c.gx + x, c.gy + y},
+				direction = other_ent.direction,
+				inner_name = ent.name,
+				type=ent.type,
+			}
+			if ent.items then
+				target.item_requests = ent.items
+			end
+			grid:build_thing(center.x, center.y, "electricity", even.near, even[1])
+		end
+	end
+	return "finish"
+end
+
+---@param self BlueprintLayout
+---@param state BlueprintState
+function layout:prepare_other(state)
 	local c = state.coords
 	local grid = state.grid
 	local surface = state.surface
@@ -508,9 +572,9 @@ function layout:place_other(state)
 	state.beacons, state.builder_power_poles, state.lamps = beacons, power, lamps
 
 	for _, other_ent in ipairs(state.best_attempt.other_ents) do
+		break
 		---@type BlueprintEntity
 		local ent = other_ent.ent
-		local center = other_ent.center
 		local ent_type = game.entity_prototypes[ent.name].type
 
 		if ent_type == "beacon" then
@@ -562,121 +626,62 @@ function layout:place_other(state)
 		::continue::
 	end
 
-	return "place_beacons"
+	return "prepare_beacons"
 end
 
 ---@param self BlueprintLayout
 ---@param state BlueprintState
-function layout:place_beacons(state)
-	local c = state.coords
-	local surface = state.surface
-	local grid = state.grid
-
-	for _, other_ent in ipairs(state.beacons) do
-		---@type BlueprintEntity
-		local ent = other_ent.ent
-		local center = other_ent.center
-		
-		local even = mpp_util.entity_even_width(ent.name)
-		local range = floor(game.entity_prototypes[ent.name].supply_area_distance)
-		if grid:find_thing(center.x, center.y, "miner", range+even.near, even[1]) then
-			local ex, ey = fix_offgrid(center, ent)
-			local x, y = coord_revert[state.direction_choice](ex, ey, c.tw, c.th)
-			local target = surface.create_entity{
-				raise_built=true,
-				name="entity-ghost",
-				player=state.player,
-				force=state.player.force,
-				position= {c.gx + x, c.gy + y},
-				direction = other_ent.direction,
-				inner_name = ent.name,
-				type=ent.type,
-			}
-			if ent.items then
-				target.item_requests = ent.items
-			end
-			grid:build_thing(center.x, center.y, "beacon", even.near, even[1])
-		end
-
-	end
-
-	return "place_electricity"
+function layout:expensive_deconstruct(state)
+	simple.expensive_deconstruct(self --[[@as SimpleLayout]], state)
+	return "placement_miners"
 end
 
 ---@param self BlueprintLayout
 ---@param state BlueprintState
-function layout:place_electricity(state)
-	local c = state.coords
-	local surface = state.surface
+---@return CallbackState
+function layout:placement_miners(state)
+	local create_entity = builder.create_entity_builder(state)
+	local M = state.miner
+
+	local module_inv_size = state.miner.module_inventory_size --[[@as uint]]
 	local grid = state.grid
 
-	for _, other_ent in ipairs(state.builder_power_poles) do
-		---@type BlueprintEntity
-		local ent = other_ent.ent
-		local center = other_ent.center
-		
-		local even = mpp_util.entity_even_width(ent.name)
-		local range = floor(game.entity_prototypes[ent.name].supply_area_distance)
-		if grid:find_thing_in(center.x, center.y, {"miner", "beacon"}, range, even[1]) then
-			local ex, ey = fix_offgrid(center, ent)
-			local x, y = coord_revert[state.direction_choice](ex, ey, c.tw, c.th)
-			local target = surface.create_entity{
-				raise_built=true,
-				name="entity-ghost",
-				player=state.player,
-				force=state.player.force,
-				position= {c.gx + x, c.gy + y},
-				direction = other_ent.direction,
-				inner_name = ent.name,
-				type=ent.type,
-			}
-			if ent.items then
-				target.item_requests = ent.items
-			end
-			grid:build_thing(center.x, center.y, "electricity", even.near, even[1])
+	for i, miner in ipairs(state.best_attempt.miners) do
+
+		local ghost = create_entity{
+			name = state.miner_choice,
+			thing="miner",
+			grid_x = miner.origin_x,
+			grid_y = miner.origin_y,
+			direction = miner.direction,
+		}
+
+		if state.module_choice ~= "none" then
+			ghost.item_requests = miner.ent.items
 		end
 	end
-	return "finish"
+
+	return "placement_all"
 end
 
 ---@param self BlueprintLayout
 ---@param state BlueprintState
-function layout:debug_overlay(state)
-	local c = state.coords
-	local surface = state.surface
-	local grid = state.grid
+---@return CallbackState
+function layout:placement_all(state)
 
-	-- Draws built thing overlay
+	local create_entity = builder.create_entity_builder(state)
 
-	for iy, row in pairs(grid) do
-		if type(iy) ~= "number" then
-			game.print("asdf")
-			return
-		end
-		for ix, tile in pairs(row) do
-			local building = tile.built_on
-			if building then
-				local color = {0.3, 0.3, 0.3, 0.5}
-				if building == "miner" then
-					color = {0.1, 0.1, 0.8, 0.7}
-				elseif building == "beacon" then
-					color = {0.1, 0.8, 0.8, 0.7}
-				end
+	for _, thing in pairs(state.builder_all) do
 
-				rendering.draw_circle{
-					surface=state.surface,
-					player=state.player,
-					filled=false,
-					radius=0.5,
-					color=color,
-					target={tile.gx-1, tile.gy-1},
-				}
-			end
-		end
+		create_entity(thing)
+
+		::continue::
 	end
 
-	return "finish"
+	return "placement_landfill"
 end
+
+layout.placement_landfill = simple.placement_landfill
 
 ---@param self BlueprintLayout
 ---@param state BlueprintState

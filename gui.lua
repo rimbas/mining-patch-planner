@@ -227,30 +227,48 @@ local function create_blueprint_entry(player_data, table_root, blueprint_item, c
 	}
 	player_data.blueprints.button[item_number] = blueprint_button
 
-	local fake_table = blueprint_button.add{
-		type="table",
-		style="mpp_fake_blueprint_table",
-		direction="horizontal",
-		column_count=2,
-		tags={mpp_fake_blueprint_table=true},
-		ignored_by_interaction=true,
-	}
+	if table_size(blueprint_item.blueprint_icons) > 1 then
+		local fake_table = blueprint_button.add{
+			type="table",
+			style="mpp_fake_blueprint_table",
+			direction="horizontal",
+			column_count=2,
+			tags={mpp_fake_blueprint_table=true},
+			ignored_by_interaction=true,
+		}
 
-	for k, v in pairs(blueprint_item.blueprint_icons) do
-		local s = v.signal
-		local sprite = s.name or ""
-		if s.type == "virtual" then
+		for k, v in pairs(blueprint_item.blueprint_icons) do
+			local s = v.signal
+			local sprite = s.name or ""
+			if s.type == "virtual" then
+				sprite = "virtual-signal/"..sprite --wube pls
+			else
+				sprite = s.type .. "/" .. sprite
+			end
+			if not fake_table.gui.is_valid_sprite_path(sprite) then sprite = "item/item-unknown" end
+			fake_table.add{
+				type="sprite",
+				sprite=(sprite),
+				style="mpp_fake_blueprint_sprite",
+				tags={mpp_fake_blueprint_sprite=true},
+			}
+		end
+	else
+		local bp_signal = ({next(blueprint_item.blueprint_icons)})[2].signal --[[@as SignalID]]
+		local sprite = bp_signal.name
+		if bp_signal.type == "virtual" then
 			sprite = "virtual-signal/"..sprite --wube pls
 		else
-			sprite = s.type .. "/" .. sprite
+			sprite = bp_signal.type .. "/" .. sprite
 		end
-		if not fake_table.gui.is_valid_sprite_path(sprite) then sprite = "item/item-unknown" end
-		fake_table.add{
+		blueprint_button.add{
 			type="sprite",
 			sprite=(sprite),
-			style="mpp_fake_blueprint_sprite",
+			ignored_by_interaction=true,
+			style="mpp_fake_item_placeholder_blueprint",
 			tags={mpp_fake_blueprint_sprite=true},
 		}
+		local a = false
 	end
 
 	local delete_button = blueprint_line.add{
@@ -982,6 +1000,12 @@ local function update_debugging_selection(player_data)
 		value="draw_centricity",
 		tooltip="Draw layout centricity",
 		icon=("mpp_plus"),
+	}
+
+	values[#values+1] = {
+		value="draw_blueprint_data",
+		tooltip="Draw blueprint entities",
+		icon=("item/blueprint"),
 	}
 
 	local debugging_section = player_data.gui.section["debugging"]

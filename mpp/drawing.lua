@@ -68,11 +68,47 @@ function drawing_meta:draw_line(t)
 	end
 end
 
+function drawing_meta:draw_rectangle(t)
+	if not self._enabled then return end
+
+	local state = self._state --[[@as State]]
+
+	local C = state.coords
+	local x, y
+	if t.integer then
+		x, y = C.ix1, C.iy1
+	else
+		x, y = C.gx, C.gy
+	end
+
+	local tx, ty = t.x or t.x1, t.y or t.y1
+	local target1 = {x + tx, y + ty}
+	local target2
+	if t.x2 and t.y2 then
+		target2 = {x + t.x2, y + t.y2}
+	elseif t.w and t.h then
+		target2 = {x + tx + (t.w or 0), y + ty + (t.h or 0)}
+	else
+		return
+	end
+
+	t.surface		= state.surface
+	t.players		= {state.player}
+	t.width			= t.width 			or 3
+	t.color			= t.color 			or {1, 1, 1}
+	t.left_top		= t.left_top		or target1
+	t.right_bottom	= t.right_bottom	or target2
+	local id = rendering.draw_rectangle(t)
+	if self._register then
+		table_insert(state._render_objects, id)
+	end
+end
+
 ---comment
 ---@param state State 
 ---@param enabled boolean Enable drawing
 local function drawing(state, enabled, register)
-	return setmetatable({_state=state, _enabled=enabled, _register=register}, drawing_meta)
+	return setmetatable({_state=state, _enabled=(not not enabled), _register=(not not register)}, drawing_meta)
 end
 
 return drawing

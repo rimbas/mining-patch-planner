@@ -47,7 +47,7 @@ local layout = table.deepcopy(base)
 ---@field builder_lamps GhostSpecification[]
 
 layout.name = "simple"
-layout.translation = {"", "[entity=electric-mining-drill] ", {"mpp.settings_layout_choice_simple"}}
+layout.translation = {"", "[entity=transport-belt] ", {"mpp.settings_layout_choice_simple"}}
 
 layout.restrictions.miner_size = {0, 10}
 layout.restrictions.miner_radius = {0, 20}
@@ -128,24 +128,6 @@ end
 ---@param state SimpleState
 function layout:start(state)
 	return "deconstruct_previous_ghosts"
-end
-
----@param self SimpleLayout
----@param state SimpleState
-function layout:deconstruct_previous_ghosts(state)
-	local next_step = "initialize_grid"
-	if state._previous_state == nil or state._previous_state._collected_ghosts == nil then
-		return next_step
-	end
-
-	local force, player = state.player.force, state.player
-	for _, ghost in pairs(state._previous_state._collected_ghosts) do
-		if ghost.valid then
-			ghost.order_deconstruction(force, player)
-		end
-	end
-
-	return next_step
 end
 
 ---@param self SimpleLayout
@@ -1011,17 +993,21 @@ function layout:expensive_deconstruct(state)
 	for _, t in pairs(self:_get_deconstruction_objects(state)) do
 		for _, object in ipairs(t) do
 			---@cast object GhostSpecification
-			local radius = object.radius or 0.5
+			local extent_w = object.extent_w or object.radius or 0.5
+			local extent_h = object.extent_h or extent_w
 
-			local pos = mpp_util.revert(c.gx, c.gy, DIR, object.grid_x-.5, object.grid_y-.5, c.tw, c.th)
-			local x, y = pos[1]+.5, pos[2]+.5
+			local x1, y1 = object.grid_x-extent_w, object.grid_y-extent_h
+			local x2, y2 = object.grid_x+extent_w, object.grid_y+extent_h
+
+			x1, y1 = mpp_util.revert_ex(c.gx, c.gy, DIR, x1, y1, c.tw, c.th)
+			x2, y2 = mpp_util.revert_ex(c.gx, c.gy, DIR, x2, y2, c.tw, c.th)
 
 			surface.deconstruct_area{
 				force=player.force,
 				player=player.index,
 				area={
-					left_top={x-radius, y-radius},
-					right_bottom={x+radius, y+radius},
+					left_top={x1, y1},
+					right_bottom={x2, y2},
 				},
 				item=deconstructor,
 			}
@@ -1033,8 +1019,8 @@ function layout:expensive_deconstruct(state)
 				filled=false,
 				width=3,
 				color={1, 0, 0},
-				left_top={x-radius+.1,y-radius+.1},
-				right_bottom={x+radius-.1,y+radius-.1},
+				left_top={x1+.1,y1+.1},
+				right_bottom={x2-.1,y2-.1},
 			} --]]
 		end
 	end

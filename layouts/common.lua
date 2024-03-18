@@ -139,6 +139,7 @@ function common.process_postponed(state, attempt, miners, postponed)
 
 	for _, miner in ipairs(postponed) do
 		miner.unconsumed = grid:get_unconsumed(miner.x+M.extent_negative, miner.y+M.extent_negative, M.area)
+		bx, by = max(bx, miner.x + M.size -1), max(by, miner.y + M.size -1)
 	end
 
 	table.sort(postponed, function(a, b)
