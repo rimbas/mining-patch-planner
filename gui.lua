@@ -622,7 +622,7 @@ local function update_space_belt_selection(player)
 
 	local belts = game.get_filtered_entity_prototypes{{filter="type", type="transport-belt"}}
 	for _, belt in pairs(belts) do
-		if mpp_util.check_entity_hidden(player_data, "belt", belt) then goto skip_belt end
+		if mpp_util.check_entity_hidden(player_data, "space_belt", belt) then goto skip_belt end
 		if layout.restrictions.uses_underground_belts and belt.related_underground_belt == nil then goto skip_belt end
 		if is_space and not string.match(belt.name, "^se%-") then goto skip_belt end
 
@@ -738,12 +738,12 @@ local function update_pole_selection(player_data)
 	for _, pole_proto in pairs(poles) do
 		if mpp_util.check_filtered(pole_proto) then goto skip_pole end
 		if mpp_util.check_entity_hidden(player_data, "pole", pole_proto) then goto skip_pole end
+		if pole_proto.supply_area_distance < 0.5 then goto skip_pole end
 		local pole = mpp_util.pole_struct(pole_proto.name)
 
 		local is_restricted = common.is_pole_restricted(pole, restrictions)
 
 		if not player_data.entity_filtering_mode and is_restricted then goto skip_pole end
-
 
 		local specifier = (pole.wire % 1 == 0 and ": %.0f ") or (pole.wire * 10 % 1 == 0 and ": %.1f ") or ": %.2f "
 		local tooltip = {

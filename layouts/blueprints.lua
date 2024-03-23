@@ -232,7 +232,7 @@ function layout:_placement_attempt(state, attempt)
 	local heuristic = simple._get_miner_placement_heuristic(self --[[@as SimpleLayout]], state)
 	local heuristic_values = common.init_heuristic_values()
 	
-	local debug_draw = drawing(state, true, false)
+	--local debug_draw = drawing(state, true, false)
 
 	-- debug_draw:draw_circle{
 	-- 	x = 0,
@@ -533,7 +533,7 @@ function layout:prepare_beacon_layout(state)
 			grid_y = beacon.origin_y,
 			extent_w = struct.extent_w,
 			extent_h = struct.extent_h,
-			bp_entity = beacon.ent,
+			items = beacon.ent.items,
 		}
 
 		::continue::
@@ -1099,7 +1099,7 @@ function layout:placement_miners(state)
 			direction = miner.direction,
 		}
 
-		if state.module_choice ~= "none" then
+		if ghost and miner.ent.items then
 			ghost.item_requests = miner.ent.items
 		end
 	end
@@ -1117,7 +1117,9 @@ function layout:placement_all(state)
 	local builder_all = state.builder_all
 	local builder_index = state.builder_index or 1
 
-	local progress = builder_index + 100
+	local is_space = state.is_space
+
+	local progress = builder_index + 32
 	for i = builder_index, #builder_all do
 	--for _, thing in pairs(builder_all) do
 		if i > progress then
@@ -1126,7 +1128,14 @@ function layout:placement_all(state)
 		end
 
 		local thing = state.builder_all[i]
-		local entity = create_entity(thing)
+
+		local ghost = create_entity(thing, is_space)
+
+		if ghost and thing.items then
+			ghost.item_requests = thing.items
+		end
+
+		::continue::
 	end
 
 	return "placement_landfill"

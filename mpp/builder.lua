@@ -9,7 +9,7 @@ local builder = {}
 ---@field extent_w number? Object extent from origin, converted from radius if nil
 ---@field extent_h number? Object extent from origin, converted from radius if nil
 ---@field thing GridBuilding Enum for the grid
----@field bp_entity BlueprintEntityEx?
+---@field items table<string, number>? Item requests
 
 ---@class PowerPoleGhostSpecification : GhostSpecification
 ---@field no_light boolean
@@ -19,6 +19,7 @@ local builder = {}
 --- Builder for a convenience function that automatically translates
 --- internal grid state for a surface.create_entity call
 ---@param state State
+---@return fun(ghost: GhostSpecification, check_allowed: boolean?): LuaEntity?
 function builder.create_entity_builder(state)
 	local c = state.coords
 	local grid = state.grid
@@ -27,19 +28,30 @@ function builder.create_entity_builder(state)
 	local gx, gy, tw, th = c.gx, c.gy, c.tw, c.th
 	local direction_conv = mpp_util.bp_direction[state.direction_choice]
 	local collected_ghosts = state._collected_ghosts
+	local is_space = state.is_space
 
-	---@param ghost GhostSpecification
-	return function(ghost)
+	return function(ghost, check_allowed)
 		ghost.raise_built = true
 		ghost.player = state.player
 		ghost.force = state.player.force
 		ghost.inner_name=ghost.name
 		ghost.name="entity-ghost"
-		-- Assume default entity size of 1 and subtract 0.5 from grid position 
-		-- because entity origins in Factorio are offset by -0.5 from our grid coordinates
-		-- Larger entities have to be specially handled anyway and can account for the subtraction
 		ghost.position=coord_revert_world(gx, gy, DIR, ghost.grid_x, ghost.grid_y, tw, th)
 		ghost.direction=direction_conv[ghost.direction or defines.direction.north]
+
+		--local can_place = surface.can_place_entity(ghost)
+		if check_allowed and not surface.can_place_entity{
+			name = ghost.inner_name,
+			-- name = "entity-ghost",
+			-- inner_name = ghost.inner_name,
+			position = ghost.position,
+			direction = ghost.direction,
+			build_check_type = defines.build_check_type.manual_ghost,
+			forced = true,
+		} then
+			return
+		end
+
 		local result = surface.create_entity(ghost)
 		if result then
 			grid:build_specification(ghost)

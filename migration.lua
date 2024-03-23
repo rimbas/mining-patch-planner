@@ -1,7 +1,7 @@
 local conf = require("configuration")
 local enums = require("mpp.enums")
 
-local current_version = 010507 -- 1.5.7
+local current_version = 010600 -- 1.6.0
 
 -- resetting a GUI manually from console
 -- /c __mining-patch-planner__ game.player.gui.screen.mpp_settings_frame.destroy()

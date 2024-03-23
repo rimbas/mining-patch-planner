@@ -44,6 +44,8 @@ local layout = table.deepcopy(base)
 ---@field builder_belts GhostSpecification[]
 ---@field builder_power_poles PowerPoleGhostSpecification[]
 ---@field builder_lamps GhostSpecification[]
+---@field fill_tiles LuaTile[]
+---@field fill_tile_progress number
 
 layout.name = "simple"
 layout.translation = {"", "[entity=transport-belt] ", {"mpp.settings_layout_choice_simple"}}
@@ -1129,27 +1131,43 @@ function layout:placement_landfill(state)
 	local m = state.miner
 	local grid = state.grid
 	local surface = state.surface
-
+	
 	if state.landfill_choice then
 		return "finish"
 	end
+	
+	local fill_tiles, tile_progress = state.fill_tiles, state.fill_tile_progress or 1
+	local landfill = state.is_space and state.space_landfill_choice or "landfill"
 
 	local conv = coord_convert[state.direction_choice]
 	local gx, gy = state.coords.ix1 - 1, state.coords.iy1 - 1
 
-	local fill_tiles, landfill
-	local area = {left_top={c.x1-m.area-1, c.y1-m.area-1}, right_bottom={c.x2+m.area+1, c.y2+m.area+1}}
-	if state.is_space then
-		fill_tiles = surface.find_tiles_filtered{area=area, name="se-space"}
-		landfill = state.space_landfill_choice
-	else
-		fill_tiles = surface.find_tiles_filtered{area=area, collision_mask="water-tile"}
-		landfill = "landfill"
+	if fill_tiles == nil then
+
+		local area = {
+			left_top={c.x1-m.area-1, c.y1-m.area-1},
+			right_bottom={c.x2+m.area+1, c.y2+m.area+1}
+		}
+		if state.is_space then
+			fill_tiles = surface.find_tiles_filtered{area=area, name="se-space"}
+		else
+			fill_tiles = surface.find_tiles_filtered{area=area, collision_mask="water-tile"}
+		end
+		state.fill_tiles = fill_tiles
 	end
 
 	local collected_ghosts = state._collected_ghosts
 
-	for _, fill in ipairs(fill_tiles) do
+	--for _, fill in ipairs(fill_tiles) do
+
+	local progress = tile_progress + 32
+	for i = tile_progress, #fill_tiles do
+		if i > progress then
+			state.fill_tile_progress = i
+			return true
+		end
+
+		local fill = fill_tiles[i]
 		local tx, ty = fill.position.x-.5, fill.position.y-.5
 		local x, y = conv(tx-gx, ty-gy, c.w, c.h)
 		local tile = grid:get_tile(ceil(x), ceil(y))
@@ -1221,9 +1239,14 @@ function layout:_display_lane_filling(state)
 	end
 
 	if #state.belts > 1 then
-		local x = min(state.belts[1].x1, state.belts[2].x1)
-		local y = (state.belts[1].y + state.belts[#state.belts].y) / 2
-		common.draw_belt_total(state, x, y, throughput1, throughput2)
+		local x = state.best_attempt.sx - 2 --min(state.belts[1].x1, state.belts[2].x1)
+		--local y = (state.belts[1].y + state.belts[table_size(state.belts)].y) / 2
+		local y = 0
+		for _, belt in pairs(state.belts) do
+			y = y + (belt.y or 0)
+		end
+
+		common.draw_belt_total(state, x, y/#state.belts, throughput1, throughput2)
 	end
 
 	--local lanes = math.ceil(math.max(throughput1, throughput2))

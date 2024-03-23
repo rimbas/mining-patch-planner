@@ -47,7 +47,11 @@ local function task_runner(event)
 	end
 
 	if last_callback == tick_result then
-		table.remove(global.tasks, 1)
+		if __DebugAdapter then
+			table.remove(global.tasks, 1)
+		else
+			error("Layout "..state.layout_choice.." step "..tostring(tick_result).." called itself again")
+		end
 	elseif tick_result == nil then
 		if __DebugAdapter then
 			game.print(("Callback for layout %s after call %s has no result"):format(state.layout_choice, state._callback))
@@ -110,13 +114,13 @@ script.on_event(defines.events.on_player_selected_area, function(event)
 end)
 
 script.on_event(defines.events.on_player_alt_reverse_selected_area, function(event)
+	if not __DebugAdapter then return end
+
 	local player = game.get_player(event.player_index)
 	if not player then return end
 	local cursor_stack = player.cursor_stack
 	if not cursor_stack or not cursor_stack.valid or not cursor_stack.valid_for_read then return end
 	if cursor_stack and cursor_stack.valid and cursor_stack.valid_for_read and cursor_stack.name ~= "mining-patch-planner" then return end
-
-	if not __DebugAdapter then return end
 
 	---@type PlayerData
 	local player_data = global.players[event.player_index]
@@ -141,13 +145,13 @@ script.on_event(defines.events.on_player_alt_reverse_selected_area, function(eve
 end)
 
 script.on_event(defines.events.on_player_reverse_selected_area, function(event)
+	if not __DebugAdapter then return end
+
 	local player = game.get_player(event.player_index)
 	if not player then return end
 	local cursor_stack = player.cursor_stack
 	if not cursor_stack or not cursor_stack.valid or not cursor_stack.valid_for_read then return end
 	if cursor_stack and cursor_stack.valid and cursor_stack.valid_for_read and cursor_stack.name ~= "mining-patch-planner" then return end
-
-	if not __DebugAdapter then return end
 
 	rendering.clear("mining-patch-planner")
 end)

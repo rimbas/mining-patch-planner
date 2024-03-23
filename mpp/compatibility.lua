@@ -63,6 +63,23 @@ compatibility.is_space = function(surface_identification)
 	return false
 end
 
+---@type table<string, boolean>
+local memoize_space_buildable = {}
+
+function compatibility.is_buildable_in_space(name)
+	local buildable_status = memoize_space_buildable[name]
+
+	if buildable_status ~= nil then
+		return buildable_status
+	end
+
+	local space_tile = game.tile_prototypes["se-space"]
+
+
+	return buildable_status
+end
+
+
 --- Return true to skip non space item
 ---@param is_space boolean
 ---@param protype LuaEntityPrototype
