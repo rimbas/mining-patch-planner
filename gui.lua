@@ -200,7 +200,7 @@ local function set_player_blueprint(player_data, button)
 		return nil
 	end
 	
-	if current_blueprint then
+	if current_blueprint and current_blueprint.valid then
 		local current_blueprint_button = player_blueprints.button[current_blueprint.item_number]
 		current_blueprint_button.style = "mpp_fake_blueprint_button"
 	end
@@ -952,60 +952,57 @@ local function update_debugging_selection(player_data)
 	end
 
 	---@type SettingValueEntry[]
-	local values = {}
-
-	values[#values+1] = {
-		value="draw_clear_rendering",
-		tooltip="Clear rendering",
-		icon=("mpp_no_entity"),
-	}
-
-	values[#values+1] = {
-		value="draw_drill_struct",
-		tooltip="Draw drill struct overlay",
-		icon=("entity/electric-mining-drill"),
-	}
-
-	values[#values+1] = {
-		value="draw_pole_layout",
-		tooltip="Draw power pole layout",
-		icon=("entity/medium-electric-pole"),
-	}
-	
-	values[#values+1] = {
-		value="draw_pole_layout_compact",
-		tooltip="Draw power pole layout compact",
-		icon=("entity/medium-electric-pole"),
-	}
-
-	values[#values+1] = {
-		value="draw_built_things",
-		tooltip="Draw built tile values",
-		icon=("mpp_print_placement_info_enabled"),
-	}
-
-	values[#values+1] = {
-		value="draw_drill_convolution",
-		tooltip="Draw a drill convolution preview",
-		icon=("mpp_debugging_grid_convolution"),
-	}
-
-	values[#values+1] = {
-		value="draw_power_grid",
-		tooltip="Draw power grid connectivity",
-		icon=("entity/substation"),
-	}
-
-	values[#values+1] = {
-		value="draw_centricity",
-		tooltip="Draw layout centricity",
-		icon=("mpp_plus"),
-	}
-
-	values[#values+1] = {
-		value="draw_blueprint_data",
-		tooltip="Draw blueprint entities",
-		icon=("item/blueprint"),
+	local values = {
+		{
+			value="draw_clear_rendering",
+			tooltip="Clear rendering",
+			icon=("mpp_no_entity"),
+		},
+		{
+			value="draw_drill_struct",
+			tooltip="Draw drill struct overlay",
+			icon=("entity/electric-mining-drill"),
+		},
+		{
+			value="draw_pole_layout",
+			tooltip="Draw power pole layout",
+			icon=("entity/medium-electric-pole"),
+		},
+		{
+			value="draw_pole_layout_compact",
+			tooltip="Draw power pole layout compact",
+			icon=("entity/medium-electric-pole"),
+		},
+		{
+			value="draw_built_things",
+			tooltip="Draw built tile values",
+			icon=("mpp_print_placement_info_enabled"),
+		},
+		{
+			value="draw_drill_convolution",
+			tooltip="Draw a drill convolution preview",
+			icon=("mpp_debugging_grid_convolution"),
+		},
+		{
+			value="draw_power_grid",
+			tooltip="Draw power grid connectivity",
+			icon=("entity/substation"),
+		},
+		{
+			value="draw_centricity",
+			tooltip="Draw layout centricity",
+			icon=("mpp_plus"),
+		},
+		{
+			value="draw_blueprint_data",
+			tooltip="Draw blueprint entities",
+			icon=("item/blueprint"),
+		},
+		{
+			value="draw_deconstruct_preview",
+			tooltip="Draw deconstruct preview",
+			icon=("item/deconstruction-planner"),
+		},
 	}
 
 	local debugging_section = player_data.gui.section["debugging"]

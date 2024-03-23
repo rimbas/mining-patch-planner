@@ -1,4 +1,7 @@
-local mpp_util = require("mpp.mpp_util")
+local EAST = defines.direction.east
+local NORTH = defines.direction.north
+local SOUTH = defines.direction.south
+local WEST = defines.direction.west
 
 ---@class EvaluatedBlueprint
 ---@field valid boolean Are all blueprint entities valid
@@ -48,32 +51,36 @@ function bp_meta:evaluate_tiling()
 
 	for i, ent in pairs(self.entities) do
 		local x, y = ent.position.x, ent.position.y
+		ent.direction = ent.direction or NORTH
 		if not buckets_x[x] then buckets_x[x] = {} end
 		table.insert(buckets_x[x], ent)
 		if not buckets_y[y] then buckets_y[y] = {} end
 		table.insert(buckets_y[y], ent)
+
 	end
 
-	for _, bucket in pairs(buckets_x) do
+	for _, bucket in pairs(buckets_y) do
 		for i = 1, #bucket-1 do
 			local e1 = bucket[i] ---@type BlueprintEntityEx
 			local e1x = e1.position.x
 			for j = 2, #bucket do
 				local e2 = bucket[j] ---@type BlueprintEntityEx
-				if e1x + sh == e2.position.x or e1x - sh == e2.position.x then
+				local e2x = e2.position.x
+				if e1x + sw == e2x or e1x - sw == e2x then
 					e2.capstone_x = true
 				end
 			end
 		end
 	end
 
-	for _, bucket in pairs(buckets_y) do
+	for _, bucket in pairs(buckets_x) do
 		for i = 1, #bucket-1 do
 			local e1 = bucket[i] ---@type BlueprintEntityEx
 			local e1y = e1.position.y
 			for j = 2, #bucket do
 				local e2 = bucket[j] ---@type BlueprintEntityEx
-				if e1y + sh == e2.position.y or e1y - sh == e2.position.y then
+				local e2y = e2.position.y
+				if e1y + sh == e2y or e1y - sh == e2y then
 					e2.capstone_y = true
 				end
 			end
@@ -128,16 +135,24 @@ function bp_meta:get_resource_categories()
 	return categories
 end
 
----@return table<string, string>
+---@return table<string, GridBuilding>
 function bp_meta:get_entity_categories()
+	---@type table<string, GridBuilding>
 	local categories = {
-		["mining-drill"] = "mining-drill",
+		["mining-drill"] = "miner",
 		["beacon"] = "beacon",
-		["transport-belt"] = "transport-belt",
-		["electric-pole"] = "electric-pole",
+		["transport-belt"] = "belt",
+		["underground-belt"] = "belt",
+		["splitter"] = "belt",
+		["inserter"] = "inserter",
+		["container"] = "container",
+		["logistic-container"] = "container",
+		["loader"] = "inserter",
+		["loader-1x1"] = "inserter",
+		["electric-pole"] = "pole",
 	}
 
-	---@type table<string, string>
+	---@type table<string, GridBuilding>
 	local category_map = {}
 
 	for _, ent in pairs(self.entities) do

@@ -41,6 +41,7 @@ mpp_util.belt_direction = {west="north", east="south", north="east", south="west
 mpp_util.opposite = {west="east",east="west",north="south",south="north"}
 
 do
+	-- switch to (direction + EAST) % ROTATION
 	local d = defines.direction
 	mpp_util.bp_direction = {
 		west = {
@@ -70,8 +71,18 @@ do
 	}
 end
 
+---@type table<defines.direction, MapPosition.0>
+local direction_coord = {
+	[NORTH] = {x=0, y=-1},
+	[WEST] = {x=-1, y=0},
+	[SOUTH] = {x=0, y=1},
+	[EAST] = {x=1, y=0},
+}
+mpp_util.direction_coord = direction_coord
+
 ---@class EntityStruct
 ---@field name string
+---@field type string
 ---@field w number Collision width
 ---@field h number Collision height
 ---@field x number x origin 
@@ -96,6 +107,7 @@ function mpp_util.entity_struct(entity_name)
 	local cbox_tl, cbox_br = cbox.left_top, cbox.right_bottom
 	local cw, ch = cbox_br.x - cbox_tl.x, cbox_br.y - cbox_tl.y
 	struct.name = entity_name
+	struct.type = proto.type
 	struct.w, struct.h = ceil(cw), ceil(ch)
 	struct.size = max(struct.w, struct.h)
 	struct.x = struct.w / 2 - 0.5
@@ -104,6 +116,16 @@ function mpp_util.entity_struct(entity_name)
 
 	entity_cache[entity_name] = struct
 	return struct
+end
+
+---@param struct EntityStruct
+---@param direction defines.direction
+---@return number, number, number, number
+function mpp_util.rotate_struct(struct, direction)
+	if direction == NORTH or direction == SOUTH then
+		return struct.x, struct.y, struct.w, struct.h
+	end
+	return struct.y, struct.x, struct.h, struct.w
 end
 
 ---A mining drill's origin (0, 0) is the top left corner
@@ -246,7 +268,7 @@ function mpp_util.miner_struct(mining_drill_name)
 	return miner
 end
 
----@class PoleStruct
+---@class PoleStruct : EntityStruct
 ---@field name string
 ---@field place boolean Flag if poles are to be actually placed
 ---@field size number
@@ -254,6 +276,7 @@ end
 ---@field supply_width number Full width of supply reach
 ---@field wire number Max wire distance
 ---@field supply_area_distance number
+---@field extent_negative number Negative extent of the supply reach
 
 ---@type table<string, PoleStruct>
 local pole_struct_cache = {}
@@ -266,17 +289,21 @@ function mpp_util.pole_struct(pole_name)
 
 	local pole_proto = game.entity_prototypes[pole_name]
 	if pole_proto then
-		local pole = {
-			place = true,
-			name = pole_name,
-		}
-		local cbox = pole_proto.collision_box
-		pole.size = ceil(cbox.right_bottom.x - cbox.left_top.x)
-		local radius = pole_proto.supply_area_distance
+		local pole = mpp_util.entity_struct(pole_name) --[[@as PoleStruct]]
+
+		local radius = pole_proto.supply_area_distance --[[@as number]]
 		pole.supply_area_distance = radius
-		pole.supply_width = radius * 2
+		pole.supply_width = floor(radius * 2)
 		pole.radius = pole.supply_width / 2
 		pole.wire = pole_proto.max_wire_distance
+
+		-- local distance = beacon_proto.supply_area_distance
+		-- beacon.area = beacon.size + distance * 2
+		-- beacon.extent_negative = -distance
+
+		local extent = (pole.supply_width - pole.size) / 2
+
+		pole.extent_negative = -extent
 
 		pole_struct_cache[pole_name] = pole
 		return pole
@@ -303,12 +330,11 @@ function mpp_util.beacon_struct(beacon_name)
 	if cached_struct then return cached_struct end
 
 	local beacon_proto = game.entity_prototypes[beacon_name]
-	---@diagnostic disable-next-line: missing-fields
 	local beacon = mpp_util.entity_struct(beacon_name) --[[@as BeaconStruct]]
 
 	local distance = beacon_proto.supply_area_distance
 	beacon.area = beacon.size + distance * 2
-	beacon.extent_negative = -distance-1
+	beacon.extent_negative = -distance
 
 	beacon_cache[beacon_name] = beacon
 	return beacon
@@ -398,6 +424,39 @@ function mpp_util.belt_struct(belt_name)
 
 	belt_struct_cache[belt_name] = belt
 	return belt
+end
+
+---@class InserterStruct : EntityStruct
+---@field pickup_rotated table<defines.direction, MapPosition.0>
+---@field drop_rotated table<defines.direction, MapPosition.0>
+
+---@type table<string, InserterStruct>
+local inserter_struct_cache = {}
+
+function mpp_util.inserter_struct(inserter_name)
+	local cached = inserter_struct_cache[inserter_name]
+	if cached then return cached end
+
+	local inserter_proto = game.entity_prototypes[inserter_name]
+	local inserter = mpp_util.entity_struct(inserter_name) --[[@as InserterStruct]]
+
+	local function rotations(_x, _y)
+		_x, _y = floor(_x), floor(_y)
+		return {
+			[NORTH]	= { x =  _x, y =  _y},
+			[EAST]	= { x = -_y, y = -_x},
+			[SOUTH]	= { x = -_x, y = -_y},
+			[WEST]	= { x =  _y, y =  _x},
+		}
+	end
+
+	local pickup_position = inserter_proto.inserter_pickup_position --[[@as MapPosition.1]]
+	local drop_position = inserter_proto.inserter_drop_position --[[@as MapPosition.1]]
+	inserter.pickup_rotated = rotations(pickup_position[1], pickup_position[2])
+	inserter.drop_rotated = rotations(drop_position[1], drop_position[2])
+
+	inserter_struct_cache[inserter_name] = inserter
+	return inserter
 end
 
 ---Calculates needed power pole count
@@ -614,13 +673,14 @@ function mpp_util.entity_even_width(name)
 	return res
 end
 
---- local EAST, NORTH, SOUTH, WEST = mpp_util.directions()
+--- local EAST, NORTH, SOUTH, WEST, ROTATION = mpp_util.directions()
 function mpp_util.directions()
 	return
 		defines.direction.east,
 		defines.direction.north,
 		defines.direction.south,
-		defines.direction.west
+		defines.direction.west,
+		table_size(defines.direction)
 end
 
 ---@param player_index uint

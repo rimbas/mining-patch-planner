@@ -2,7 +2,8 @@ local floor, ceil, min, max = math.floor, math.ceil, math.min, math.max
 
 local mpp_util = require("mpp.mpp_util")
 
----@class GridRow: GridTile[]
+---@class GridRow: table<number, GridTile>
+---@field [number] GridTile
 
 ---@class Grid
 ---@field [number] GridRow
@@ -37,7 +38,9 @@ grid_mt.__index = grid_mt
 ---| "beacon"
 ---| "belt"
 ---| "inserter"
+---| "container"
 ---| "lamp"
+---| "other"
 
 local need_electricity = {
 	miner = true,
@@ -225,10 +228,10 @@ end
 ---@param thing GridBuilding Type of building
 function grid_mt:build_thing(cx, cy, thing, size_w, size_h)
 	size_h = size_h or size_w
-	for y = cy, cy + size_w do
+	for y = cy, cy + size_h do
 		local row = self[y]
 		if row == nil then goto continue_row end
-		for x = cx, cx + size_h do
+		for x = cx, cx + size_w do
 			local tile = row[x]
 			if tile then
 				tile.built_on = thing

@@ -103,7 +103,6 @@ function pole_grid_mt:find_connectivity(P)
 	local sets = {[0]=unconnected, [1]=current_set}
 	for _, v in pairs(all_poles) do not_visited[v] = true end
 
-	local function get_first(t) for value, _ in pairs(t) do return value end end
 	---@param pole GridPole
 	---@return number?
 	local function is_continuation(pole)
@@ -162,10 +161,10 @@ function pole_grid_mt:find_connectivity(P)
 		recurse_pole(start_pole, 5)
 	end
 
-	local remaining = get_first(not_visited)
+	local remaining = next(not_visited)
 	while remaining do
 		iterate_connections(remaining)
-		remaining = get_first(not_visited)
+		remaining = next(not_visited)
 	end
 	sets[set_id] = current_set
 

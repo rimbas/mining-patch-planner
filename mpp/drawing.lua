@@ -104,6 +104,35 @@ function drawing_meta:draw_rectangle(t)
 	end
 end
 
+function drawing_meta:draw_text(t)
+	if not self._enabled then return end
+
+	local state = self._state --[[@as State]]
+
+	local C = state.coords
+	local x, y
+	if t.integer then
+		x, y = C.ix1, C.iy1
+	else
+		x, y = C.gx, C.gy
+	end
+	local tx, ty = t.x, t.y
+
+	t.surface		= state.surface
+	t.players		= {state.player}
+	t.width			= t.width 			or 3
+	t.color			= t.color 			or {1, 1, 1}
+	t.target		= { x + tx, y + ty }
+	t.scale			= t.scale 			or 1
+	t.alignment 	= t.alignment		or "center"
+	t.vertical_alignment = t.vertical_alignment or "middle"
+
+	local id = rendering.draw_text(t)
+	if self._register then
+		table_insert(state._render_objects, id)
+	end
+end
+
 ---comment
 ---@param state State 
 ---@param enabled boolean Enable drawing

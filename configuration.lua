@@ -60,14 +60,15 @@ local conf = {}
 ---Small hack have proper typing in all other places
 ---@type LuaGuiElement
 local nil_element_placeholder = nil
+---@type LuaInventory
+local nil_inventory_placeholder = nil
 
 ---@type PlayerData
 conf.default_config = {
 	advanced = false,
 	entity_filtering_mode = false,
 	blueprint_add_mode = false,
----@diagnostic disable-next-line: assign-type-mismatch
-	blueprint_items = nil,
+	blueprint_items = nil_inventory_placeholder,
 	filtered_entities = {},
 	tick_expires = 0,
 

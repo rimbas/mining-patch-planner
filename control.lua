@@ -2,8 +2,8 @@ require("mpp.global_extends")
 local conf = require("configuration")
 local compatibility = require("mpp.compatibility")
 require("migration")
+algorithm = require("algorithm")
 local gui = require("gui")
-local algorithm = require("algorithm")
 local bp_meta = require("mpp.blueprintmeta")
 local render_util = require("mpp.render_util")
 local mpp_util = require("mpp.mpp_util")
@@ -31,6 +31,7 @@ local function task_runner(event)
 	local state = global.tasks[1]
 	local layout = algorithm.layouts[state.layout_choice]
 
+	local last_callback = state._callback
 	---@type TickResult
 	local tick_result
 
@@ -45,7 +46,9 @@ local function task_runner(event)
 		end
 	end
 
-	if tick_result == nil then
+	if last_callback == tick_result then
+		table.remove(global.tasks, 1)
+	elseif tick_result == nil then
 		if __DebugAdapter then
 			game.print(("Callback for layout %s after call %s has no result"):format(state.layout_choice, state._callback))
 			table.remove(global.tasks, 1)

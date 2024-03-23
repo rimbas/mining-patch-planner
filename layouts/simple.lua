@@ -4,7 +4,6 @@ local grid_mt = require("mpp.grid_mt")
 local pole_grid_mt = require("mpp.pole_grid_mt")
 local mpp_util = require("mpp.mpp_util")
 local builder = require("mpp.builder")
-local render_util = require("mpp.render_util")
 local coord_convert, coord_revert = mpp_util.coord_convert, mpp_util.coord_revert
 local internal_revert, internal_convert = mpp_util.internal_revert, mpp_util.internal_convert
 local miner_direction, opposite = mpp_util.miner_direction, mpp_util.opposite
@@ -884,7 +883,6 @@ function layout:prepare_pole_layout(state)
 		pole_lanes[#pole_lanes+1] = pole_lane
 		for x = attempt.sx + coverage.pole_start, attempt.sx + coverage.full_miner_width + 1, coverage.pole_step do
 			local no_light = coverage.lamp_alter and ix % 2 == 0 or nil
-			--local built = get_covered_miners(x, y)
 			local has_consumers = G:needs_power(x, y, P)
 
 			---@type GridPole
@@ -1216,16 +1214,16 @@ function layout:_display_lane_filling(state)
 		throughput1 = throughput1 + math.min(1, speed1 / belt_speed)
 		throughput2 = throughput2 + math.min(1, speed2 / belt_speed)
 
-		render_util.draw_belt_lane(state, belt)
+		common.draw_belt_lane(state, belt)
 
-		render_util.draw_belt_stats(state, belt, belt_speed, speed1, speed2)
+		common.draw_belt_stats(state, belt, belt_speed, speed1, speed2)
 		::continue::
 	end
 
 	if #state.belts > 1 then
 		local x = min(state.belts[1].x1, state.belts[2].x1)
 		local y = (state.belts[1].y + state.belts[#state.belts].y) / 2
-		render_util.draw_belt_total(state, x, y, throughput1, throughput2)
+		common.draw_belt_total(state, x, y, throughput1, throughput2)
 	end
 
 	--local lanes = math.ceil(math.max(throughput1, throughput2))

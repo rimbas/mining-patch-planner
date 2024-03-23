@@ -6,9 +6,10 @@ local builder = {}
 ---@field grid_x number Grid x coordinate
 ---@field grid_y number Grid x coordinate
 ---@field radius number? Object radius or default to 0.5 if nil
----@field extent_w number? Object extent
----@field extent_h number? Object extent
+---@field extent_w number? Object extent from origin, converted from radius if nil
+---@field extent_h number? Object extent from origin, converted from radius if nil
 ---@field thing GridBuilding Enum for the grid
+---@field bp_entity BlueprintEntityEx?
 
 ---@class PowerPoleGhostSpecification : GhostSpecification
 ---@field no_light boolean
