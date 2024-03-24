@@ -1006,8 +1006,8 @@ function layout:expensive_deconstruct(state)
 				force=player.force,
 				player=player.index,
 				area={
-					left_top={x1, y1},
-					right_bottom={x2, y2},
+					left_top={min(x1, x2), min(y1, y2)},
+					right_bottom={max(x1, x2), max(y1, y2)},
 				},
 				item=deconstructor,
 			}
@@ -1017,10 +1017,12 @@ function layout:expensive_deconstruct(state)
 				surface=state.surface,
 				players={state.player},
 				filled=false,
-				width=3,
+				width=1,
 				color={1, 0, 0},
-				left_top={x1+.1,y1+.1},
-				right_bottom={x2-.1,y2-.1},
+				-- left_top={x1+.1,y1+.1},
+				-- right_bottom={x2-.1,y2-.1},
+				left_top={x1,y1},
+				right_bottom={x2,y2},
 			} --]]
 		end
 	end

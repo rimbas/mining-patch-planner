@@ -8,10 +8,10 @@ Version: 1.6.0
     - Tooltip and information display improvements.
     - Power pole placement made more conservative with placement and smarter in connecting gaps.
   Blueprints:
-    - Blueprint layout placement improvements.
-    - Transport belts now don't extend past unplaced mining drills.
-    - Saved blueprints had to be reset. You will need to update the blueprint items to the new format before importing them.
+    - Blueprint placement improvements and fixes.
+    - Intelligent transport belt placement. Belt lanes now don't extend past the patch.
     - Now automatically places landfill under entity ghosts.
+    - Saved blueprints had to be reset. You will need to update the blueprint items to the new format before importing them.
   Bugfixes:
     - Now tries to find related underground belts by name when they are not properly defined in prototypes.
     - Space Exploration compatibility fixes

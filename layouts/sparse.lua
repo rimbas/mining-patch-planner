@@ -372,12 +372,15 @@ function layout:prepare_pole_layout(state)
 	end
 
 	local initial_y = attempt.sy + m.outer_span - 1
-	local iy = 1
+	local iy, between_lane = 1, 0
 	local y_max, y_step = initial_y + c.th + m.area + 1, m.area * 2
 	for y = initial_y, y_max, y_step do
 
 		if y + y_step > y_max then -- last pole lane
 			local backstep = m.outer_span * 2 - 1
+			if state.miner_lanes[between_lane+1] then
+				backstep = ceil(m.size/2)
+			end
 			place_pole_lane(y - backstep)
 		elseif (m.outer_span * 2 + 2) > supply_area then -- single pole can't supply two lanes
 			place_pole_lane(y, iy)
@@ -386,10 +389,11 @@ function layout:prepare_pole_layout(state)
 				place_pole_lane(y - m.outer_span * 2 + 1, iy, true)
 			end
 		else
-			local backstep = y == initial_y and 0 or floor(m.size/2)
+			local backstep = y == initial_y and 0 or ceil(m.size/2)
 			place_pole_lane(y - backstep)
 		end
 		iy = iy + 1
+		between_lane = between_lane + 2
 	end
 
 	return "prepare_lamp_layout"

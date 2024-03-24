@@ -386,18 +386,6 @@ function gui.create_interface(player)
 
 	do -- Miner selection
 		local table_root, section = create_setting_section(player_data, frame, "miner")
-		section.add{
-			type="label", style="mpp_label_warning_style", visible=true,
-			name="label_insufficient_area", caption={"mpp.label_insufficient_area"},
-		}
-		section.add{
-			type="label", style="mpp_label_warning_style", visible=true,
-			name="label_no_fluid_mining", caption={"mpp.label_no_fluid_mining"},
-		}
-		section.add{
-			type="label", style="mpp_label_warning_style", visible=true,
-			name="label_oversized_drill", caption={"mpp.label_oversized_drill"},
-		}
 	end
 
 	do -- Belt selection
@@ -484,12 +472,16 @@ local function update_miner_selection(player_data)
 		local is_restricted = common.is_miner_restricted(miner, restrictions) or not layout:restriction_miner(miner)
 		if not player_data.entity_filtering_mode and is_restricted then goto skip_miner end
 
-		local tooltip = {
+		local tooltip = List{
 			"", miner_proto.localised_name, "\n",
 			"[img=mpp_tooltip_category_size] ", {"description.tile-size"}, (": %ix%i\n"):format(miner.size, miner.size),
 			"[img=mpp_tooltip_category_mining_area] ", {"description.mining-area"}, (": %ix%i"):format(miner.area, miner.area),
-			miner.power_source_tooltip and "\n" or nil, miner.power_source_tooltip,
 		}
+		tooltip
+			:contitional_append(miner.power_source_tooltip,"\n", miner.power_source_tooltip)
+			:contitional_append(miner.area <= miner.size, "\n[color=yellow]", {"mpp.label_insufficient_area"}, "[/color]")
+			:contitional_append(not miner.supports_fluids, "\n[color=yellow]", {"mpp.label_no_fluid_mining"}, "[/color]")
+			:contitional_append(miner.skip_outer, "\n[color=yellow]", {"mpp.label_oversized_drill"}, "[/color]")
 
 		values[#values+1] = {
 			value=miner.name,
@@ -519,18 +511,6 @@ local function update_miner_selection(player_data)
 			icon="mpp_no_entity",
 			order="",
 		}
-	end
-
-	local section = player_data.gui.section["miner"]
-	if existing_choice_is_valid then
-		local miner = mpp_util.miner_struct(player_choices.miner_choice)
-		section.label_insufficient_area.visible = miner.area <= miner.size
-		section.label_no_fluid_mining.visible = not miner.supports_fluids
-		section.label_oversized_drill.visible = miner.skip_outer
-	else
-		section.label_insufficient_area.visible = false
-		section.label_no_fluid_mining.visible = false
-		section.label_oversized_drill.visible = false
 	end
 
 	local table_root = player_data.gui.tables["miner"]
