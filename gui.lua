@@ -622,16 +622,30 @@ local function update_space_belt_selection(player)
 
 	local belts = game.get_filtered_entity_prototypes{{filter="type", type="transport-belt"}}
 	for _, belt in pairs(belts) do
+		--if not compatibility.is_buildable_in_space(belt.name) then goto skip_belt end
+		local belt_struct = mpp_util.belt_struct(belt.name)
 		if mpp_util.check_entity_hidden(player_data, "space_belt", belt) then goto skip_belt end
-		if layout.restrictions.uses_underground_belts and belt.related_underground_belt == nil then goto skip_belt end
-		if is_space and not string.match(belt.name, "^se%-") then goto skip_belt end
+		
+		local is_restricted = common.is_belt_restricted(belt_struct, restrictions) or not compatibility.is_buildable_in_space(belt.name)
+		if not player_data.entity_filtering_mode and is_restricted then goto skip_belt end
+		--if is_space and not string.match(belt.name, "^se%-") then goto skip_belt end
+
+		local belt_speed = belt.belt_speed * 60 * 8
+		local specifier = belt_speed % 1 == 0 and ": %.0f " or ": %.1f "
+
+		local tooltip = {
+			"", belt.localised_name, "\n",
+			{"description.belt-speed"}, specifier:format(belt_speed),
+			{"description.belt-items"}, "/s",
+		}
 
 		values[#values+1] = {
 			value=belt.name,
-			tooltip=belt.localised_name,
+			tooltip=tooltip,
 			icon=("entity/"..belt.name),
 			order=belt.order,
 			filterable=true,
+			disabled=is_restricted,
 		}
 		if belt.name == choices.space_belt_choice then existing_choice_is_valid = true end
 
@@ -1002,6 +1016,11 @@ local function update_debugging_selection(player_data)
 			value="draw_deconstruct_preview",
 			tooltip="Draw deconstruct preview",
 			icon=("item/deconstruction-planner"),
+		},
+		{
+			value="draw_can_place_entity",
+			tooltip="Draw entity placement checks",
+			icon=("item/blueprint"),
 		},
 	}
 

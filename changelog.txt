@@ -1,7 +1,7 @@
 ---------------------------------------------------------------------------------------------------
 Version: 1.6.0
   Features:
-    - Simple and Compact layouts can now use even-sized mining drills. (2x2 and 4x4 drills work now)
+    - Simple, Compact, and Sparse layouts can now use even-sized mining drills. (2x2 and 4x4 drills work now)
     - Added button hiding for drill/belt/power/logistic choices. (Shift+Right-click on an icon)
     - Added an undo button.
     - Now removes existing ghosts if new selection overlaps the previous selection.
@@ -14,6 +14,7 @@ Version: 1.6.0
     - Now automatically places landfill under entity ghosts.
   Bugfixes:
     - Now tries to find related underground belts by name when they are not properly defined in prototypes.
+    - Space Exploration compatibility fixes
 ---------------------------------------------------------------------------------------------------
 Version: 1.5.8
 Date: 2023-11-29

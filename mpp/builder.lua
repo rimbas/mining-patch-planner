@@ -44,9 +44,10 @@ function builder.create_entity_builder(state)
 			name = ghost.inner_name,
 			-- name = "entity-ghost",
 			-- inner_name = ghost.inner_name,
+			force = state.player.force,
 			position = ghost.position,
 			direction = ghost.direction,
-			build_check_type = defines.build_check_type.manual_ghost,
+			build_check_type = defines.build_check_type.blueprint_ghost,
 			forced = true,
 		} then
 			return

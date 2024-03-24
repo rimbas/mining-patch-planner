@@ -57,7 +57,6 @@ local function task_runner(event)
 			game.print(("Callback for layout %s after call %s has no result"):format(state.layout_choice, state._callback))
 			table.remove(global.tasks, 1)
 
-			
 			---@type PlayerData
 			local player_data = global.players[state.player.index]
 			player_data.last_state = nil
@@ -74,8 +73,23 @@ local function task_runner(event)
 
 		---@type PlayerData
 		local player_data = global.players[player.index]
-		player_data.last_state, state._previous_state = state, nil
+		state._previous_state = nil
 		player_data.tick_expires = math.huge
+		if __DebugAdapter then
+			player_data.last_state = state
+		else
+			player_data.last_state = {
+				player = state.player,
+				surface = state.surface,
+				layout_choice = state.layout_choice,
+				resources = state.resources,
+				coords = state.coords,
+				_preview_rectangle = state._preview_rectangle,
+				_collected_ghosts = state._collected_ghosts,
+				_render_objects = state._render_objects,
+				_lane_info_rendering = state._lane_info_rendering,
+			}
+		end
 
 		table.remove(global.tasks, 1)
 		player.play_sound{path="utility/build_blueprint_medium"}

@@ -1160,7 +1160,7 @@ function layout:placement_landfill(state)
 
 	--for _, fill in ipairs(fill_tiles) do
 
-	local progress = tile_progress + 32
+	local progress = tile_progress + 64
 	for i = tile_progress, #fill_tiles do
 		if i > progress then
 			state.fill_tile_progress = i

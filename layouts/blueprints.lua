@@ -8,6 +8,8 @@ local mpp_util = require("mpp.mpp_util")
 local builder = require("mpp.builder")
 local common   = require("layouts.common")
 local drawing  = require("mpp.drawing")
+local compatibility = require("mpp.compatibility")
+local is_buildable_in_space = compatibility.is_buildable_in_space
 local coord_convert, coord_revert = mpp_util.coord_convert, mpp_util.coord_revert
 local direction_coord = mpp_util.direction_coord
 
@@ -364,6 +366,7 @@ function layout:collect_entities(state)
 	local entities, num_ents = bp.entities, #bp.entities
 	local sx, sy, countx, county = attempt.sx, attempt.sy, attempt.cx-1, attempt.cy-1
 	local bpw, bph = bp.w, bp.h
+	local is_space = state.is_space
 
 	--local debug_draw = drawing(state, true, false)
 
@@ -387,7 +390,9 @@ function layout:collect_entities(state)
 			--for _, ent in pairs(bp.entities) do
 			for ie = s_ie, num_ents do
 				local ent = entities[ie]
-				local ent_category = category_map[ent.name]
+				local ent_name = ent.name
+				if is_space and not is_buildable_in_space(ent_name) then goto skip_ent end
+				local ent_category = category_map[ent_name]
 				ie = ie + 1
 				local capstone_x = ix == countx
 				if
@@ -397,7 +402,7 @@ function layout:collect_entities(state)
 				then
 					goto skip_ent
 				end
-				local entity_struct = mpp_util.entity_struct(ent.name)
+				local entity_struct = mpp_util.entity_struct(ent_name)
 				local rx, ry, rw, rh = mpp_util.rotate_struct(entity_struct, ent.direction)
 				local bpx = ceil(ent.position.x - rx)
 				local bpy = ceil(ent.position.y - ry)
@@ -409,7 +414,7 @@ function layout:collect_entities(state)
 				local base_collected = {
 					tile = tile,
 					ent = ent,
-					name = ent.name,
+					name = ent_name,
 					type = entity_struct.type,
 					x = x,
 					y = y,
@@ -1129,7 +1134,7 @@ function layout:placement_all(state)
 
 		local thing = state.builder_all[i]
 
-		local ghost = create_entity(thing, is_space)
+		local ghost = create_entity(thing)
 
 		if ghost and thing.items then
 			ghost.item_requests = thing.items

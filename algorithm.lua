@@ -23,21 +23,27 @@ require_layout("compact_logistics")
 require_layout("sparse_logistics")
 require_layout("blueprints")
 
----@class State
+---@class MininimumPreservedState
+---@field layout_choice string
+---@field player LuaPlayer
+---@field surface LuaSurface
+---@field resources LuaEntity[] Filtered resources
+---@field coords Coords
+---@field _previous_state MininimumPreservedState?
+---@field _collected_ghosts LuaEntity[]
+---@field _preview_rectangle nil|uint64 LuaRendering.draw_rectangle
+---@field _lane_info_rendering uint64[]
+---@field _render_objects uint64[] LuaRendering objects
+
+---@class State : MininimumPreservedState
 ---@field _callback string -- callback to be used in the tick
 ---@field tick number
----@field surface LuaSurface
 ---@field is_space boolean
----@field player LuaPlayer
----@field resources LuaEntity[] Filtered resources
 ---@field resource_tiles GridTile
 ---@field found_resources LuaEntity[] Resource name -> resource category mapping
 ---@field resource_counts {name: string, count: number}[] Highest count resource first
 ---@field requires_fluid boolean
 ---@field mod_version string
----
----@field _previous_state State?
----@field _collected_ghosts LuaEntity[]
 ---
 ---@field layout_choice string
 ---@field direction_choice string
@@ -58,15 +64,11 @@ require_layout("blueprints")
 ---@field print_placement_info_choice boolean
 ---@field display_lane_filling_choice boolean
 ---
----@field coords Coords
 ---@field grid Grid
 ---@field deconstruct_specification DeconstructSpecification
 ---@field miner MinerStruct
 ---@field pole PoleStruct
 ---@field belt BeltStruct
----@field _preview_rectangle nil|uint64 LuaRendering.draw_rectangle
----@field _lane_info_rendering uint64[]
----@field _render_objects uint64[] LuaRendering objects
 ---@field blueprint_choice LuaGuiElement
 ---@field blueprint_inventory LuaInventory
 ---@field blueprint LuaItemStack
@@ -231,21 +233,22 @@ function algorithm.on_player_selected_area(event)
 		return nil, {"mpp.msg_miner_err_0"}
 	end
 
-	local last_state = player_data.last_state
+	local last_state = player_data.last_state --[[@as MininimumPreservedState]]
 	if last_state ~= nil then
 		local renderables = last_state._render_objects
 
 		local old_resources = last_state.resources
 
-		local same = true
-		for i, v in pairs(old_resources) do
-			if v ~= filtered[i] then
-				same = false
-				break
-			end
-		end
+		local same = mpp_util.coords_overlap(coords, last_state.coords)
 
-		same = same or mpp_util.coords_overlap(coords, last_state.coords)
+		-- if same then
+		-- 	for i, v in pairs(old_resources) do
+		-- 		if v ~= filtered[i] then
+		-- 			same = false
+		-- 			break
+		-- 		end
+		-- 	end
+		-- end
 
 		if same then
 			for _, id in ipairs(renderables) do
@@ -260,7 +263,7 @@ function algorithm.on_player_selected_area(event)
 				end
 			end
 		end
-		last_state = nil
+		player_data.last_state = nil
 	end
 
 	local validation_result, error = layout:validate(state)

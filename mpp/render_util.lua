@@ -681,4 +681,108 @@ function render_util.draw_deconstruct_preview(player_data, event)
 
 end
 
+---@param player_data PlayerData
+---@param event EventData.on_player_reverse_selected_area
+function render_util.draw_can_place_entity(player_data, event)
+	local renderer = render_util.renderer(event)
+
+	local fx1, fy1 = event.area.left_top.x, event.area.left_top.y
+	fx1, fy1 = floor(fx1), floor(fy1)
+	local x, y = fx1 + 0.5, fy1 + 0.5
+
+	local id = player_data.choices.blueprint_choice and player_data.choices.blueprint_choice.item_number
+	if not id then return end
+	local bp = player_data.blueprints.cache[id]
+	if not bp then return end
+
+	renderer.draw_line{x = fx1, y = fy1-1, w = 0, h = 1, width = 7, color={0.3, 0.3, 0.3}}
+	renderer.draw_line{x = fx1-1, y = fy1, w = 1, h = 0, width = 7, color={0.3, 0.3, 0.3}}
+
+	local build_check_type = defines.build_check_type
+	local can_forced = {
+		[{false, false}] = 0,
+		[{true, false}] = 1,
+		[{false, true}] = 2,
+		[{true, true}] = 3,
+	}
+
+	for check_type, i1 in pairs(build_check_type) do
+		
+		for forced_ghost, i2 in pairs(can_forced) do
+
+			local forced, ghost = forced_ghost[1], forced_ghost[2]
+
+			local nx = x + (bp.w + 3) * i1
+			local ny = y + (bp.h + 3) * i2
+
+			renderer.draw_rectangle{
+				x = nx-.5,
+				y = ny-.5,
+				w = bp.w,
+				h = bp.h,
+				color = {0.2, 0.2, .7},
+			}
+
+			-- renderer.draw_text{
+			-- 	x = nx+(bp.w-1)/2, y = ny-.5,
+			-- 	text = ("%i,%i"):format(i1, i2),
+			-- 	alignment = "center",
+			-- 	vertical_alignment="bottom",
+			-- }
+			
+			renderer.draw_text{
+				x = nx+(bp.w-1)/2, y = ny-1.5,
+				text = ("%s"):format(check_type),
+				alignment = "center",
+				vertical_alignment="bottom",
+			}
+			renderer.draw_text{
+				x = nx+(bp.w-1)/2, y = ny-1,
+				text = ("forced: %s"):format(forced),
+				alignment = "center",
+				vertical_alignment="bottom",
+			}
+			renderer.draw_text{
+				x = nx+(bp.w-1)/2, y = ny-.5,
+				text = ("ghost: %s"):format(ghost),
+				alignment = "center",
+				vertical_alignment="bottom",
+			}
+
+			for _, ent in pairs(bp.entities) do
+				local ex = nx + ent.position.x - .5
+				local ey = ny + ent.position.y - .5
+				local t = {
+					name = ent.name,
+					position = {ex, ey},
+					direction = ent.direction,
+					build_check_type = defines.build_check_type[check_type],
+					force = game.get_player(event.player_index).force,
+					forced = forced,
+				}
+				if ghost then
+					t.name, t.inner_name = "entity-ghost", t.name
+				end
+
+				local can_place = event.surface.can_place_entity(t)
+
+				renderer.draw_circle{x = ex, y = ey, r = 0.5, width = 3,
+					color = can_place and {0.1, .9, .1} or {0.9, .1, .1},
+				}
+				
+				if can_place then
+					if not ghost then
+						t.name, t.inner_name = "entity-ghost", t.name
+					end
+					event.surface.create_entity(t)
+				end
+			end
+
+		end
+
+	end
+
+end
+
+
 return render_util

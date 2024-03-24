@@ -9,7 +9,7 @@ local conf = {}
 ---@field blueprint_items LuaInventory Preserve in migrations
 ---@field choices PlayerChoices Preserve in migrations
 ---@field blueprints PlayerGuiBlueprints 
----@field last_state State? Preserve in migrations
+---@field last_state MininimumPreservedState? Preserve in migrations
 ---@field filtered_entities table<string, true>
 ---@field tick_expires integer When was gui closed, for undo button disabling
 
