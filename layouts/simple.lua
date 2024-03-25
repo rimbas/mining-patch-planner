@@ -50,8 +50,8 @@ local layout = table.deepcopy(base)
 layout.name = "simple"
 layout.translation = {"", "[entity=transport-belt] ", {"mpp.settings_layout_choice_simple"}}
 
-layout.restrictions.miner_size = {0, 10}
-layout.restrictions.miner_radius = {0, 20}
+layout.restrictions.miner_size = {0, 10e3}
+layout.restrictions.miner_radius = {0, 10e3}
 layout.restrictions.pole_omittable = true
 layout.restrictions.pole_width = {1, 1}
 layout.restrictions.pole_length = {5, 10e3}
@@ -212,7 +212,8 @@ function layout:process_grid(state)
 	state.resource_tiles = state.resource_tiles or {}
 	local resource_tiles = state.resource_tiles
 
-	local price = state.miner.area ^ 2
+	local price = m.area_sq
+	if not m.oversized then price = price + m.size_sq end
 	local budget, cost = 12000, 0
 
 	local i = state.resource_iter or 1
@@ -230,10 +231,10 @@ function layout:process_grid(state)
 		]]
 		--grid:convolve_miner(tx-size+1, ty-size+1, m)
 
-		grid:convolve_inner(tx-size+1, ty-size+1, size)
-		if not m.skip_outer then
-			grid:convolve_outer(tx-extent_positive, ty-extent_positive, area, tile.amount)
+		if not m.oversized then
+			grid:convolve_inner(tx-size+1, ty-size+1, size)
 		end
+		grid:convolve_outer(tx-extent_positive, ty-extent_positive, area, tile.amount)
 		table_insert(resource_tiles, tile)
 		cost = cost + price
 		i = i + 1

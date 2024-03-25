@@ -263,7 +263,7 @@ function render_util.draw_drill_struct(player_data, event)
 
 	renderer.draw_text{
 		target={fx1 + drill.extent_negative, fy1 + drill.extent_negative-1.5},
-		text = string.format("skip_outer: %s", drill.skip_outer),
+		text = string.format("oversized: %s", drill.oversized),
 		alignment = "left",
 		vertical_alignment="middle",
 	}

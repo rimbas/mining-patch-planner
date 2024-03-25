@@ -43,3 +43,13 @@ end
 function math.divmod(a, b)
 	return math.floor(a / b), a % b
 end
+
+---Collects boolean expression result
+---@param ... boolean
+---@return boolean
+function logic_any(...)
+	for i = 1, select("#", ...) do
+		if select(i, ...) then return true end
+	end
+	return false
+end

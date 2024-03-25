@@ -465,9 +465,9 @@ local function update_miner_selection(player_data)
 	local cached_miners, cached_resources = enums.get_available_miners()
 	
 	for _, miner_proto in pairs(cached_miners) do
-		if mpp_util.check_filtered(miner_proto) then goto skip_miner end
-		if mpp_util.check_entity_hidden(player_data, "miner", miner_proto) then goto skip_miner end
 		local miner = mpp_util.miner_struct(miner_proto.name)
+		if mpp_util.check_filtered(miner_proto) or miner.filtered then goto skip_miner end
+		if mpp_util.check_entity_hidden(player_data, "miner", miner_proto) then goto skip_miner end
 
 		local is_restricted = common.is_miner_restricted(miner, restrictions) or not layout:restriction_miner(miner)
 		if not player_data.entity_filtering_mode and is_restricted then goto skip_miner end
@@ -481,7 +481,7 @@ local function update_miner_selection(player_data)
 			:contitional_append(miner.power_source_tooltip,"\n", miner.power_source_tooltip)
 			:contitional_append(miner.area <= miner.size, "\n[color=yellow]", {"mpp.label_insufficient_area"}, "[/color]")
 			:contitional_append(not miner.supports_fluids, "\n[color=yellow]", {"mpp.label_no_fluid_mining"}, "[/color]")
-			:contitional_append(miner.skip_outer, "\n[color=yellow]", {"mpp.label_oversized_drill"}, "[/color]")
+			:contitional_append(miner.oversized, "\n[color=yellow]", {"mpp.label_oversized_drill"}, "[/color]")
 
 		values[#values+1] = {
 			value=miner.name,
@@ -672,6 +672,7 @@ local function update_logistics_selection(player_data)
 	local existing_choice_is_valid = false
 	local logistics = game.get_filtered_entity_prototypes{{filter="type", type="logistic-container"}}
 	for _, chest in pairs(logistics) do
+		if mpp_util.check_filtered(chest) then goto skip_chest end
 		if mpp_util.check_entity_hidden(player_data, "logistics", chest) then goto skip_chest end
 		local cbox = chest.collision_box
 		local size = math.ceil(cbox.right_bottom.x - cbox.left_top.x)
@@ -734,7 +735,7 @@ local function update_pole_selection(player_data)
 		if mpp_util.check_entity_hidden(player_data, "pole", pole_proto) then goto skip_pole end
 		if pole_proto.supply_area_distance < 0.5 then goto skip_pole end
 		local pole = mpp_util.pole_struct(pole_proto.name)
-
+		if pole.filtered then goto skip_pole end
 		local is_restricted = common.is_pole_restricted(pole, restrictions)
 
 		if not player_data.entity_filtering_mode and is_restricted then goto skip_pole end

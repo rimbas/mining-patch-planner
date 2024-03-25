@@ -81,6 +81,7 @@ local direction_coord = {
 mpp_util.direction_coord = direction_coord
 
 ---@class EntityStruct
+---@field filtered boolean Should the struct never appear as a valid choice
 ---@field name string
 ---@field type string
 ---@field w number Collision width
@@ -102,6 +103,7 @@ function mpp_util.entity_struct(entity_name)
 	---@diagnostic disable-next-line: missing-fields
 	local struct = {} --[[@as EntityStruct]]
 	local proto = game.entity_prototypes[entity_name]
+	local flags = proto.flags or {}
 
 	local cbox = proto.collision_box
 	local cbox_tl, cbox_br = cbox.left_top, cbox.right_bottom
@@ -113,6 +115,14 @@ function mpp_util.entity_struct(entity_name)
 	struct.x = struct.w / 2 - 0.5
 	struct.y = struct.h / 2 - 0.5
 	struct.extent_w, struct.extent_h = struct.w / 2, struct.h / 2
+	struct.filtered = flags and logic_any(
+		not flags["player-creation"],
+		flags["hidden"],
+		flags["not-blueprintable"],
+		flags["not-deconstructable"],
+		struct.w == 0,
+		struct.h == 0
+	)
 
 	entity_cache[entity_name] = struct
 	return struct
@@ -148,7 +158,7 @@ end
 ---@field extent_negative number 
 ---@field extent_positive number
 ---@field supports_fluids boolean
----@field skip_outer boolean Skip outer area calculations
+---@field oversized boolean Is mining drill oversized
 ---@field pipe_left number Y height on left side
 ---@field pipe_right number Y height on right side
 ---@field output_rotated table<defines.direction, MapPosition> Rotated output positions in reference to (0, 0) origin
@@ -165,8 +175,11 @@ function mpp_util.miner_struct(mining_drill_name)
 	if cached then return cached end
 	
 	local miner_proto = game.entity_prototypes[mining_drill_name]
-	---@diagnostic disable-next-line: missing-fields
+	
 	local miner = mpp_util.entity_struct(mining_drill_name) --[[@as MinerStruct]]
+
+	miner.filtered = miner.filtered or mpp_util.protype_has_script_create_effect(miner_proto)
+
 	if miner.w ~= miner.h then
 		-- we have a problem ?
 	end
@@ -184,21 +197,23 @@ function mpp_util.miner_struct(mining_drill_name)
 	miner.extent_positive = miner.extent_negative + miner.area - 1
 	miner.middle = floor(miner.size / 2) + miner.parity
 
-	local nauvis = game.get_surface("nauvis") --[[@as LuaSurface]]
+	if not miner.filtered then
+		local nauvis = game.get_surface("nauvis") --[[@as LuaSurface]]
+		local dummy = nauvis.create_entity{
+			name = "entity-ghost",
+			inner_name = mining_drill_name,
+			position = {miner.x, miner.y},
+		}
 
-	local dummy = nauvis.create_entity{
-		name = mining_drill_name,
-		position = {miner.x, miner.y},
-	}
-
-	if dummy then
-		miner.drop_pos = dummy.drop_position
-		miner.out_x = floor(dummy.drop_position.x)
-		miner.out_y = floor(dummy.drop_position.y)
-		dummy.destroy()
+		if dummy then
+			miner.drop_pos = dummy.drop_position
+			miner.out_x = floor(dummy.drop_position.x)
+			miner.out_y = floor(dummy.drop_position.y)
+			dummy.destroy()
+		end
 	else
 		-- hardcoded fallback
-		local dx, dy = floor(miner.size / 2) + miner.parity, -1
+		local dx, dy = miner.middle, -1
 		miner.drop_pos = { dx+.5, -0.296875, x = dx+.5, y = -0.296875 }
 		miner.out_x = dx
 		miner.out_y = dy
@@ -218,7 +233,6 @@ function mpp_util.miner_struct(mining_drill_name)
 	output_rotated[WEST].y = output_rotated[WEST][2]
 	output_rotated[EAST].x = output_rotated[EAST][1]
 	output_rotated[EAST].y = output_rotated[EAST][2]
-
 	miner.output_rotated = output_rotated
 
 	--pipe height stuff
@@ -238,7 +252,7 @@ function mpp_util.miner_struct(mining_drill_name)
 	end
 
 	-- If larger than a large mining drill
-	miner.skip_outer = miner.size > 7 or miner.area > 13
+	miner.oversized = miner.size > 7 or miner.area > 13
 
 	if miner_proto.electric_energy_source_prototype then
 		miner.power_source_tooltip = {
@@ -265,6 +279,7 @@ function mpp_util.miner_struct(mining_drill_name)
 		}
 	end
 
+	miner_struct_cache[mining_drill_name] = miner
 	return miner
 end
 
@@ -288,33 +303,39 @@ function mpp_util.pole_struct(pole_name)
 	if cached_struct then return cached_struct end
 
 	local pole_proto = game.entity_prototypes[pole_name]
-	if pole_proto then
-		local pole = mpp_util.entity_struct(pole_name) --[[@as PoleStruct]]
-
-		local radius = pole_proto.supply_area_distance --[[@as number]]
-		pole.supply_area_distance = radius
-		pole.supply_width = floor(radius * 2)
-		pole.radius = pole.supply_width / 2
-		pole.wire = pole_proto.max_wire_distance
-
-		-- local distance = beacon_proto.supply_area_distance
-		-- beacon.area = beacon.size + distance * 2
-		-- beacon.extent_negative = -distance
-
-		local extent = (pole.supply_width - pole.size) / 2
-
-		pole.extent_negative = -extent
-
-		pole_struct_cache[pole_name] = pole
-		return pole
+	if not pole_proto then
+		return {
+			place = false, -- nonexistent pole, use fallbacks and don't place
+			size = 1,
+			supply_width = 7,
+			radius = 3.5,
+			wire = 9,
+		}
 	end
-	return {
-		place = false, -- nonexistent pole, use fallbacks and don't place
-		size = 1,
-		supply_width = 7,
-		radius = 3.5,
-		wire = 9,
-	}
+	local pole = mpp_util.entity_struct(pole_name) --[[@as PoleStruct]]
+
+	local radius = pole_proto.supply_area_distance --[[@as number]]
+	pole.supply_area_distance = radius
+	pole.supply_width = floor(radius * 2)
+	pole.radius = pole.supply_width / 2
+	pole.wire = pole_proto.max_wire_distance
+
+	pole.filtered = logic_any(
+		pole.filtered,
+		pole_proto.supply_area_distance < 0.5,
+		pole_proto.max_wire_distance < 1
+	)
+
+	-- local distance = beacon_proto.supply_area_distance
+	-- beacon.area = beacon.size + distance * 2
+	-- beacon.extent_negative = -distance
+
+	local extent = (pole.supply_width - pole.size) / 2
+
+	pole.extent_negative = -extent
+
+	pole_struct_cache[pole_name] = pole
+	return pole
 end
 
 ---@class BeaconStruct : EntityStruct
@@ -695,6 +716,9 @@ function mpp_util.get_dump_state(player_index)
 	return settings.get_player_settings(player_index)["mpp-dump-heuristics-data"].value --[[@as boolean]]
 end
 
+---Pads tooltip contents to not overlap with cursor icon
+---@param ... unknown
+---@return table
 function mpp_util.wrap_tooltip(...)
 	return select(1, ...) and {"", "     ", ...} or nil
 end
@@ -753,13 +777,44 @@ function mpp_util.update_undo_button(player_data)
 	local last_state = player_data.last_state
 	
 	if last_state then
-		local duration = mpp_util.get_display_duration(last_state.player.index)
+		--local duration = mpp_util.get_display_duration(last_state.player.index)
 		enabled = enabled or (last_state and last_state._collected_ghosts and #last_state._collected_ghosts > 0 and game.tick < player_data.tick_expires)
 	end
 
 	undo_button.enabled = enabled
 	undo_button.sprite = enabled and "mpp_undo_enabled" or "mpp_undo_disabled"
 	undo_button.tooltip = mpp_util.wrap_tooltip(enabled and {"controls.undo"} or {"", {"controls.undo"}," (", {"gui.not-available"}, ")"})
+end
+
+---@param prototype LuaEntityPrototype
+function mpp_util.protype_has_script_create_effect(prototype)
+	local create_effect = prototype.created_effect
+	if create_effect == nil then return false end
+
+	for _, effect in pairs(create_effect) do
+		if effect.action_delivery == nil then return false end
+
+		for _, delivery in pairs(effect.action_delivery) do
+			if delivery.type == "instant" then
+				if delivery.source_effects then
+					for _, source_effect in pairs(delivery.source_effects) do
+						if source_effect.type == "script" then
+							return true
+						end
+					end
+				end
+				if delivery.target_effects then
+					for _, source_effect in pairs(delivery.target_effects) do
+						if source_effect.type == "script" then
+							return true
+						end
+					end
+				end
+			end
+		end
+
+	end
+	return false
 end
 
 return mpp_util

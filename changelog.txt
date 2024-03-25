@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.6.1
+  Bugfixes:
+    - Fixed a crash caused by interaction with Freight Forwarding mod.
+    - Fixed regression with support for Bucket Wheel Excavators mod.
+---------------------------------------------------------------------------------------------------
 Version: 1.6.0
   Features:
     - Simple, Compact, and Sparse layouts can now use even-sized mining drills. (2x2 and 4x4 drills work now)
@@ -14,7 +19,7 @@ Version: 1.6.0
     - Saved blueprints had to be reset. You will need to update the blueprint items to the new format before importing them.
   Bugfixes:
     - Now tries to find related underground belts by name when they are not properly defined in prototypes.
-    - Space Exploration compatibility fixes
+    - Space Exploration compatibility fixes.
 ---------------------------------------------------------------------------------------------------
 Version: 1.5.8
 Date: 2023-11-29

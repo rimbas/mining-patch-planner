@@ -213,6 +213,7 @@ function common.calculate_patch_slack(state)
 
 end
 
+---Determines if mining drill is restricted by the layout
 ---@param miner MinerStruct
 ---@param restrictions Restrictions
 ---@return boolean
@@ -224,6 +225,7 @@ function common.is_miner_restricted(miner, restrictions)
 		or restrictions.miner_radius[2] < miner.radius
 end
 
+---Determines if transport belt is restricted by the layout
 ---@param belt BeltStruct
 ---@param restrictions Restrictions
 function common.is_belt_restricted(belt, restrictions)
@@ -231,6 +233,7 @@ function common.is_belt_restricted(belt, restrictions)
 		or (restrictions.uses_underground_belts and not belt.related_underground_belt)
 end
 
+---Determines if power pole is restricted by the layout
 ---@param pole PoleStruct
 ---@param restrictions Restrictions
 function common.is_pole_restricted(pole, restrictions)
