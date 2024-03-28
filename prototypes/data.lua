@@ -20,7 +20,6 @@ data:extend{
 		alt_selection_color = {r=0, g=0, b=1, a=0.5},
 		alt_selection_cursor_box_type="entity",
 		alt_selection_mode={"any-entity"},
-		reverse_selction_color = {1, 1, 0, 1},
 		reverse_selection_mode={"any-entity"},
 		reverse_selection_cursor_box_type="pair",
 		reverse_entity_filter_mode="whitelist",

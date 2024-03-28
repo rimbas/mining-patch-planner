@@ -533,6 +533,7 @@ local function update_belt_selection(player)
 
 	local belts = game.get_filtered_entity_prototypes{{filter="type", type="transport-belt"}}
 	for _, belt in pairs(belts) do
+		if mpp_util.check_filtered(belt) then goto skip_belt end
 		local belt_struct = mpp_util.belt_struct(belt.name)
 		if mpp_util.check_entity_hidden(player_data, "belt", belt) then goto skip_belt end
 
@@ -602,6 +603,7 @@ local function update_space_belt_selection(player)
 
 	local belts = game.get_filtered_entity_prototypes{{filter="type", type="transport-belt"}}
 	for _, belt in pairs(belts) do
+		if mpp_util.check_filtered(belt) then goto skip_belt end
 		--if not compatibility.is_buildable_in_space(belt.name) then goto skip_belt end
 		local belt_struct = mpp_util.belt_struct(belt.name)
 		if mpp_util.check_entity_hidden(player_data, "space_belt", belt) then goto skip_belt end

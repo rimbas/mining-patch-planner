@@ -173,12 +173,10 @@ local miner_struct_cache = {}
 function mpp_util.miner_struct(mining_drill_name)
 	local cached = miner_struct_cache[mining_drill_name]
 	if cached then return cached end
-	
-	local miner_proto = game.entity_prototypes[mining_drill_name]
-	
-	local miner = mpp_util.entity_struct(mining_drill_name) --[[@as MinerStruct]]
 
-	miner.filtered = miner.filtered or mpp_util.protype_has_script_create_effect(miner_proto)
+	local miner_proto = game.entity_prototypes[mining_drill_name]
+
+	local miner = mpp_util.entity_struct(mining_drill_name) --[[@as MinerStruct]]
 
 	if miner.w ~= miner.h then
 		-- we have a problem ?
@@ -196,6 +194,10 @@ function mpp_util.miner_struct(mining_drill_name)
 	miner.extent_negative = floor(miner.size * 0.5) - floor(miner_proto.mining_drill_radius) + miner.parity
 	miner.extent_positive = miner.extent_negative + miner.area - 1
 	miner.middle = floor(miner.size / 2) + miner.parity
+
+	miner.filtered = miner.filtered
+		or miner.area < miner.size
+		or mpp_util.protype_has_script_create_effect(miner_proto)
 
 	if not miner.filtered then
 		local nauvis = game.get_surface("nauvis") --[[@as LuaSurface]]
@@ -746,6 +748,7 @@ end
 function mpp_util.check_filtered(thing)
 	return
 		blacklist[thing.name]
+		or not thing.items_to_place_this
 		or (thing.flags and thing.flags.hidden)
 end
 

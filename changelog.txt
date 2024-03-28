@@ -1,4 +1,8 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.6.2
+  Bugfixes:
+    - Fixed a crash with belt from Anfilt's Belt Utilities mod.
+---------------------------------------------------------------------------------------------------
 Version: 1.6.1
   Bugfixes:
     - Fixed a crash caused by interaction with Freight Forwarding mod.

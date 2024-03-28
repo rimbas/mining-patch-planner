@@ -68,7 +68,6 @@ default_style.mpp_delete_blueprint_button = {
 	parent="shortcut_bar_button_red",
 	padding=0,
 	size=24,
-	stretch_image_to_widget_size=true,
 }
 
 default_style.mpp_fake_blueprint_button_selected = {
@@ -95,7 +94,6 @@ default_style.mpp_fake_blueprint_button_invalid = {
 	parent="shortcut_bar_button_red",
 	padding=3,
 	size=48,
-	stretch_image_to_widget_size=true,
 }
 
 default_style.mpp_fake_blueprint_table = {

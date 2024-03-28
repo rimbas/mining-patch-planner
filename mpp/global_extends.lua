@@ -45,6 +45,7 @@ function math.divmod(a, b)
 end
 
 ---Collects boolean expression result
+---Yes, this kills short-circuiting
 ---@param ... boolean
 ---@return boolean
 function logic_any(...)
