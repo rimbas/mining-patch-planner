@@ -199,20 +199,11 @@ function mpp_util.miner_struct(mining_drill_name)
 		or miner.area < miner.size
 		or mpp_util.protype_has_script_create_effect(miner_proto)
 
-	if not miner.filtered then
-		local nauvis = game.get_surface("nauvis") --[[@as LuaSurface]]
-		local dummy = nauvis.create_entity{
-			name = "entity-ghost",
-			inner_name = mining_drill_name,
-			position = {miner.x, miner.y},
-		}
-
-		if dummy then
-			miner.drop_pos = dummy.drop_position
-			miner.out_x = floor(dummy.drop_position.x)
-			miner.out_y = floor(dummy.drop_position.y)
-			dummy.destroy()
-		end
+	local vector = miner_proto.vector_to_place_result
+	if vector then
+		miner.drop_pos = {x=vector[1], y=vector[2], vector[1], vector[2]}
+		miner.out_x = floor(vector[1])
+		miner.out_y = floor(vector[2])
 	else
 		-- hardcoded fallback
 		local dx, dy = miner.middle, -1
