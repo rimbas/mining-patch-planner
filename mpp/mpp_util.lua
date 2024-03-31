@@ -202,30 +202,24 @@ function mpp_util.miner_struct(mining_drill_name)
 	local vector = miner_proto.vector_to_place_result
 	if vector then
 		miner.drop_pos = {x=vector[1], y=vector[2], vector[1], vector[2]}
-		miner.out_x = floor(vector[1])
-		miner.out_y = floor(vector[2])
+		miner.out_x = floor(vector[1]+miner.w/2)
+		miner.out_y = floor(vector[2]+miner.h/2)
 	else
-		-- hardcoded fallback
-		local dx, dy = miner.middle, -1
-		miner.drop_pos = { dx+.5, -0.296875, x = dx+.5, y = -0.296875 }
-		miner.out_x = dx
-		miner.out_y = dy
+		miner.filtered = true
+		miner.drop_pos = {x=0, y=0}
+		miner.out_x, miner.out_y = 0, 0
 	end
-	
+
 	local output_rotated = {
-		[defines.direction.north] = {miner.out_x, miner.out_y},
-		[defines.direction.south] = {miner.size - miner.out_x - 1, miner.size },
-		[defines.direction.west] = {miner.size, miner.out_x},
-		[defines.direction.east] = {-1, miner.size - miner.out_x -1},
+		[NORTH] = {miner.out_x, miner.out_y},
+		[SOUTH] = {miner.size - miner.out_x - 1, miner.size },
+		[WEST] = {miner.size, miner.out_x},
+		[EAST] = {-1, miner.size - miner.out_x -1},
 	}
-	output_rotated[NORTH].x = output_rotated[NORTH][1]
-	output_rotated[NORTH].y = output_rotated[NORTH][2]
-	output_rotated[SOUTH].x = output_rotated[SOUTH][1]
-	output_rotated[SOUTH].y = output_rotated[SOUTH][2]
-	output_rotated[WEST].x = output_rotated[WEST][1]
-	output_rotated[WEST].y = output_rotated[WEST][2]
-	output_rotated[EAST].x = output_rotated[EAST][1]
-	output_rotated[EAST].y = output_rotated[EAST][2]
+	output_rotated[NORTH].x, output_rotated[NORTH].y = output_rotated[NORTH][1], output_rotated[NORTH][2]
+	output_rotated[SOUTH].x, output_rotated[SOUTH].y = output_rotated[SOUTH][1], output_rotated[SOUTH][2]
+	output_rotated[WEST].x, output_rotated[WEST].y = output_rotated[WEST][1], output_rotated[WEST][2]
+	output_rotated[EAST].x, output_rotated[EAST].y = output_rotated[EAST][1], output_rotated[EAST][2]
 	miner.output_rotated = output_rotated
 
 	--pipe height stuff
@@ -235,6 +229,7 @@ function mpp_util.miner_struct(mining_drill_name)
 		for _, conn in pairs(connections) do
 			---@cast conn FluidBoxConnection
 			-- pray a mod that does weird stuff with pipe connections doesn't appear
+			local debugger = true
 		end
 
 		miner.pipe_left = floor(miner.size / 2) + miner.parity

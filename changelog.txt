@@ -1,18 +1,33 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.6.5
+Date: 2024-03-29
+  Bugfixes:
+    - Fixed a crash in Super Compact layout.
+    - Switch to use LuaEntityPrototype#vector_to_place_result. Minimum required Factorio version bumped to 1.1.106.
+---------------------------------------------------------------------------------------------------
+Version: 1.6.4
+Date: 2024-03-28
+  Bugfixes:
+    - Revert to 1.6.0 before desync regression for Factorio <1.1.106.
+---------------------------------------------------------------------------------------------------
 Version: 1.6.3
+Date: 2024-03-28
   Bugfixes:
     - Fixed desync regression. Minimum required Factorio version bumped to 1.1.106.
 ---------------------------------------------------------------------------------------------------
 Version: 1.6.2
+Date: 2024-03-25
   Bugfixes:
     - Fixed a crash with belt from Anfilt's Belt Utilities mod.
 ---------------------------------------------------------------------------------------------------
 Version: 1.6.1
+Date: 2024-03-24
   Bugfixes:
     - Fixed a crash caused by interaction with Freight Forwarding mod.
     - Fixed regression with support for Bucket Wheel Excavators mod.
 ---------------------------------------------------------------------------------------------------
 Version: 1.6.0
+Date: 2024-03-24
   Features:
     - Simple, Compact, and Sparse layouts can now use even-sized mining drills. (2x2 and 4x4 drills work now)
     - Added button hiding for drill/belt/power/logistic choices. (Shift+Right-click on an icon)

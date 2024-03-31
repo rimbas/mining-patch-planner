@@ -70,10 +70,10 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 
 	local heuristic = self:_get_miner_placement_heuristic(state)
 	
-	local function miner_stagger(start_x, start_y, direction, row_start, mark_lane)
+	local function miner_stagger(start_x, start_y, direction, row_start)
 		local row_index = row_start
 		for y = 1 + shift_y + start_y, state.coords.th + 2, size * 3 + 1 do
-			if mark_lane then lane_layout[#lane_layout+1] = {y=y+1, row_index=row_index} end
+			if not lane_layout[row_index] then lane_layout[row_index] = {y=y, row_index=row_index} end
 			local ix = 1
 			for x = 1 + shift_x + start_x, state.coords.tw + 2, size * 2 do
 				local tile = grid:get_tile(x, y) --[[@as GridTile]]
@@ -103,12 +103,12 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 	end
 
 	miner_stagger(0, -2, "south", 1)
-	miner_stagger(3,  0, "east",  1, true)
+	miner_stagger(3,  0, "east",  1)
 	miner_stagger(0,  2, "north", 1)
 
 	-- the redundant calculation makes it easier to find the stagger offset
 	miner_stagger(0+size, -2+size+2, "south", 2)
-	miner_stagger(3-size,  0+size+2, "east",  2, true)
+	miner_stagger(3-size,  0+size+2, "east",  2)
 	miner_stagger(0+size,  2+size+2, "north", 2)
 
 	local result = {
@@ -233,7 +233,9 @@ function layout:prepare_belt_layout(state)
 	for _, miner in ipairs(attempt.miners) do
 		local index = miner.line
 		miner_lane_number = max(miner_lane_number, index)
-		if not belt_lanes[index] then belt_lanes[index] = {} end
+		if not belt_lanes[index] then
+			belt_lanes[index] = {y=miner.y, row_index=index}
+		end
 		local line = belt_lanes[index]
 		line._index = index
 		local out_x = m.output_rotated[defines.direction[miner.direction]][1]
