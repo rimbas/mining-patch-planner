@@ -52,6 +52,7 @@ layout.translation = {"", "[entity=transport-belt] ", {"mpp.settings_layout_choi
 
 layout.restrictions.miner_size = {0, 10e3}
 layout.restrictions.miner_radius = {0, 10e3}
+layout.restrictions.pole_zero_gap = true
 layout.restrictions.pole_omittable = true
 layout.restrictions.pole_width = {1, 1}
 layout.restrictions.pole_length = {5, 10e3}
@@ -98,11 +99,11 @@ end
 ---@param state SimpleState
 function layout:initialize(state)
 	base.initialize(self, state)
-	state.pole_gap =  state.pole.size
-	if state.pole_choice == "none_zero" then
+	if state.pole_choice == "zero_gap" then
 		state.pole_gap = 0
-	elseif state.pole_choice == "none_two" then
-		state.pole_gap = 2
+		state.lamp_choice = false
+	else
+		state.pole_gap =  state.pole.size
 	end
 end
 
@@ -355,7 +356,7 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 	local grid = state.grid
 	local M = state.miner
 	local size, area = M.size, M.area
-	local pole_gap = state.pole_gap
+	local pole_gap = (1 + state.pole_gap) / 2
 	local miners, postponed = {}, {}
 	local heuristic_values = common.init_heuristic_values()
 	local lane_layout = {}
@@ -364,7 +365,8 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 	local heuristic = self:_get_miner_placement_heuristic(state)
 
 	local row_index = 1
-	for y = shift_y, state.coords.th + size, size + pole_gap do
+	for float_y = shift_y, state.coords.th + size, size + pole_gap do
+		local y = ceil(float_y)
 		local column_index = 1
 		lane_layout[#lane_layout+1] = {y = y, row_index = row_index}
 		for x = shift_x, state.coords.tw + size+1, size do
@@ -804,12 +806,12 @@ function layout:prepare_belt_layout(state)
 	state.belts = belts
 	state.belt_count = 0
 	local longest_belt = 0
-	local pole_gap = state.pole_gap
+	local pole_gap = (1 + state.pole_gap) / 2
 	for i = 1, miner_lane_count, 2 do
 		local lane1 = miner_lanes[i]
 		local lane2 = miner_lanes[i+1]
 
-		local y = attempt.sy + m.size + (m.size + pole_gap) * (i-1)
+		local y = ceil(attempt.sy + m.size + (m.size + pole_gap) * (i-1))
 
 		local belt = {x1=attempt.sx + pipe_adjust, x2=attempt.sx, y=y, built=false, lane1=lane1, lane2=lane2}
 		belts[#belts+1] = belt
@@ -852,6 +854,8 @@ end
 ---@param state SimpleState
 ---@return CallbackState
 function layout:prepare_pole_layout(state)
+	local next_step ="prepare_lamp_layout"
+
 	local C, M, P, G = state.coords, state.miner, state.pole, state.grid
 	local attempt = state.best_attempt
 
@@ -861,6 +865,8 @@ function layout:prepare_pole_layout(state)
 	---@type PowerPoleGhostSpecification[]
 	local builder_power_poles = {}
 	state.builder_power_poles = builder_power_poles
+
+	if state.pole_gap == 0 then return next_step end
 
 	local coverage = mpp_util.calculate_pole_coverage(state, state.miner_max_column, state.miner_lane_count)
 
@@ -939,7 +945,7 @@ function layout:prepare_pole_layout(state)
 		}
 	end
 
-	return "prepare_lamp_layout"
+	return next_step
 end
 
 ---@param self SimpleLayout

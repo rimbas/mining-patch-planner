@@ -27,6 +27,14 @@ data:extend{
 	},
 	{
 		type = "sprite",
+		name = "mpp_no_entity_zero",
+		filename = graphics.."no-entity-zero.png",
+		size = 64,
+		mipmap_count = 3,
+		flags = { "icon" },
+	},
+	{
+		type = "sprite",
 		name = "mpp_plus",
 		filename = graphics.."plus.png",
 		size = 64,

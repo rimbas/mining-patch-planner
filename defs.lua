@@ -58,6 +58,7 @@
 ---@field uses_underground_belts boolean
 ---@field pole_available boolean
 ---@field pole_omittable boolean Allow a no electric pole option
+---@field pole_zero_gap boolean Allow a zero gap pole option
 ---@field pole_width number[]
 ---@field pole_length number[]
 ---@field pole_supply_area number[]

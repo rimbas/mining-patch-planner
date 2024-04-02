@@ -723,14 +723,24 @@ local function update_pole_selection(player_data)
 	if not restrictions.pole_available then return end
 
 	local values = {}
-	values[1] = {
+
+	if player_data.advanced and layout.restrictions.pole_zero_gap then
+		values[#values+1] = {
+			value="zero_gap",
+			tooltip={"mpp.choice_none_zero"},
+			icon="mpp_no_entity_zero",
+			order="",
+		}
+	end
+
+	values[#values+1] = {
 		value="none",
 		tooltip={"mpp.choice_none"},
 		icon="mpp_no_entity",
 		order="",
 	}
 
-	local existing_choice_is_valid = ("none" == choices.pole_choice)
+	local existing_choice_is_valid = ("none" == choices.pole_choice or (player_data.advanced and "zero_gap" == choices.pole_choice))
 	local poles = game.get_filtered_entity_prototypes{{filter="type", type="electric-pole"}}
 	for _, pole_proto in pairs(poles) do
 		if mpp_util.check_filtered(pole_proto) then goto skip_pole end

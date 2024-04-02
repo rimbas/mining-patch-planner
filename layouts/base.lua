@@ -26,6 +26,7 @@ layout.restrictions.belt_available = true
 layout.restrictions.uses_underground_belts = false
 layout.restrictions.pole_available = true
 layout.restrictions.pole_omittable = true
+layout.restrictions.pole_zero_gap = false
 layout.restrictions.pole_width = {1, 1}
 layout.restrictions.pole_length = {5, 10e3}
 layout.restrictions.pole_supply_area = {2.5, 10e3}

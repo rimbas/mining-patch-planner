@@ -51,12 +51,12 @@ function layout:prepare_belt_layout(state)
 
 	local belts = {}
 	state.builder_belts = belts
-
+	local pole_gap = (1 + state.pole_gap) / 2
 	for i = 1, miner_lane_number, 2 do
 		local lane1 = miner_lanes[i]
 		local lane2 = miner_lanes[i+1]
 
-		local y = attempt.sy - 1 + (m.size + 1) * i
+		local y = ceil(attempt.sy - 1 + (m.size + pole_gap) * i)
 		local x0 = attempt.sx
 		
 		local column_count = max(get_lane_column(lane1), get_lane_column(lane2))
