@@ -55,7 +55,7 @@ local entity_sections = {
 ---@field icon_enabled SpritePath?
 ---@field order string?
 ---@field default number? For "drop-down" element
----@field refresh boolean? Update selections?
+---@field refresh boolean? Update selections when clicked?
 ---@field filterable boolean? Can entity be hidden
 ---@field disabled boolean? Is button disabled
 
@@ -1076,6 +1076,8 @@ function gui.hide_interface(player)
 		frame.visible = false
 	end
 end
+
+-- TODO: refactor this into handlers
 
 ---@param event EventDataGuiClick
 local function on_gui_click(event)

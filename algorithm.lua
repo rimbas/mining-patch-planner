@@ -239,7 +239,7 @@ function algorithm.on_player_selected_area(event)
 
 		local old_resources = last_state.resources
 
-		local same = mpp_util.coords_overlap(coords, last_state.coords)
+		local same = mpp_util.coords_overlap(coords, last_state.coords) and last_state.surface == event.surface
 
 		-- if same then
 		-- 	for i, v in pairs(old_resources) do
