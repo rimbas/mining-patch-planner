@@ -167,13 +167,20 @@ function render_util.draw_drill_struct(player_data, event)
 		r = 0.3,
 	}
 
-	for _, pos in pairs(drill.output_rotated) do
+	for i, pos in pairs(drill.output_rotated) do
 		renderer.draw_cross{
 			x = fx1 + 0.5 + pos[1],
 			y = fy1 + 0.5 + pos[2],
 			r = 0.15,
 			width = 3,
 			c={0, 0, 0, .5},
+		}
+		renderer.draw_text{
+			target={fx1 + .5 + pos[1], fy1 + .5 + pos[2]},
+			text = i,
+			alignment = "center",
+			vertical_alignment="middle",
+			scale = 0.6,
 		}
 	end
 

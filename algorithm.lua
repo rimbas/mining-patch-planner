@@ -237,18 +237,7 @@ function algorithm.on_player_selected_area(event)
 	if last_state ~= nil then
 		local renderables = last_state._render_objects
 
-		local old_resources = last_state.resources
-
 		local same = mpp_util.coords_overlap(coords, last_state.coords) and last_state.surface == event.surface
-
-		-- if same then
-		-- 	for i, v in pairs(old_resources) do
-		-- 		if v ~= filtered[i] then
-		-- 			same = false
-		-- 			break
-		-- 		end
-		-- 	end
-		-- end
 
 		if same then
 			for _, id in ipairs(renderables) do

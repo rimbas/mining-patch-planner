@@ -212,9 +212,9 @@ function mpp_util.miner_struct(mining_drill_name)
 
 	local output_rotated = {
 		[NORTH] = {miner.out_x, miner.out_y},
+		[EAST] = {miner.size, miner.out_x},
 		[SOUTH] = {miner.size - miner.out_x - 1, miner.size },
-		[WEST] = {miner.size, miner.out_x},
-		[EAST] = {-1, miner.size - miner.out_x -1},
+		[WEST] = {-1, miner.size - miner.out_x -1},
 	}
 	output_rotated[NORTH].x, output_rotated[NORTH].y = output_rotated[NORTH][1], output_rotated[NORTH][2]
 	output_rotated[SOUTH].x, output_rotated[SOUTH].y = output_rotated[SOUTH][1], output_rotated[SOUTH][2]

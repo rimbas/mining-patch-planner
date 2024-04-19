@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.6.7
+Date: 2024-04-19
+  Bugfixes:
+    - Fixed belts not being placed in Blueprint layout with mining drills in east/west directions.
+---------------------------------------------------------------------------------------------------
 Version: 1.6.6
 Date: 2024-04-17
   Features:
