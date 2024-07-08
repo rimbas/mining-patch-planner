@@ -8,9 +8,6 @@ local bp_meta = require("mpp.blueprintmeta")
 local render_util = require("mpp.render_util")
 local mpp_util = require("mpp.mpp_util")
 
----@class __MiningPatchPlanner__global
----@field tasks any
-
 script.on_init(function()
 	global.players = {}
 	---@type State[]

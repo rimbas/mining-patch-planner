@@ -823,7 +823,7 @@ function layout:prepare_belt_layout_forward(state)
 				belt_grid:get_tile(x+next_x, y+next_y) --[[@as BpBeltPiece]],
 				piece
 			)
-		elseif piece.type == "underground-belt" then
+		elseif piece.type == "underground-belt" and piece.is_underground == "input" then
 			local underground_length = underground_belt_length_cache[piece.ent.name]
 			if not underground_length then
 				local proto = game.entity_prototypes[piece.ent.name]
@@ -833,10 +833,13 @@ function layout:prepare_belt_layout_forward(state)
 
 			for i = 1, underground_length do
 				local next_piece = belt_grid:get_tile(x+next_x*i, y+next_y*i) --[[@as BpBeltPiece]]
-				if next_piece then
+				if next_piece and next_piece.is_underground == "output" and next_piece.direction == piece.direction then
 					return traverse(next_piece, piece)
 				end
 			end
+		elseif piece.type == "underground-belt" then
+			local next_piece = belt_grid:get_tile(x+next_x, y+next_y) --[[@as BpBeltPiece]]
+			return traverse(next_piece, piece)
 		end
 
 		return traverse(
@@ -1073,6 +1076,7 @@ function layout:prepare_other(state)
 			grid_y = other.origin_y,
 			extent_w = struct.extent_w,
 			extent_h = struct.extent_h,
+			direction = other.direction,
 		}
 
 		::continue::

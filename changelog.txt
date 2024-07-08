@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.6.8
+Date: 2024-07-08
+  Bugfixes:
+    - Fixed missing underground belt placement in Blueprint layout.
+    - Fixed missing direction handling for other entities in Blueprint layout.
+---------------------------------------------------------------------------------------------------
 Version: 1.6.7
 Date: 2024-04-19
   Bugfixes:
