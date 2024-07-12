@@ -129,6 +129,7 @@ local function create_state(event)
 		-- state.blueprint = state.blueprint_inventory.find_empty_stack()
 		-- state.blueprint.set_stack(blueprint)
 		state.cache = player_data.blueprints.cache[blueprint.item_number]
+		state.miner_choice = state.cache.miner_name
 	end
 
 	return state
@@ -218,13 +219,6 @@ function algorithm.on_player_selected_area(event)
 		for resource, category in pairs(state.found_resources) do
 			if not layout_categories[category] then
 				local miner_name = game.entity_prototypes[state.miner_choice].localised_name
-				if layout.name == "blueprints" then
-					miner_name = {"mpp.choice_none"}
-					for k, v in pairs(state.cache.miners) do
-						miner_name = game.entity_prototypes[k].localised_name
-						break
-					end
-				end
 				local resource_name = game.entity_prototypes[resource].localised_name
 				return nil, {"", {"mpp.msg_miner_err_2_1"}, " \"", miner_name, "\" ", {"mpp.msg_miner_err_2_2"}, " \"", resource_name, "\""}
 			end

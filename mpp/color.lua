@@ -86,7 +86,7 @@ local function compute_max_saturation(a, b)
 	return S
 end
 
-function find_cusp(a, b)
+local function find_cusp(a, b)
 	-- First, find the maximum saturation (saturation S = C/L)
 	local S_cusp = compute_max_saturation(a, b);
 

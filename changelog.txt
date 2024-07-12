@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.6.9
+Date: 2024-07-12
+  Bugfixes:
+    - Fixed crash in Blueprint layout when selecting a resource the mining drills can't mine.
+---------------------------------------------------------------------------------------------------
 Version: 1.6.8
 Date: 2024-07-08
   Bugfixes:
