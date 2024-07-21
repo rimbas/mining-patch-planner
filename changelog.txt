@@ -3,6 +3,8 @@ Version: 1.6.10
 Date: 2024-07-21
   Features:
     - Added adjustable inserter support in Blueprints layout.
+  Bugfixes:
+    - Fixed wrong tooltip how to hide entities in GUI. (Shift+Right-click on an icon)
 ---------------------------------------------------------------------------------------------------
 Version: 1.6.9
 Date: 2024-07-12
