@@ -488,7 +488,6 @@ function mpp_util.inserter_hand_locations(ent)
 	return pickup, drop
 end
 
----comment
 ---@param x number
 ---@param y number
 ---@param dir defines.direction
@@ -496,13 +495,13 @@ end
 function mpp_util.rotate(x, y, dir)
 	dir = dir % ROTATION
 	if dir == EAST then
-		return -y, -x
-	elseif dir == SOUTH then
 		return -x, -y
+	elseif dir == SOUTH then
+		return y, -x
 	elseif dir == WEST then
-		return y, x
+		return x, y
 	end
-	return x, y
+	return -y, x
 end
 
 ---Calculates needed power pole count

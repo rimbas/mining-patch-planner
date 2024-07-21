@@ -1015,6 +1015,11 @@ local function update_debugging_selection(player_data)
 			tooltip="Draw entity placement checks",
 			icon=("item/blueprint"),
 		},
+		{
+			value="draw_inserter_rotation_preview",
+			tooltip="Draw inserter rotation preview",
+			icon=("item/inserter"),
+		},
 	}
 
 	local debugging_section = player_data.gui.section["debugging"]

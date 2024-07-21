@@ -45,11 +45,11 @@ function builder.create_entity_builder(state)
 
 		local pickup, drop = ghost.pickup_position, ghost.drop_position
 		if pickup then
-			local x, y = mpp_util.rotate(pickup.x, pickup.y, direction[DIR] - WEST)
+			local x, y = mpp_util.rotate(pickup.x, pickup.y, direction[DIR])
 			ghost.pickup_position = {x=x, y=y}
 		end
 		if drop then
-			local x, y = mpp_util.rotate(drop.x, drop.y, direction[DIR] - WEST)
+			local x, y = mpp_util.rotate(drop.x, drop.y, direction[DIR])
 			ghost.drop_position = {x=x, y=y}
 		end
 

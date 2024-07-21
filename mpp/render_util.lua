@@ -8,6 +8,8 @@ local EAST, NORTH, SOUTH, WEST = mpp_util.directions()
 
 local render_util = {}
 
+---@alias radian number
+
 ---@class RendererParams
 ---@field origin MapPosition?
 ---@field target MapPosition?
@@ -21,6 +23,8 @@ local render_util = {}
 ---@field c Color?
 ---@field left_top MapPosition?
 ---@field right_bottom MapPosition?
+---@field from MapPosition?
+---@field to MapPosition?
 
 ---this went off the rails
 ---@param event EventData.on_player_reverse_selected_area
@@ -118,10 +122,44 @@ function render_util.renderer(event)
 		})
 	end
 
+	local function vec2_length(x, y)
+		return (x * x + y * y) ^ 0.5
+	end
+
+	---@param x number
+	---@param y number
+	---@return number, number
+	local function vec2_normal(x, y)
+		local len = (x * x + y * y) ^ 0.5
+		return x / len, y / len
+	end
+
+	---@param x any
+	---@param y any
+	---@param angle radian
+	---@return number, number
+	local function vec2_rotate(x, y, angle)
+		local a = atan2(y, x) + angle
+		return cos(a), sin(a)
+	end
+
 	---Draws an arrow from A to B
 	---@param params RendererParams
 	function rendering_extension.draw_arrow(params)
+		local from = params.from --[[@as MapPosition]]
+		local to = params.to --[[@as MapPosition]]
+		local x1, y1, x2, y2 = from.x or from[1], from.y or from[2], to.x or to[1], to.y or to[2]
+		local len = vec2_length(x2-x1, y2-y1)
+		local nx, ny = vec2_normal(x2-x1, y2-y1)
+		local ax_1, ay_1 = vec2_rotate(nx, ny, rad(-90-45))
+		local ax_2, ay_2 = vec2_rotate(nx, ny, rad(90+45))
+		-- rendering.draw_circle(params, {origin=from, radius=0.2, color = {1, 1, 1}})
 		rendering.draw_line(params)
+		--rendering.draw_line(params, {from = to, to = {x2 + nx, y2 + ny}, width = 1, color = {0, 0, 0}})
+		local arr_w = params.width ^ 0.5 * 0.3
+		local back = 0.00390625 * 4 * params.width
+		rendering.draw_line(params, {from = {x2 - ax_1 * back, y2 - ay_1 * back},  to = {x2 + ax_1 * arr_w, y2 + ay_1 * arr_w}})--, width = 1, color = {1,0,0}})
+		rendering.draw_line(params, {from = to, to = {x2 + ax_2 * arr_w, y2 + ay_2 * arr_w}})--, width = 1, color = {0,0,1}})
 	end
 
 	local meta = {}
@@ -671,9 +709,8 @@ function render_util.draw_blueprint_data(player_data, event)
 				text = letter[ent.direction or NORTH], alignment = "center", vertical_alignment="middle",
 			}
 			renderer.draw_arrow{
-				x = fx1 + ent.position.x - .1,
-				y = fy1 + ent.position.y - .1,
-				w = pickup.x, h = pickup.y,
+				from = {fx1 + ent.position.x + pickup.x, fy1 + ent.position.y + pickup.y},
+				to = {fx1 + ent.position.x - .1, fy1 + ent.position.y - .1},
 				color = {1, 0, 0},
 			}
 			renderer.draw_text{
@@ -845,5 +882,74 @@ function render_util.draw_can_place_entity(player_data, event)
 
 end
 
+---@param player_data PlayerData
+---@param event EventData.on_player_reverse_selected_area
+function render_util.draw_inserter_rotation_preview(player_data, event)
+	local renderer = render_util.renderer(event)
+
+	local fx1, fy1 = event.area.left_top.x, event.area.left_top.y
+	fx1, fy1 = floor(fx1), floor(fy1)
+	local bx, by = fx1 + 0.5, fy1 + 0.5
+
+	-- for _angle = 0, 360, 15 do
+	-- 	local angle = -_angle + 180
+	-- 	local x, y = bx + (_angle % 75) / 3, by + floor(_angle / 75) * 3
+	-- 	renderer.draw_arrow{
+	-- 		from = {x , y}, to = {x + sin(rad(angle)), y + cos(rad(angle))}
+	-- 	}
+	-- end
+
+	-- if true then return nil end
+
+	local inserter = mpp_util.inserter_struct("inserter")
+	local letter = {[NORTH] = "N", [EAST] = "E", [SOUTH] = "S", [WEST] = "W"}
+
+	local step = 3
+
+	local i = 0
+	for dir, _ in pairs(inserter.drop_rotated) do
+		local x, y = bx + i * step, by - step
+		local x1, y1, x2, y2 = -1, 0, 1, 0
+		x1, y1 = mpp_util.rotate(x1, y1, dir)
+		x2, y2 = mpp_util.rotate(x2, y2, dir)
+		renderer.draw_arrow{from = {x+x1, y+y1}, to = {x+x2, y+y2}, width=5}
+		i = i + 1
+	end
+
+	local _y = 0
+	for action, rotations in pairs({drop = inserter.drop_rotated, pickup = inserter.pickup_rotated}) do
+		local _x = 0
+
+		renderer.draw_text{
+			x = bx - step, y = by + _y,
+			text = action,
+			alignment = "center",
+			vertical_alignment="middle",
+		}
+		for dir, rotation in pairs(rotations) do
+			local x, y = bx + _x, by + _y
+
+			renderer.draw_circle{x = x, y = y, r = 0.5}
+
+			local rx, ry = rotation.x, rotation.y
+
+			if action == "drop" then
+				renderer.draw_arrow{from = {x, y}, to = {x+rx, y+ry}}
+			else
+				renderer.draw_arrow{to = {x, y}, from = {x+rx, y+ry}}
+			end
+			renderer.draw_text{
+				x = x, y = y,
+				text = letter[dir or NORTH],
+				alignment = "center", vertical_alignment="middle",
+			}
+
+			_x = _x + step
+		end
+
+		_y = _y + step
+	end
+
+end
 
 return render_util
