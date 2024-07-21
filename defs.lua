@@ -55,6 +55,7 @@
 ---@field miner_size number[] Supported size of a mining drill
 ---@field miner_radius number[] Supported radius of mining drill
 ---@field belt_available boolean
+---@field belt_underground_length number
 ---@field uses_underground_belts boolean
 ---@field pole_available boolean
 ---@field pole_omittable boolean Allow a no electric pole option

@@ -403,7 +403,7 @@ function layout:collect_entities(state)
 					goto skip_ent
 				end
 				local entity_struct = mpp_util.entity_struct(ent_name)
-				local rx, ry, rw, rh = mpp_util.rotate_struct(entity_struct, ent.direction)
+				local rx, ry, rw, rh = mpp_util.transpose_struct(entity_struct, ent.direction)
 				local bpx = ceil(ent.position.x - rx)
 				local bpy = ceil(ent.position.y - ry)
 				local x, y = sx + ix * bpw + bpx, sy + iy * bph + bpy
@@ -562,10 +562,11 @@ function layout:prepare_inserter_layout(state)
 		local struct, out_x, out_y, in_x, in_y
 		if inserter.type == "inserter" then
 			struct = mpp_util.inserter_struct(inserter.name)
-			out_x = inserter.x + struct.drop_rotated[inserter.direction].x
-			out_y = inserter.y + struct.drop_rotated[inserter.direction].y
-			in_x = inserter.x + struct.pickup_rotated[inserter.direction].x
-			in_y = inserter.y + struct.pickup_rotated[inserter.direction].y
+			local pickup, drop = mpp_util.inserter_hand_locations(inserter.ent)
+			out_x = inserter.x + drop.x
+			out_y = inserter.y + drop.y
+			in_x = inserter.x + pickup.x
+			in_y = inserter.y + pickup.y
 		elseif inserter.type == "loader-1x1" then
 			struct = mpp_util.entity_struct(inserter.name)
 			local next_coord = direction_coord[inserter.direction]
@@ -647,6 +648,8 @@ function layout:prepare_inserter_layout(state)
 			filters = inserter.ent.filters, -- inserter
 			filter_mode = inserter.ent.filter_mode,
 			override_stack_size = inserter.ent.override_stack_size,
+			drop_position=inserter.ent.drop_position,
+			pickup_position=inserter.ent.pickup_position,
 		}
 
 		-- output_locations[#output_locations+1] = {

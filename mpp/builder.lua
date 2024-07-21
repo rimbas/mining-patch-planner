@@ -1,4 +1,6 @@
+local direction = defines.direction
 local mpp_util = require("mpp.mpp_util")
+local EAST, NORTH, SOUTH, WEST, ROTATION = mpp_util.directions()
 local coord_revert_world = mpp_util.revert_world
 local builder = {}
 
@@ -10,6 +12,8 @@ local builder = {}
 ---@field extent_h number? Object extent from origin, converted from radius if nil
 ---@field thing GridBuilding Enum for the grid
 ---@field items table<string, number>? Item requests
+---@field pickup_position MapPosition.0?
+---@field drop_position MapPosition.0?
 
 ---@class PowerPoleGhostSpecification : GhostSpecification
 ---@field no_light boolean
@@ -38,6 +42,16 @@ function builder.create_entity_builder(state)
 		ghost.name="entity-ghost"
 		ghost.position=coord_revert_world(gx, gy, DIR, ghost.grid_x, ghost.grid_y, tw, th)
 		ghost.direction=direction_conv[ghost.direction or defines.direction.north]
+
+		local pickup, drop = ghost.pickup_position, ghost.drop_position
+		if pickup then
+			local x, y = mpp_util.rotate(pickup.x, pickup.y, direction[DIR] - WEST)
+			ghost.pickup_position = {x=x, y=y}
+		end
+		if drop then
+			local x, y = mpp_util.rotate(drop.x, drop.y, direction[DIR] - WEST)
+			ghost.drop_position = {x=x, y=y}
+		end
 
 		--local can_place = surface.can_place_entity(ghost)
 		if check_allowed and not surface.can_place_entity{

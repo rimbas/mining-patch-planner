@@ -24,6 +24,7 @@ layout.restrictions.miner_size = {0, 10e3}
 layout.restrictions.miner_radius = {0, 10e3}
 layout.restrictions.belt_available = true
 layout.restrictions.uses_underground_belts = false
+layout.restrictions.belt_underground_length = 0
 layout.restrictions.pole_available = true
 layout.restrictions.pole_omittable = true
 layout.restrictions.pole_zero_gap = false

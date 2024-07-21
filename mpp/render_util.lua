@@ -1,8 +1,9 @@
 local mpp_util = require("mpp.mpp_util")
 local color = require("mpp.color")
 
-local floor, ceil = math.floor, math.ceil
-local min, max = math.min, math.max
+local floor, ceil, min, max, abs = math.floor, math.ceil, math.min, math.max, math.abs
+local sin, cos, asin, acos = math.sin, math.cos, math.asin, math.acos
+local rad, atan, atan2 = math.rad, math.atan, math.atan2
 local EAST, NORTH, SOUTH, WEST = mpp_util.directions()
 
 local render_util = {}
@@ -115,6 +116,12 @@ function render_util.renderer(event)
 			to={params.left_top[1], params.right_bottom[2]},
 			dash_offset = 0.5,
 		})
+	end
+
+	---Draws an arrow from A to B
+	---@param params RendererParams
+	function rendering_extension.draw_arrow(params)
+		rendering.draw_line(params)
 	end
 
 	local meta = {}
@@ -625,19 +632,66 @@ function render_util.draw_blueprint_data(player_data, event)
 	for _, ent in pairs(bp.entities) do
 		local struct = mpp_util.entity_struct(ent.name)
 		local clr = {1, 1, 1}
+		local capstone_text = ""
 		if ent.capstone_x and ent.capstone_y then
 			clr = {0, 1, 1}
+			capstone_text = "xy"
 		elseif ent.capstone_x then
 			clr = {0, 1, 0}
+			capstone_text = capstone_text .. "x"
 		elseif ent.capstone_y then
 			clr = {0, 0, 1}
+			capstone_text = capstone_text .. "y"
 		end
+		renderer.draw_text{
+			x = x + ent.position.x - 0.9,
+			y =  y + ent.position.y,
+			text = capstone_text, alignment = "left", vertical_alignment="bottom",
+			scale = 0.7,
+			color = {1, 1, 1},
+		}
 		renderer.draw_circle{
 			x = fx1 + ent.position.x,
 			y = fy1 + ent.position.y,
 			r = struct.size / 2,
 			color = clr,
 		}
+
+		if ent.name == "inserter" then
+			local pickup, drop = mpp_util.inserter_hand_locations(ent)
+			-- renderer.draw_circle{
+			-- 	x = fx1 + ent.position.x,
+			-- 	y = fy1 + ent.position.y,
+			-- 	r = 0.15,
+			-- 	filled = true,
+			-- }
+			local letter = {[NORTH] = "N", [EAST] = "E", [SOUTH] = "S", [WEST] = "W"}
+			renderer.draw_text{
+				x = fx1 + ent.position.x, y = fy1 + ent.position.y,
+				text = letter[ent.direction or NORTH], alignment = "center", vertical_alignment="middle",
+			}
+			renderer.draw_arrow{
+				x = fx1 + ent.position.x - .1,
+				y = fy1 + ent.position.y - .1,
+				w = pickup.x, h = pickup.y,
+				color = {1, 0, 0},
+			}
+			renderer.draw_text{
+				x = fx1 + ent.position.x - .1 + pickup.x,
+				y = fy1 + ent.position.y - .1 + pickup.y,
+				text = "P", alignment = "center", vertical_alignment="middle",
+			}
+
+			renderer.draw_arrow{
+				x = fx1 + ent.position.x + .1, y = fy1 + ent.position.y + .1,
+				w = drop.x, h = drop.y,
+				color = {1, 1, 0},
+			}
+			renderer.draw_text{
+				x = fx1 + ent.position.x + .1 + drop.x, y = fy1 + ent.position.y + .1 + drop.y,
+				text = "D", alignment = "center", vertical_alignment="middle",
+			}
+		end
 	end
 
 end

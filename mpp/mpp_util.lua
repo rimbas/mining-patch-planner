@@ -7,6 +7,7 @@ local EAST = defines.direction.east
 local NORTH = defines.direction.north
 local SOUTH = defines.direction.south
 local WEST = defines.direction.west
+local ROTATION = table_size(defines.direction)
 
 ---@alias DirectionString
 ---| "west"
@@ -131,7 +132,7 @@ end
 ---@param struct EntityStruct
 ---@param direction defines.direction
 ---@return number, number, number, number
-function mpp_util.rotate_struct(struct, direction)
+function mpp_util.transpose_struct(struct, direction)
 	if direction == NORTH or direction == SOUTH then
 		return struct.x, struct.y, struct.w, struct.h
 	end
@@ -466,6 +467,42 @@ function mpp_util.inserter_struct(inserter_name)
 
 	inserter_struct_cache[inserter_name] = inserter
 	return inserter
+end
+
+---@param ent BlueprintEntityEx
+---@return MapPosition.0, MapPosition.0
+function mpp_util.inserter_hand_locations(ent)
+	local inserter = mpp_util.inserter_struct(ent.name);
+	local pickup, drop = ent.pickup_position, ent.drop_position
+	if pickup then
+		pickup = {x = floor(pickup.x+.5), y = floor(pickup.y+.5)}
+	else
+		pickup = inserter.pickup_rotated[ent.direction or NORTH]
+	end
+	if drop then
+		drop = {x = floor(drop.x+.5), y = floor(drop.y+.5)}
+	else
+		drop = inserter.drop_rotated[ent.direction or NORTH]
+	end
+
+	return pickup, drop
+end
+
+---comment
+---@param x number
+---@param y number
+---@param dir defines.direction
+---@return number, number
+function mpp_util.rotate(x, y, dir)
+	dir = dir % ROTATION
+	if dir == EAST then
+		return -y, -x
+	elseif dir == SOUTH then
+		return -x, -y
+	elseif dir == WEST then
+		return y, x
+	end
+	return x, y
 end
 
 ---Calculates needed power pole count
