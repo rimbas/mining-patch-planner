@@ -219,11 +219,15 @@ function layout:process_grid(state)
 
 	local i = state.resource_iter or 1
 	while i <= #resources and cost < budget do
-		local ent = resources[i]
-		local x, y = ent.position.x - gx - .5, ent.position.y - gy - .5
-		local tx, ty = conv(x, y, c.w, c.h)
+		local ent = resources[i] --[[@as LuaEntity]]
+		local x, y, tx, ty, tile
+		if ent == nil or not ent.valid then
+			goto skip_resource
+		end
+		x, y = ent.position.x - gx - .5, ent.position.y - gy - .5
+		tx, ty = conv(x, y, c.w, c.h)
 		tx, ty = floor(tx + 1), floor(ty + 1)
-		local tile = grid:get_tile(tx, ty) --[[@as GridTile]]
+		tile = grid:get_tile(tx, ty) --[[@as GridTile]]
 		tile.amount = ent.amount
 		--[[
 			TODO: don't do outer convolution for large area drills
@@ -237,6 +241,7 @@ function layout:process_grid(state)
 		end
 		grid:convolve_outer(tx-extent_positive, ty-extent_positive, area, tile.amount)
 		table_insert(resource_tiles, tile)
+		::skip_resource::
 		cost = cost + price
 		i = i + 1
 	end

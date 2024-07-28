@@ -1,6 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.6.11
+Date: 2024-07-28
+  Bugfixes:
+    - Fixed a crash when selecting a resource patch with existing working mining drill setup.
+---------------------------------------------------------------------------------------------------
 Version: 1.6.10
-Date: 2024-07-21
+Date: 2024-07-26
   Features:
     - Added adjustable inserter support in Blueprints layout.
   Bugfixes:
