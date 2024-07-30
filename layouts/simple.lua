@@ -312,6 +312,7 @@ end
 ---@field tile GridTile Top left tile
 ---@field line number lane index
 ---@field column number column index
+---@field direction? defines.direction
 
 ---@class MinerPlacement : MinerPlacementInit
 ---@field stagger number Super compact layout stagger index
@@ -593,6 +594,7 @@ function layout:prepare_miner_layout(state)
 		-- used for deconstruction, not ghost placement
 		-- TODO: fix rotation
 		--local build_x, build_y = miner.x + M.x, miner.y + M.y
+
 		builder_miners[#builder_miners+1] = {
 			thing="miner",
 			grid_x = miner.origin_x,
@@ -1095,7 +1097,7 @@ end
 function layout:placement_belts(state)
 	local create_entity = builder.create_entity_builder(state)
 
-	for _, belt in ipairs(state.builder_belts) do
+	for _, belt in ipairs(state.builder_belts or {}) do
 		create_entity(belt)
 	end
 
@@ -1111,7 +1113,7 @@ function layout:placement_poles(state)
 
 	local create_entity = builder.create_entity_builder(state)
 
-	for  _, pole in ipairs(state.builder_power_poles) do
+	for  _, pole in ipairs(state.builder_power_poles or {}) do
 		local ghost = create_entity(pole)
 		--ghost.disconnect_neighbour()
 		--pole.ghost = ghost
