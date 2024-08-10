@@ -1,6 +1,8 @@
 ---------------------------------------------------------------------------------------------------
 Version: 1.6.11
 Date: 2024-07-28
+  Features:
+    - Implemented additive selecting. Shift + Left-click to add to selection. 
   Bugfixes:
     - Fixed a crash when selecting a resource patch with existing working mining drill setup.
     - Fixed a missing defaults check with zero pole gap advanced option in Simple layout.

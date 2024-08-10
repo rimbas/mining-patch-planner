@@ -4,6 +4,8 @@ local table_insert = table.insert
 local list_mt = {}
 list_mt.__index = list_mt
 
+script.register_metatable("List", list_mt)
+
 function list_mt:push(value)
 	table_insert(self, value)
 	return self

@@ -3,7 +3,7 @@ local conf = require("configuration")
 local compatibility = require("mpp.compatibility")
 require("migration")
 algorithm = require("algorithm")
-local gui = require("gui")
+local gui = require("gui.gui")
 local bp_meta = require("mpp.blueprintmeta")
 local render_util = require("mpp.render_util")
 local mpp_util = require("mpp.mpp_util")
@@ -102,7 +102,7 @@ script.on_event(defines.events.on_player_selected_area, function(event)
 	if not player then return end
 	local cursor_stack = player.cursor_stack
 	if not cursor_stack or not cursor_stack.valid or not cursor_stack.valid_for_read then return end
-	if cursor_stack and cursor_stack.valid and cursor_stack.valid_for_read and cursor_stack.name ~= "mining-patch-planner" then return end
+	if cursor_stack.name ~= "mining-patch-planner" then return end
 
 	if #event.entities == 0 then return end
 
@@ -124,7 +124,27 @@ script.on_event(defines.events.on_player_selected_area, function(event)
 	end
 end)
 
+script.on_event(defines.events.on_player_alt_selected_area, function(event)
+	---@cast event EventData.on_player_alt_selected_area
+	local player = game.get_player(event.player_index)
+	if not player then return end
+	local cursor_stack = player.cursor_stack
+	if not cursor_stack or not cursor_stack.valid or not cursor_stack.valid_for_read then return end
+	if cursor_stack.name ~= "mining-patch-planner" then return end
+
+	if not __DebugAdapter then
+		algorithm.on_player_alt_selected_area(event)
+	else
+		local success
+		success, err = pcall(algorithm.on_player_alt_selected_area, event)
+		if success == false then
+			game.print(err)
+		end
+	end
+end)
+
 script.on_event(defines.events.on_player_alt_reverse_selected_area, function(event)
+	---@cast event EventData.on_player_alt_reverse_selected_area
 	if not __DebugAdapter then return end
 
 	local player = game.get_player(event.player_index)
@@ -216,6 +236,7 @@ local function cursor_stack_check(e)
 		end
 		gui.hide_interface(player)
 		algorithm.on_gui_close(player_data)
+		algorithm.clear_selection(player_data)
 	end
 end
 

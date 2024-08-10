@@ -267,6 +267,22 @@ data:extend{
 	},
 	{
 		type = "sprite",
+		name = "mpp_ore_filtering_enabled",
+		filename = graphics.."ore_filtering_enabled.png",
+		size = 64,
+		mipmap_count = 1,
+		flags = { "icon" },
+	},
+	{
+		type = "sprite",
+		name = "mpp_ore_filtering_disabled",
+		filename = graphics.."ore_filtering_disabled.png",
+		size = 64,
+		mipmap_count = 1,
+		flags = { "icon" },
+	},
+	{
+		type = "sprite",
 		name = "mpp_tooltip_category_size",
 		filename = graphics.."tooltip-category-size.png",
 		priority = "extra-high-no-scale",

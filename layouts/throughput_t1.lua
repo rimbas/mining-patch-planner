@@ -15,7 +15,7 @@ local layout = table.deepcopy(base)
 ---@class ThroughputState : SuperCompactState
 
 layout.name = "throughput_t1"
-layout.translation = {"", "[entity=productivity-module] ", {"mpp.settings_layout_choice_throughput_t1"}}
+layout.translation = {"", "[item=productivity-module] ", {"mpp.settings_layout_choice_throughput_t1"}}
 
 layout.restrictions.miner_size = {3, 10e3}
 layout.restrictions.miner_radius = {1, 10e3}

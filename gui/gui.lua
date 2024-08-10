@@ -789,6 +789,13 @@ local function update_misc_selection(player)
 	---@type SettingValueEntry[]
 	local values = {}
 
+	values[#values+1] = {
+		value="ore_filtering",
+		tooltip={"mpp.choice_ore_filtering"},
+		icon=("mpp_ore_filtering_disabled"),
+		icon_enabled=("mpp_ore_filtering_enabled"),
+	}
+
 	if layout.restrictions.module_available then
 		---@type string|nil
 		local existing_choice = choices.module_choice
@@ -1120,7 +1127,12 @@ local function on_gui_click(event)
 
 		local action = evt_ele_tags["mpp_action"]
 		local value = evt_ele_tags["value"]
-		local last_value = player_data.choices[action.."_choice"]
+		local choice = action.."_choice"
+		local last_value = player_data.choices[choice]
+
+		if choice == "miner_choice" or choice == "blueprint_choice" then
+			algorithm.clear_selection(player_data)
+		end
 
 		if player_data.gui.selections[action][last_value] then
 			player_data.gui.selections[action][last_value].style = style_helper_selection(false)
@@ -1154,7 +1166,7 @@ local function on_gui_click(event)
 		end
 		
 		event.element.style = style_helper_selection(true)
-		player_data.choices[action.."_choice"] = value
+		player_data.choices[choice] = value
 		update_selections(player)
 	elseif evt_ele_tags["mpp_toggle"] then
 		abort_blueprint_mode(player)
@@ -1267,7 +1279,11 @@ local function on_gui_selection_state_changed(event)
 
 		local action = event.element.tags["mpp_drop_down"]
 		local value = layouts[event.element.selected_index].name
-		player_data.choices.layout_choice = value
+		player_data.choices[action.."_choice"] = value
+
+		if action == "layout" then
+			algorithm.clear_selection(player_data)
+		end
 		update_selections(player)
 	end
 end

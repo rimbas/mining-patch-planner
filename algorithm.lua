@@ -4,6 +4,7 @@ local compatibility = require("mpp.compatibility")
 
 local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
+local table_insert = table.insert
 
 local algorithm = {}
 
@@ -184,14 +185,34 @@ local function process_entities(entities, available_resource_categories)
 	return coords, filtered, found_resources, requires_fluid, resource_counts
 end
 
----@param state State
----@param layout Layout
-local function get_miner_categories(state, layout)
-	if layout.name == "blueprints" then
-		return state.cache:get_resource_categories()
+---@param player_data PlayerData
+---@return table<string, true>
+local function get_miner_categories(player_data)
+	if player_data.choices.layout_choice == "blueprints" then
+		return player_data.blueprints.cache[player_data.choices.blueprint_choice.item_number]:get_resource_categories()
 	else
-		return game.entity_prototypes[state.miner_choice].resource_categories or {}
+		return game.entity_prototypes[player_data.choices.miner_choice].resource_categories or {}
 	end
+end
+
+---@param resources LuaEntity[]
+---@param cache table<number, table<number, true>>
+---@return LuaEntity[]
+local function find_new_resources(resources, cache)
+	local new = {}
+	for _, resource in pairs(resources) do
+		local pos = resource.position
+		local x, y = floor(pos.x), floor(pos.y)
+		local row = cache[y]
+		if row == nil then
+			cache[y] = {[x] = true}
+			table_insert(new, resource)
+		elseif row[x] == nil then
+			row[x] = true
+			table_insert(new, resource)
+		end
+	end
+	return new
 end
 
 --- Algorithm hook
@@ -208,8 +229,17 @@ function algorithm.on_player_selected_area(event)
 		return nil, {"mpp.msg_miner_err_3"}
 	end
 
-	local layout_categories = get_miner_categories(state, layout)
-	local coords, filtered, found_resources, requires_fluid, resource_counts = process_entities(event.entities, layout_categories)
+	local collected_resources = player_data.selection_collection
+
+	local new = find_new_resources(event.entities, player_data.selection_cache)
+
+	for _, resource in pairs(new) do
+		table_insert(collected_resources, resource)
+	end
+	algorithm.clear_selection(player_data)
+
+	local layout_categories = get_miner_categories(player_data)
+	local coords, filtered, found_resources, requires_fluid, resource_counts = process_entities(collected_resources, layout_categories)
 	state.coords = coords
 	state.resources = filtered
 	state.found_resources = found_resources
@@ -271,6 +301,36 @@ function algorithm.on_player_selected_area(event)
 	else
 		return nil, error
 	end
+end
+
+function algorithm.on_player_alt_selected_area(event)
+	---@type PlayerData
+	local player_data = global.players[event.player_index]
+
+	local selection_collection = player_data.selection_collection
+	local selection_render = player_data.selection_render
+
+	local layout_categories = get_miner_categories(player_data)
+
+	local coords, filtered, found_resources, requires_fluid, resource_counts = process_entities(event.entities, layout_categories)
+
+	local new = find_new_resources(filtered, player_data.selection_cache)
+
+	for _, resource in pairs(new) do
+		local pos = resource.position
+		local square = rendering.draw_rectangle{
+			left_top = {pos.x-.5, pos.y-.5},
+			right_bottom = {pos.x+.5, pos.y+.5},
+			color = {0, 0, 0.3, .3},
+			players = {event.player_index},
+			surface = event.surface,
+			filled = true,
+			draw_on_ground = true,
+		}
+		table_insert(selection_render, square)
+		table_insert(selection_collection, resource)
+	end
+
 end
 
 ---Sets renderables timeout
@@ -338,6 +398,16 @@ function algorithm.cleanup_last_state(player_data)
 	mpp_util.update_undo_button(player_data)
 
 	player_data.last_state = nil
+end
+
+---@param player_data PlayerData
+function algorithm.clear_selection(player_data)
+	for k, v in pairs(player_data.selection_render or {}) do
+		rendering.destroy(v)
+	end
+	player_data.selection_render = {}
+	player_data.selection_collection = {}
+	player_data.selection_cache = {}
 end
 
 return algorithm
