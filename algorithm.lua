@@ -67,6 +67,7 @@ require_layout("blueprints")
 ---@field display_lane_filling_choice boolean
 ---@field ore_filtering_choice boolean
 ---@field ore_filtering_selected string?
+---@field balancer_choice boolean
 ---
 ---@field grid Grid
 ---@field deconstruct_specification DeconstructSpecification

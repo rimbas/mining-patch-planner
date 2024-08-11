@@ -337,13 +337,17 @@ end
 ---@field miners MinerPlacement[]
 ---@field heuristic_score number
 ---@field unconsumed number
----@field lane_layout LaneInfo
+---@field lane_layout LaneInfo[]
 ---@field bx number Lower right mining drill bound
 ---@field by number Lower right mining drill bound
 
 ---@class LaneInfo
 ---@field y number
 ---@field row_index number
+---@field first_x number?
+---@field last_x number?
+---@field [number] MinerPlacement
+---@field last_miner MinerPlacement?
 
 function layout:_get_miner_placement_heuristic(state)
 	if state.coverage_choice then

@@ -270,7 +270,7 @@ data:extend{
 		name = "mpp_ore_filtering_enabled",
 		filename = graphics.."ore_filtering_enabled.png",
 		size = 64,
-		mipmap_count = 1,
+		mipmap_count = 0,
 		flags = { "icon" },
 	},
 	{
@@ -278,7 +278,15 @@ data:extend{
 		name = "mpp_ore_filtering_disabled",
 		filename = graphics.."ore_filtering_disabled.png",
 		size = 64,
-		mipmap_count = 1,
+		mipmap_count = 0,
+		flags = { "icon" },
+	},
+	{
+		type = "sprite",
+		name = "mpp_balancer",
+		filename = graphics.."balancer.png",
+		size = 64,
+		mipmap_count = 0,
 		flags = { "icon" },
 	},
 	{

@@ -40,6 +40,7 @@ local conf = {}
 ---@field dumb_power_connectivity_choice boolean
 ---@field debugging_choice string Debugging only value
 ---@field ore_filtering_choice boolean
+---@field balancer_choice boolean
 
 ---@class PlayerGui
 ---@field section table<MppSettingSections, LuaGuiElement>
@@ -99,6 +100,7 @@ conf.default_config = {
 		dumb_power_connectivity_choice = false,
 		debugging_choice = "none",
 		ore_filtering_choice = false,
+		balancer_choice = false,
 
 		-- non layout/convienence/advanced settings
 		show_non_electric_miners_choice = false,
