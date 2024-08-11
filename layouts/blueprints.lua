@@ -284,7 +284,9 @@ function layout:_placement_attempt(state, attempt)
 					direction = ent.direction,
 					name = ent.name,
 				}
-				if heuristic(tile) then
+				if tile.forbidden then
+					-- no op
+				elseif heuristic(tile) then
 					miners[#miners+1] = struct
 					common.add_heuristic_values(heuristic_values, M, tile)
 				else

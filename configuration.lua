@@ -13,7 +13,7 @@ local conf = {}
 ---@field filtered_entities table<string, true>
 ---@field tick_expires integer When was gui closed, for undo button disabling
 ---@field selection_collection LuaEntity[] Selected resources
----@field selection_cache table<number, table<number, true>> Resource cache structure
+---@field selection_cache table<number, table<number, true>> Acceleration structure
 ---@field selection_render integer[] Selection overlay
 
 ---@class PlayerChoices
@@ -39,7 +39,7 @@ local conf = {}
 ---@field display_lane_filling_choice boolean
 ---@field dumb_power_connectivity_choice boolean
 ---@field debugging_choice string Debugging only value
----@field ore_filtering boolean
+---@field ore_filtering_choice boolean
 
 ---@class PlayerGui
 ---@field section table<MppSettingSections, LuaGuiElement>
@@ -98,7 +98,7 @@ conf.default_config = {
 		blueprint_choice = nil,
 		dumb_power_connectivity_choice = false,
 		debugging_choice = "none",
-		ore_filtering = false,
+		ore_filtering_choice = false,
 
 		-- non layout/convienence/advanced settings
 		show_non_electric_miners_choice = false,

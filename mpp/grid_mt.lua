@@ -144,6 +144,24 @@ function grid_mt:convolve_outer(ox, oy, size, amount)
 	end
 end
 
+function grid_mt:forbid(ox, oy, size)
+	local nx1, nx2 = ox, ox+size - 1
+	local ny1, ny2 = oy, oy+size - 1
+
+	for y = ny1, ny2 do
+		---@type table<number, GridTile>
+		local row = self[y]
+		if row == nil then goto continue_row end
+		for x = nx1, nx2 do
+			local tile = row[x]
+			if tile then
+				tile.forbidden = true
+			end
+		end
+		::continue_row::
+	end
+end
+
 ---@param ox number
 ---@param oy number
 ---@param drill MinerStruct

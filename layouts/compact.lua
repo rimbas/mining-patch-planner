@@ -59,7 +59,9 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 				line = row_index,
 				column = column_index,
 			}
-			if tile.neighbors_outer > 0 and heuristic(tile) then
+			if tile.forbidden then
+				-- no op
+			elseif tile.neighbors_outer > 0 and heuristic(tile) then
 				miners[#miners+1] = miner
 				common.add_heuristic_values(heuristic_values, M, tile)
 			elseif tile.neighbors_outer > 0 then

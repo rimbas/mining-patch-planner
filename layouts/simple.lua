@@ -236,10 +236,15 @@ function layout:process_grid(state)
 		]]
 		--grid:convolve_miner(tx-size+1, ty-size+1, m)
 
-		if not m.oversized then
-			grid:convolve_inner(tx-size+1, ty-size+1, size)
+		if state.ore_filtering_choice and state.ore_filtering_selected ~= ent.name then
+			grid:forbid(tx-extent_positive, ty-extent_positive, area)
+		else
+			if not m.oversized then
+				grid:convolve_inner(tx-size+1, ty-size+1, size)
+			end
+			grid:convolve_outer(tx-extent_positive, ty-extent_positive, area, tile.amount)
 		end
-		grid:convolve_outer(tx-extent_positive, ty-extent_positive, area, tile.amount)
+
 		table_insert(resource_tiles, tile)
 		::skip_resource::
 		cost = cost + price
@@ -387,7 +392,9 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 				line = row_index,
 				column = column_index,
 			}
-			if tile.neighbors_outer > 0 and heuristic(tile) then
+			if tile.forbidden then
+				-- no op
+			elseif tile.neighbors_outer > 0 and heuristic(tile) then
 				miners[#miners+1] = miner
 				common.add_heuristic_values(heuristic_values, M, tile)
 			elseif tile.neighbors_outer > 0 then

@@ -55,7 +55,9 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 				column = column_index,
 				direction = row_index % 2 == 1 and SOUTH or NORTH
 			}
-			if tile.neighbors_outer > 0 then
+			if tile.forbidden then
+				-- no op
+			elseif tile.neighbors_outer > 0 then
 				miners[#miners+1] = miner
 			end
 			column_index = column_index + 1
@@ -161,7 +163,7 @@ function layout:layout_attempt(state)
 	local current_attempt = self:_placement_attempt(state, attempt_state[1], attempt_state[2])
 	local current_attempt_score = #current_attempt.miners
 
-	if current_attempt_score < state.best_attempt_score  then
+	if current_attempt_score < state.best_attempt_score or current_attempt.unconsumed < state.best_attempt.unconsumed then
 		state.best_attempt_index = state.attempt_index
 		state.best_attempt = current_attempt
 		state.best_attempt_score = current_attempt_score

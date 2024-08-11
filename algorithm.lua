@@ -65,6 +65,8 @@ require_layout("blueprints")
 ---@field force_pipe_placement_choice boolean
 ---@field print_placement_info_choice boolean
 ---@field display_lane_filling_choice boolean
+---@field ore_filtering_choice boolean
+---@field ore_filtering_selected string?
 ---
 ---@field grid Grid
 ---@field deconstruct_specification DeconstructSpecification
@@ -95,6 +97,7 @@ local function create_state(event)
 	state._collected_ghosts = {}
 	state._render_objects = {}
 	state._lane_info_rendering = {}
+	
 
 	---@type PlayerData
 	local player_data = global.players[event.player_index]
@@ -120,6 +123,8 @@ local function create_state(event)
 		state.belt_choice = state.space_belt_choice
 	end
 
+	-- if state.filt
+
 	state.debug_dump = mpp_util.get_dump_state(event.player_index)
 
 	if state.layout_choice == "blueprints" then
@@ -143,22 +148,16 @@ end
 ---@return Coords @bounds of found resources
 ---@return LuaEntity[] @Filtered entities
 ---@return table<string, string> @key:resource name; value:resource category
----@return boolean @requires fluid
----@return table<string, number> @resource counts table
+---@return {name: string, count: number}[] @resource counts table
 local function process_entities(entities, available_resource_categories)
 	local filtered, found_resources, counts = {}, {}, {}
 	local x1, y1 = math.huge, math.huge
 	local x2, y2 = -math.huge, -math.huge
 	local _, cached_resource_categories = enums.get_available_miners()
-	local checked, requires_fluid = {}, false
 	for _, entity in pairs(entities) do
 		local name, proto = entity.name, entity.prototype
 		local category = proto.resource_category
 
-		if not checked[name] then
-			checked[name] = true
-			if proto.mineable_properties.required_fluid then requires_fluid = true end
-		end
 		found_resources[name] = category
 		if cached_resource_categories[category] and available_resource_categories[category] then
 			counts[name] = 1 + (counts[name] or 0)
@@ -182,7 +181,7 @@ local function process_entities(entities, available_resource_categories)
 		gx = x1 - 1, gy = y1 - 1,
 	}
 	coords.w, coords.h = coords.ix2 - coords.ix1, coords.iy2 - coords.iy1
-	return coords, filtered, found_resources, requires_fluid, resource_counts
+	return coords, filtered, found_resources, resource_counts
 end
 
 ---@param player_data PlayerData
@@ -239,11 +238,11 @@ function algorithm.on_player_selected_area(event)
 	algorithm.clear_selection(player_data)
 
 	local layout_categories = get_miner_categories(player_data)
-	local coords, filtered, found_resources, requires_fluid, resource_counts = process_entities(collected_resources, layout_categories)
+	local coords, filtered, found_resources, resource_counts = process_entities(collected_resources, layout_categories)
 	state.coords = coords
 	state.resources = filtered
 	state.found_resources = found_resources
-	state.requires_fluid = requires_fluid
+	state.requires_fluid = false
 	state.resource_counts = resource_counts
 
 	if #state.resources == 0 then
@@ -256,6 +255,37 @@ function algorithm.on_player_selected_area(event)
 		end
 
 		return nil, {"mpp.msg_miner_err_0"}
+	end
+
+	if state.ore_filtering_choice then -- determine filtered ore
+		local current_resource = event.entities[1].name
+		local homogenous_selection = true
+
+		for _, ent in pairs(event.entities) do
+			if ent.name ~= current_resource then
+				homogenous_selection = false
+				break
+			end
+		end
+
+		if homogenous_selection then
+			state.ore_filtering_selected = current_resource
+		else
+			state.ore_filtering_selected = resource_counts[1].name
+		end
+	end
+
+	if state.ore_filtering_selected then
+		local proto = game.entity_prototypes[state.ore_filtering_selected]
+		state.requires_fluid = not not proto.mineable_properties.required_fluid
+	else
+		for _, t in pairs(resource_counts) do
+			local proto = game.entity_prototypes[t.name]
+			if proto.mineable_properties.required_fluid then
+				state.requires_fluid = true
+				break
+			end
+		end
 	end
 
 	local last_state = player_data.last_state --[[@as MininimumPreservedState]]
@@ -312,7 +342,7 @@ function algorithm.on_player_alt_selected_area(event)
 
 	local layout_categories = get_miner_categories(player_data)
 
-	local coords, filtered, found_resources, requires_fluid, resource_counts = process_entities(event.entities, layout_categories)
+	local coords, filtered, found_resources, resource_counts = process_entities(event.entities, layout_categories)
 
 	local new = find_new_resources(filtered, player_data.selection_cache)
 
