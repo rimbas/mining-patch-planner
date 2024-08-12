@@ -1,8 +1,8 @@
 ---------------------------------------------------------------------------------------------------
 Version: 1.6.11
-Date: 2024-08-11
+Date: 2024-08-12
   Features:
-    - Added additive resource selection. Shift+Left-click to add to selection. Left-click to create a layout with the composed selection.
+    - Added additive resource selection. Shift+Left-click to create/add to selection. Left-click to create a layout with the composed selection.
     - Added filtered coverage option. Mining drills cover only the most abundant resource.
       In additive mode filters for the single type of resource picked in the final selection.
   Bugfixes:
