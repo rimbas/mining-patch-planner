@@ -19,11 +19,11 @@ local function reset_gui(player)
 end
 
 script.on_configuration_changed(function(config_changed_data)
-	local version = global.version or 0
+	local version = storage.version or 0
 	if config_changed_data.mod_changes["mining-patch-planner"] and version < current_version then
-		global.tasks = global.tasks or {}
+		storage.tasks = storage.tasks or {}
 		conf.initialize_deconstruction_filter()
-		for player_index, data in pairs(global.players) do
+		for player_index, data in pairs(storage.players) do
 			---@cast data PlayerData
 			local player = game.players[player_index]
 			reset_gui(player)
@@ -31,7 +31,7 @@ script.on_configuration_changed(function(config_changed_data)
 			conf.update_player_data(player_index)
 		end
 	else
-		for player_index, data in pairs(global.players) do
+		for player_index, data in pairs(storage.players) do
 			reset_gui(game.players[player_index])
 		end
 	end
@@ -41,7 +41,7 @@ script.on_configuration_changed(function(config_changed_data)
 	end
 
 	if version < 010600 then
-		for player_index, data in pairs(global.players) do
+		for player_index, data in pairs(storage.players) do
 			---@cast data PlayerData
 			local blueprints = data.blueprints
 			local bp_inventory = data.blueprint_items
@@ -65,5 +65,5 @@ script.on_configuration_changed(function(config_changed_data)
 		end
 	end
 
-	global.version = current_version
+	storage.version = current_version
 end)

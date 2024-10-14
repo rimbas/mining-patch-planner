@@ -1,5 +1,6 @@
 local mpp_util = require("mpp.mpp_util")
 local color = require("mpp.color")
+local cliffs = require("mpp.cliffs")
 
 local floor, ceil, min, max, abs = math.floor, math.ceil, math.min, math.max, math.abs
 local sin, cos, asin, acos = math.sin, math.cos, math.asin, math.acos
@@ -510,6 +511,22 @@ function render_util.draw_built_things(player_data, event)
 					scale = 0.6,
 				}
 			end
+			if tile.avoid then
+				renderer.draw_circle{
+					x = C.ix1 + tile.x -.9, y = C.iy1 + tile.y -.9,
+					r = 0.10,
+					filled = true,
+					color = {1, 0.2, 0, 0.1},
+				}
+			end
+			if tile.forbidden then
+				renderer.draw_circle{
+					x = C.ix1 + tile.x -.7, y = C.iy1 + tile.y -.9,
+					r = 0.10,
+					filled = true,
+					color = {0, 0, 0},
+				}
+			end
 		end
 	end
 
@@ -951,5 +968,113 @@ function render_util.draw_inserter_rotation_preview(player_data, event)
 	end
 
 end
+
+---@param player_data PlayerData
+---@param event EventData.on_player_reverse_selected_area
+function render_util.draw_cliff_collisions(player_data, event)
+	local S = event.surface
+	local renderer = render_util.renderer(event)
+
+	rendering.clear("mining-patch-planner")
+	
+	local fx1, fy1 = event.area.left_top.x, event.area.left_top.y
+	fx1, fy1 = floor(fx1), floor(fy1)
+	local bx, by = fx1 + 0.5, fy1 + 0.5
+	
+	local ents = event.surface.find_entities{
+		left_top = event.area.left_top,
+		right_bottom = event.area.right_bottom,
+		type = "cliff",
+	}
+	
+	for _, ent in ipairs(ents) do
+		if ent.type ~= "cliff" then goto continue end
+		local x, y = ent.position.x, ent.position.y
+		local fx, fy = floor(x), floor(y)
+		rendering.draw_circle{
+			surface = S,
+			target = ent.position,
+			filled = false,
+			radius = 0.12,
+			width = 1,
+			color = {1, 1, 1},
+		}
+		rendering.draw_circle{
+			surface = S,
+			target = ent.position,
+			filled = true,
+			radius = 0.05,
+			color = {1, 1, 1},
+		}
+		rendering.draw_circle{
+			surface = S,
+			target = {fx+.5, fy+.5},
+			filled = true,
+			radius = 0.1,
+			color = {0, .8, 0},
+		}
+		
+		local shift_y = 0.35
+		rendering.draw_text{
+			surface = S,
+			target = {x, y-3+shift_y*0},
+			text = "cliff.prototype"..serpent.line(ent.prototype.collision_box),
+			color = {1, 1, 1},
+			alignment = "center",
+			scale = 0.5,
+		}
+		rendering.draw_text{
+			surface = S,
+			target = {x, y-4+shift_y*1},
+			text = ent.name,
+			color = {1, 1, 1},
+			alignment = "center",
+			scale = 0.5,
+		}
+		rendering.draw_text{
+			surface = S,
+			target = {x, y-3+shift_y*2},
+			text = "cliff.cliff_orientation = "..ent.cliff_orientation,
+			color = {1, 1, 1},
+			alignment = "center",
+			scale = 0.5,
+		}
+		
+		local collision_box = cliffs.cliff_data[ent.cliff_orientation]
+		
+		renderer.draw_circle{
+			target = {x + collision_box[1][1], y + collision_box[1][2]},
+			color = {0, 1, 1},
+			radius = .1,
+			filled = true,
+		}
+		renderer.draw_circle{
+			target = {x + collision_box[2][1], y + collision_box[2][2]},
+			color = {0, 1, 1},
+			radius = .1,
+			filled = true,
+		}
+		
+		renderer.draw_text{
+			target = {x, y-3+shift_y*3},
+			text = "rotation = "..(collision_box[3] or 0),
+			color = {1, 1, 1},
+			alignment = "center",
+			scale = 0.5,
+		}
+		
+		for _, exclusion in ipairs(cliffs.hardcoded_collisions[ent.cliff_orientation]) do
+			renderer.draw_circle{
+				target = {fx+.5+exclusion[1], fy+.5+exclusion[2]},
+				radius = 0.45,
+				color = {.8, 0, 0},
+			}
+		end
+
+		::continue::
+	end
+	
+end
+
 
 return render_util

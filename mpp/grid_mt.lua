@@ -59,6 +59,7 @@ local need_electricity = {
 ---@field gy double actual coordinate in surface
 ---@field built_on GridBuilding Is tile occupied by a building entity
 ---@field consumed boolean Is a miner consuming this tile
+---@field avoid boolean? Should building on the tile be avoided
 ---@field forbidden boolean? Is the tile in range of mixed resource
 
 ---@class BlueprintGridTile : GridTile

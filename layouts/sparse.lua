@@ -320,11 +320,11 @@ function layout:prepare_pole_layout(state)
 	local P = state.pole
 	local attempt = state.best_attempt
 
-	local pole_proto = game.entity_prototypes[state.pole_choice] or {supply_area_distance=3, max_wire_distance=9}
+	local pole_proto = prototypes.entity[state.pole_choice] or {supply_area_distance=3, max_wire_distance=9}
 	local supply_area_distance, supply_radius, supply_area = 3.5, 3, 6
 	if pole_proto then
-		supply_area = pole_proto.supply_area_distance
-		supply_area_distance = pole_proto.supply_area_distance or supply_area_distance
+		supply_area = pole_proto.get_supply_area_distance()
+		supply_area_distance = pole_proto.get_supply_area_distance() or supply_area_distance
 		supply_radius = floor(supply_area_distance)
 		supply_area = floor(supply_area_distance * 2)
 	end
@@ -332,7 +332,7 @@ function layout:prepare_pole_layout(state)
 	local builder_power_poles = {}
 	state.builder_power_poles = builder_power_poles
 
-	local pole_step = min(floor(pole_proto.max_wire_distance), supply_area + 2)
+	local pole_step = min(floor(pole_proto.get_max_wire_distance()), supply_area + 2)
 	state.pole_step = pole_step
 
 	local miner_lane_width = (state.miner_max_column-1) * m.area + state.miner_max_column

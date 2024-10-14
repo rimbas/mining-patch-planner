@@ -10,7 +10,7 @@ local space_exploration_active = nil
 ---@return boolean
 compatibility.is_space_exploration_active = function()
 	if space_exploration_active == nil then
-		space_exploration_active = game.active_mods["space-exploration"] and true or false
+		space_exploration_active = script.active_mods["space-exploration"] and true or false
 	end
 	return space_exploration_active
 end
@@ -49,7 +49,7 @@ compatibility.is_space = function(surface_identification)
 	local memoized = memoize_space_surfaces[surface_index]
 	if memoized ~= nil then return memoized end
 
-	if game.active_mods["space-exploration"] then
+	if script.active_mods["space-exploration"] then
 		local zone = remote.call("space-exploration", "get_zone_from_surface_index", {surface_index = surface_index} --[[@as table]]) --[[@as LuaSurface?]]
 		if not zone then
 			memoize_space_surfaces[surface_index] = false
@@ -89,7 +89,7 @@ function compatibility.is_buildable_in_space(name)
 		end
 	end
 
-	local entity_proto = game.entity_prototypes[name]
+	local entity_proto = prototypes.entity[name]
 	local allowed = not entity_proto.collision_mask[space_collision_mask_name]
 
 	memoize_space_buildable[name] = allowed
@@ -115,8 +115,8 @@ local pyanodons_active = nil
 ---@return boolean
 compatibility.is_pyanodons_active = function()
 	if pyanodons_active == nil then
-		local active_mods = game.active_mods
-		-- pyanodons_active = game.active_mods["space-exploration"] and true or false
+		local active_mods = script.active_mods
+		-- pyanodons_active = script.active_mods["space-exploration"] and true or false
 		for k, v in ipairs{"pyrawores", "pycoalprocessing", "pyalienlife"} do
 			if active_mods[v] then
 				pyanodons_active = true

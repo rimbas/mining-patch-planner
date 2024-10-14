@@ -14,7 +14,7 @@ local conf = {}
 ---@field tick_expires integer When was gui closed, for undo button disabling
 ---@field selection_collection LuaEntity[] Selected resources
 ---@field selection_cache table<number, table<number, true>> Acceleration structure
----@field selection_render integer[] Selection overlay
+---@field selection_render LuaRenderObject[] Selection overlay
 
 ---@class PlayerChoices
 ---@field layout_choice string
@@ -28,6 +28,8 @@ local conf = {}
 ---@field logistics_choice string
 ---@field landfill_choice boolean
 ---@field space_landfill_choice string
+---@field avoid_water_choice boolean
+---@field avoid_cliffs_choice boolean
 ---@field coverage_choice boolean
 ---@field start_choice boolean
 ---@field deconstruction_choice boolean
@@ -48,7 +50,6 @@ local conf = {}
 ---@field selections table<string, LuaGuiElement>
 ---@field advanced_settings LuaGuiElement
 ---@field filtering_settings LuaGuiElement
----@field undo_button LuaGuiElement
 ---@field layout_dropdown LuaGuiElement
 ---@field blueprint_add_button LuaGuiElement
 ---@field blueprint_add_section LuaGuiElement
@@ -88,7 +89,7 @@ conf.default_config = {
 		belt_choice = "transport-belt",
 		space_belt_choice = "se-space-transport-belt",
 		lamp_choice = false,
-		logistics_choice = "logistic-chest-passive-provider",
+		logistics_choice = "passive-provider-chest",
 		landfill_choice = false,
 		space_landfill_choice = "se-space-platform-scaffold",
 		coverage_choice = false,
@@ -101,6 +102,8 @@ conf.default_config = {
 		debugging_choice = "none",
 		ore_filtering_choice = false,
 		balancer_choice = false,
+		avoid_water_choice = false,
+		avoid_cliffs_choice = false,
 
 		-- non layout/convienence/advanced settings
 		show_non_electric_miners_choice = false,
@@ -115,7 +118,6 @@ conf.default_config = {
 		selections = {},
 		advanced_settings = nil_element_placeholder,
 		filtering_settings = nil_element_placeholder,
-		undo_button = nil_element_placeholder,
 		blueprint_add_button = nil_element_placeholder,
 		blueprint_add_section = nil_element_placeholder,
 		blueprint_receptacle = nil_element_placeholder,
@@ -141,7 +143,7 @@ end
 
 function conf.update_player_data(player_index)
 	---@type PlayerData
-	local old_config = global.players[player_index]
+	local old_config = storage.players[player_index]
 	local new_config = table.deepcopy(conf.default_config) --[[@as PlayerData]]
 
 	new_config.advanced = pass_same_type(old_config.advanced, new_config.advanced)
@@ -154,23 +156,23 @@ function conf.update_player_data(player_index)
 		new_config.choices[key] = pass_same_type(old_choices[key], new_choice)
 	end
 
-	global.players[player_index] = new_config
+	storage.players[player_index] = new_config
 end
 
 ---@param player_index number
 function conf.initialize_global(player_index)
-	local old_data = global.players[player_index]
-	global.players[player_index] = table.deepcopy(conf.default_config)
+	local old_data = storage.players[player_index]
+	storage.players[player_index] = table.deepcopy(conf.default_config)
 	if old_data and old_data.blueprint_items then
-		global.players[player_index].blueprint_items = old_data.blueprint_items
+		storage.players[player_index].blueprint_items = old_data.blueprint_items
 	else
-		global.players[player_index].blueprint_items = game.create_inventory(1)
+		storage.players[player_index].blueprint_items = game.create_inventory(1)
 	end
 end
 
 function conf.initialize_deconstruction_filter()
-	if global.script_inventory then
-		global.script_inventory.destroy()
+	if storage.script_inventory then
+		storage.script_inventory.destroy()
 	end
 
 	---@type LuaInventory
@@ -190,7 +192,7 @@ function conf.initialize_deconstruction_filter()
 		ghosts.entity_filters = {"entity-ghost", "tile-ghost"}
 	end
 
-	global.script_inventory = inventory
+	storage.script_inventory = inventory
 end
 
 script.on_event(defines.events.on_player_created, function(e)
@@ -200,10 +202,10 @@ end)
 
 script.on_event(defines.events.on_player_removed, function(e)
 	---@cast e EventData.on_player_removed
-	if global.players[e.player_index].blueprint_items then
-		global.players[e.player_index].blueprint_items.destroy()
+	if storage.players[e.player_index].blueprint_items then
+		storage.players[e.player_index].blueprint_items.destroy()
 	end
-	global.players[e.player_index] = nil
+	storage.players[e.player_index] = nil
 end)
 
 return conf

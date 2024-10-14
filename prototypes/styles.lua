@@ -21,13 +21,13 @@ default_style.mpp_selected_frame_action_button = {
 
 default_style.mpp_blueprint_mode_button = {
 	type = "button_style",
-	parent = "recipe_slot_button",
+	parent = "slot_button",
 	size = 28,
 }
 
 default_style.mpp_blueprint_mode_button_active = {
 	type = "button_style",
-	parent = "recipe_slot_button",
+	parent = "slot_button",
 	size = 28,
 	default_graphical_set = {
 		base = {position = {225, 17}, corner_size = 8},

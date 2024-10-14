@@ -11,7 +11,7 @@ local logistics = require("layouts.logistics")
 local layout = table.deepcopy(sparse)
 
 layout.name = "sparse_logistics"
-layout.translation = {"", "[entity=logistic-chest-passive-provider] ", {"mpp.settings_layout_choice_sparse_logistics"}}
+layout.translation = {"", "[entity=passive-provider-chest] ", {"mpp.settings_layout_choice_sparse_logistics"}}
 
 layout.restrictions.belt_available = false
 layout.restrictions.logistics_available = true

@@ -151,7 +151,7 @@ layout.initialize_grid = simple.initialize_grid
 -- 	simple.process_grid(self --[[@as SimpleLayout]], state)
 -- 	return "prepare_layout_attempts"
 -- end
-
+layout.preprocess_grid = simple.preprocess_grid
 layout.process_grid = simple.process_grid
 
 ---@param self BlueprintLayout
@@ -831,7 +831,7 @@ function layout:prepare_belt_layout_forward(state)
 		elseif piece.type == "underground-belt" and piece.is_underground == "input" then
 			local underground_length = underground_belt_length_cache[piece.ent.name]
 			if not underground_length then
-				local proto = game.entity_prototypes[piece.ent.name]
+				local proto = prototypes.entity[piece.ent.name]
 				underground_length = proto.max_underground_distance or 0
 				underground_belt_length_cache[piece.ent.name] = underground_length
 			end
@@ -956,7 +956,7 @@ function layout:prepare_belt_layout_backward(state)
 
 			local underground_length = underground_belt_length_cache[piece.ent.name]
 			if not underground_length then
-				local proto = game.entity_prototypes[piece.ent.name]
+				local proto = prototypes.entity[piece.ent.name]
 				underground_length = proto.max_underground_distance or 0
 				underground_belt_length_cache[piece.ent.name] = underground_length
 			end

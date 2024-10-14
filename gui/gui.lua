@@ -93,7 +93,7 @@ end
 
 local function style_helper_selection(check)
 	if check then return "yellow_slot_button" end
-	return "recipe_slot_button"
+	return "slot_button"
 end
 
 local function style_helper_advanced_toggle(check)
@@ -227,7 +227,10 @@ local function create_blueprint_entry(player_data, table_root, blueprint_item, c
 	}
 	player_data.blueprints.button[item_number] = blueprint_button
 
-	if table_size(blueprint_item.blueprint_icons) > 1 then
+	local icons = blueprint_item.preview_icons or blueprint_item.default_icons
+	
+	-- TODO: fix icons
+	if table_size(icons) > 1 and false then
 		local fake_table = blueprint_button.add{
 			type="table",
 			style="mpp_fake_blueprint_table",
@@ -237,7 +240,7 @@ local function create_blueprint_entry(player_data, table_root, blueprint_item, c
 			ignored_by_interaction=true,
 		}
 
-		for k, v in pairs(blueprint_item.blueprint_icons) do
+		for k, v in pairs(icons) do
 			local s = v.signal
 			local sprite = s.name or ""
 			if s.type == "virtual" then
@@ -254,13 +257,14 @@ local function create_blueprint_entry(player_data, table_root, blueprint_item, c
 			}
 		end
 	else
-		local bp_signal = ({next(blueprint_item.blueprint_icons)})[2].signal --[[@as SignalID]]
-		local sprite = bp_signal.name
-		if bp_signal.type == "virtual" then
-			sprite = "virtual-signal/"..sprite --wube pls
-		else
-			sprite = bp_signal.type .. "/" .. sprite
-		end
+		-- local bp_signal = ({next(icons)})[2].signal --[[@as SignalID]]
+		-- local sprite = bp_signal.name
+		-- if bp_signal.type == "virtual" then
+		-- 	sprite = "virtual-signal/"..sprite --wube pls
+		-- else
+		-- 	sprite = bp_signal.type .. "/" .. sprite
+		-- end
+		local sprite = "item/item-unknown"
 		blueprint_button.add{
 			type="sprite",
 			sprite=(sprite),
@@ -313,7 +317,7 @@ function gui.create_interface(player)
 	---@type LuaGuiElement
 	local frame = player.gui.screen.add{type="frame", name="mpp_settings_frame", direction="vertical"}
 	---@type PlayerData
-	local player_data = global.players[player.index]
+	local player_data = storage.players[player.index]
 	local player_gui = player_data.gui
 
 	local titlebar = frame.add{type="flow", name="mpp_titlebar", direction="horizontal"}
@@ -333,6 +337,7 @@ function gui.create_interface(player)
 		tooltip=mpp_util.wrap_tooltip{"mpp.entity_filtering_mode"},
 		tags={mpp_entity_filtering_mode=true},
 	}
+	-- TODO: move to Factorio undo
 	player_gui.undo_button = titlebar.add{
 		type="sprite-button",
 		style=style_helper_advanced_toggle(),
@@ -343,7 +348,7 @@ function gui.create_interface(player)
 	}
 
 	do -- layout selection
-		local table_root, section = create_setting_section(player_data, frame, "layout")
+		local table_root, section = create_setting_section(player_data, frame, "layout", {column_count=2})
 
 		local choices = {}
 		local index = 0
@@ -519,7 +524,7 @@ end
 
 ---@param player LuaPlayer
 local function update_belt_selection(player)
-	local player_data = global.players[player.index]
+	local player_data = storage.players[player.index]
 	local choices = player_data.choices
 	local layout = layouts[choices.layout_choice]
 	local restrictions = layout.restrictions
@@ -531,7 +536,7 @@ local function update_belt_selection(player)
 	local values = {}
 	local existing_choice_is_valid = false
 
-	local belts = game.get_filtered_entity_prototypes{{filter="type", type="transport-belt"}}
+	local belts = prototypes.get_entity_filtered{{filter="type", type="transport-belt"}}
 	for _, belt in pairs(belts) do
 		if mpp_util.check_filtered(belt) then goto skip_belt end
 		local belt_struct = mpp_util.belt_struct(belt.name)
@@ -589,7 +594,7 @@ end
 
 ---@param player LuaPlayer
 local function update_space_belt_selection(player)
-	local player_data = global.players[player.index]
+	local player_data = storage.players[player.index]
 	local choices = player_data.choices
 	local layout = layouts[choices.layout_choice]
 	local restrictions = layout.restrictions
@@ -601,7 +606,7 @@ local function update_space_belt_selection(player)
 	local values = {}
 	local existing_choice_is_valid = false
 
-	local belts = game.get_filtered_entity_prototypes{{filter="type", type="transport-belt"}}
+	local belts = prototypes.get_entity_filtered{{filter="type", type="transport-belt"}}
 	for _, belt in pairs(belts) do
 		if mpp_util.check_filtered(belt) then goto skip_belt end
 		--if not compatibility.is_buildable_in_space(belt.name) then goto skip_belt end
@@ -672,7 +677,7 @@ local function update_logistics_selection(player_data)
 	}
 
 	local existing_choice_is_valid = false
-	local logistics = game.get_filtered_entity_prototypes{{filter="type", type="logistic-container"}}
+	local logistics = prototypes.get_entity_filtered{{filter="type", type="logistic-container"}}
 	for _, chest in pairs(logistics) do
 		if mpp_util.check_filtered(chest) then goto skip_chest end
 		if mpp_util.check_entity_hidden(player_data, "logistics", chest) then goto skip_chest end
@@ -741,11 +746,11 @@ local function update_pole_selection(player_data)
 	}
 
 	local existing_choice_is_valid = ("none" == choices.pole_choice or (player_data.advanced and layout.restrictions.pole_zero_gap and "zero_gap" == choices.pole_choice))
-	local poles = game.get_filtered_entity_prototypes{{filter="type", type="electric-pole"}}
+	local poles = prototypes.get_entity_filtered{{filter="type", type="electric-pole"}}
 	for _, pole_proto in pairs(poles) do
 		if mpp_util.check_filtered(pole_proto) then goto skip_pole end
 		if mpp_util.check_entity_hidden(player_data, "pole", pole_proto) then goto skip_pole end
-		if pole_proto.supply_area_distance < 0.5 then goto skip_pole end
+		-- TODO: re-add if pole_proto.supply_area_distance < 0.5 then goto skip_pole end
 		local pole = mpp_util.pole_struct(pole_proto.name)
 		if pole.filtered then goto skip_pole end
 		local is_restricted = common.is_pole_restricted(pole, restrictions)
@@ -783,7 +788,7 @@ end
 
 ---@param player LuaPlayer
 local function update_misc_selection(player)
-	local player_data = global.players[player.index]
+	local player_data = storage.players[player.index]
 	local choices = player_data.choices
 	local layout = layouts[choices.layout_choice]
 	---@type SettingValueEntry[]
@@ -796,10 +801,24 @@ local function update_misc_selection(player)
 		icon_enabled=("mpp_ore_filtering_enabled"),
 	}
 
+	values[#values+1] = {
+		value="avoid_water",
+		tooltip={"mpp.choice_avoid_water"},
+		icon=("fluid/water"),
+		icon_enabled=("fluid/water")
+	}
+
+	values[#values+1] = {
+		value="avoid_cliffs",
+		tooltip={"mpp.choice_avoid_cliffs"},
+		icon=("entity/cliff"),
+		icon_enabled=("entity/cliff")
+	}
+
 	if layout.restrictions.module_available then
 		---@type string|nil
 		local existing_choice = choices.module_choice
-		if not game.item_prototypes[existing_choice] then
+		if not prototypes.item[existing_choice] then
 			existing_choice = nil
 			choices.module_choice = "none"
 		end
@@ -828,7 +847,7 @@ local function update_misc_selection(player)
 	if layout.restrictions.pipe_available then
 		---@type string | nil
 		local existing_choice = choices.pipe_choice
-		if not game.entity_prototypes[existing_choice] then
+		if not prototypes.entity[existing_choice] then
 			existing_choice = nil
 			choices.pipe_choice = "none"
 		end
@@ -856,7 +875,7 @@ local function update_misc_selection(player)
 
 	if compatibility.is_space(player.surface_index) and layout.restrictions.landfill_omit_available then
 		local existing_choice = choices.space_landfill_choice
-		if not game.entity_prototypes[existing_choice] then
+		if not prototypes.entity[existing_choice] then
 			existing_choice = "se-space-platform-scaffold"
 			choices.space_landfill_choice = existing_choice
 		end
@@ -1027,6 +1046,11 @@ local function update_debugging_selection(player_data)
 			tooltip="Draw inserter rotation preview",
 			icon=("item/inserter"),
 		},
+		{
+			value="draw_cliff_collisions",
+			tooltip="Draw cliff collisions (area select)",
+			icon=("entity/cliff"),
+		},
 	}
 
 	local debugging_section = player_data.gui.section["debugging"]
@@ -1039,7 +1063,7 @@ end
 ---@param player LuaPlayer
 local function update_selections(player)
 	---@type PlayerData
-	local player_data = global.players[player.index]
+	local player_data = storage.players[player.index]
 	player_data.gui.blueprint_add_button.visible = player_data.choices.layout_choice == "blueprints"
 	mpp_util.update_undo_button(player_data)
 	update_miner_selection(player_data)
@@ -1056,7 +1080,7 @@ end
 function gui.show_interface(player)
 	---@type LuaGuiElement
 	local frame = player.gui.screen["mpp_settings_frame"]
-	local player_data = global.players[player.index]
+	local player_data = storage.players[player.index]
 	player_data.blueprint_add_mode = false
 	if frame then
 		frame.visible = true
@@ -1068,7 +1092,7 @@ end
 
 ---@param player LuaPlayer
 local function abort_blueprint_mode(player)
-	local player_data = global.players[player.index]
+	local player_data = storage.players[player.index]
 	if not player_data.blueprint_add_mode then return end
 	player_data.blueprint_add_mode = false
 	update_blueprint_selection(player_data)
@@ -1082,7 +1106,7 @@ end
 function gui.hide_interface(player)
 	---@type LuaGuiElement
 	local frame = player.gui.screen["mpp_settings_frame"]
-	local player_data = global.players[player.index]
+	local player_data = storage.players[player.index]
 	player_data.blueprint_add_mode = false
 	if frame then
 		frame.visible = false
@@ -1095,7 +1119,7 @@ end
 local function on_gui_click(event)
 	local player = game.players[event.player_index]
 	---@type PlayerData
-	local player_data = global.players[event.player_index]
+	local player_data = storage.players[event.player_index]
 	local evt_ele_tags = event.element.tags
 	if evt_ele_tags["mpp_advanced_settings"] then
 		abort_blueprint_mode(player)
@@ -1275,7 +1299,7 @@ local function on_gui_selection_state_changed(event)
 	if event.element.tags["mpp_drop_down"] then
 		abort_blueprint_mode(player)
 		---@type PlayerData
-		local player_data = global.players[event.player_index]
+		local player_data = storage.players[event.player_index]
 
 		local action = event.element.tags["mpp_drop_down"]
 		local value = layouts[event.element.selected_index].name
@@ -1294,7 +1318,7 @@ local function on_gui_elem_changed(event)
 	local element = event.element
 	local player = game.players[event.player_index]
 	---@type PlayerData
-	local player_data = global.players[event.player_index]
+	local player_data = storage.players[event.player_index]
 	local evt_ele_tags = element.tags
 	if evt_ele_tags["mpp_prototype"] then
 		local action = evt_ele_tags.value

@@ -434,7 +434,7 @@ function layout:_placement_belts_large(state)
 	local m = state.miner
 	local attempt = state.best_attempt
 	local belt_choice = state.belt_choice
-	local underground_belt = game.entity_prototypes[belt_choice].related_underground_belt.name
+	local underground_belt = prototypes.entity[belt_choice].related_underground_belt.name
 
 	local power_poles = {}
 	state.builder_power_poles = power_poles

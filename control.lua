@@ -9,9 +9,9 @@ local render_util = require("mpp.render_util")
 local mpp_util = require("mpp.mpp_util")
 
 script.on_init(function()
-	global.players = {}
+	storage.players = {}
 	---@type State[]
-	global.tasks = {}
+	storage.tasks = {}
 	conf.initialize_deconstruction_filter()
 
 	for _, player in pairs(game.players) do
@@ -21,11 +21,11 @@ end)
 
 ---@param event EventData
 local function task_runner(event)
-	if #global.tasks == 0 then
+	if #storage.tasks == 0 then
 		return script.on_event(defines.events.on_tick, nil)
 	end
 
-	local state = global.tasks[1]
+	local state = storage.tasks[1]
 	local layout = algorithm.layouts[state.layout_choice]
 
 	local last_callback = state._callback
@@ -45,19 +45,23 @@ local function task_runner(event)
 
 	if last_callback == tick_result then
 		if __DebugAdapter then
-			table.remove(global.tasks, 1)
+			table.remove(storage.tasks, 1)
 		else
 			error("Layout "..state.layout_choice.." step "..tostring(tick_result).." called itself again")
 		end
 	elseif tick_result == nil then
 		if __DebugAdapter then
 			game.print(("Callback for layout %s after call %s has no result"):format(state.layout_choice, state._callback))
-			table.remove(global.tasks, 1)
+			table.remove(storage.tasks, 1)
 
 			---@type PlayerData
-			local player_data = global.players[state.player.index]
+			local player_data = storage.players[state.player.index]
 			player_data.last_state = nil
-			rendering.destroy(state._preview_rectangle)
+			-- TODO: fix rendering
+			--rendering.destroy(state._preview_rectangle)
+			if state._preview_rectangle.valid then
+				state._preview_rectangle.destroy()
+			end
 			mpp_util.update_undo_button(player_data)
 		else
 			error("Layout "..state.layout_choice.." missing a callback name")
@@ -66,10 +70,14 @@ local function task_runner(event)
 		local player = state.player
 		if state.blueprint then state.blueprint.clear() end
 		if state.blueprint_inventory then state.blueprint_inventory.destroy() end
-		rendering.destroy(state._preview_rectangle)
+		-- TODO: fix rendering
+		--rendering.destroy(state._preview_rectangle)
+		if state._preview_rectangle.valid then
+			state._preview_rectangle.destroy()
+		end
 
 		---@type PlayerData
-		local player_data = global.players[player.index]
+		local player_data = storage.players[player.index]
 		state._previous_state = nil
 		player_data.tick_expires = math.huge
 		if __DebugAdapter then
@@ -88,8 +96,9 @@ local function task_runner(event)
 			}
 		end
 
-		table.remove(global.tasks, 1)
-		player.play_sound{path="utility/build_blueprint_medium"}
+		table.remove(storage.tasks, 1)
+		-- TODO: sound
+		-- player.play_sound{path="utility/build_blueprint_medium"}
 		mpp_util.update_undo_button(player_data)
 	elseif tick_result ~= true then
 		state._callback = tick_result
@@ -106,7 +115,7 @@ script.on_event(defines.events.on_player_selected_area, function(event)
 
 	if #event.entities == 0 then return end
 
-	for _, task in ipairs(global.tasks) do
+	for _, task in ipairs(storage.tasks) do
 		if task.player == player then
 			return
 		end
@@ -117,7 +126,7 @@ script.on_event(defines.events.on_player_selected_area, function(event)
 	--rendering.clear("mining-patch-planner")
 
 	if state then
-		table.insert(global.tasks, state)
+		table.insert(storage.tasks, state)
 		script.on_event(defines.events.on_tick, task_runner)
 	elseif error then
 		player.print(error)
@@ -154,7 +163,7 @@ script.on_event(defines.events.on_player_alt_reverse_selected_area, function(eve
 	if cursor_stack and cursor_stack.valid and cursor_stack.valid_for_read and cursor_stack.name ~= "mining-patch-planner" then return end
 
 	---@type PlayerData
-	local player_data = global.players[event.player_index]
+	local player_data = storage.players[event.player_index]
 
 	local debugging_choice = player_data.choices.debugging_choice
 	debugging_func = render_util[debugging_choice]
@@ -188,8 +197,8 @@ script.on_event(defines.events.on_player_reverse_selected_area, function(event)
 end)
 
 script.on_load(function()
-	if global.players then
-		for _, ply in pairs(global.players) do
+	if storage.players then
+		for _, ply in pairs(storage.players) do
 			---@cast ply PlayerData
 			if ply.blueprints then
 				for _, bp in pairs(ply.blueprints.cache) do
@@ -199,9 +208,9 @@ script.on_load(function()
 		end
 	end
 
-	if global.tasks and #global.tasks > 0 then
+	if storage.tasks and #storage.tasks > 0 then
 		script.on_event(defines.events.on_tick, task_runner)
-		for _, task in ipairs(global.tasks) do
+		for _, task in ipairs(storage.tasks) do
 			---@type Layout
 			local layout = algorithm.layouts[task.layout_choice]
 			layout:on_load(task)
@@ -214,7 +223,7 @@ local function cursor_stack_check(e)
 	local player = game.get_player(e.player_index)
 	if not player then return end
 	---@type PlayerData
-	local player_data = global.players[e.player_index]
+	local player_data = storage.players[e.player_index]
 	if not player_data then return end
 	local frame = player.gui.screen["mpp_settings_frame"]
 	if player_data.blueprint_add_mode and frame and frame.visible then
@@ -227,8 +236,14 @@ local function cursor_stack_check(e)
 		cursor_stack.valid_for_read and
 		cursor_stack.name == "mining-patch-planner"
 	) then
+		-- TODO: remove pcall
 		gui.show_interface(player)
-		algorithm.on_gui_open(player_data)
+		local success, err = pcall(gui.show_interface, player)
+		if success == false then
+			game.print(err)
+			player.gui.screen.mpp_settings_frame.destroy()
+		end
+		-- algorithm.on_gui_open(player_data)
 	else
 		local duration = mpp_util.get_display_duration(e.player_index)
 		if e.tick < player_data.tick_expires then

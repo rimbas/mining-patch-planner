@@ -19,7 +19,7 @@ require_layout("simple")
 require_layout("compact")
 require_layout("super_compact")
 require_layout("sparse")
---require_layout("throughput_t1")
+-- require_layout("throughput_t1")
 require_layout("logistics")
 require_layout("compact_logistics")
 require_layout("sparse_logistics")
@@ -33,9 +33,9 @@ require_layout("blueprints")
 ---@field coords Coords
 ---@field _previous_state MininimumPreservedState?
 ---@field _collected_ghosts LuaEntity[]
----@field _preview_rectangle nil|uint64 LuaRendering.draw_rectangle
----@field _lane_info_rendering uint64[]
----@field _render_objects uint64[] LuaRendering objects
+---@field _preview_rectangle nil|LuaRenderObject LuaRendering.draw_rectangle
+---@field _lane_info_rendering LuaRenderObject[]
+---@field _render_objects LuaRenderObject[] LuaRendering objects
 
 ---@class State : MininimumPreservedState
 ---@field _callback string -- callback to be used in the tick
@@ -58,6 +58,8 @@ require_layout("blueprints")
 ---@field logistics_choice string
 ---@field landfill_choice boolean
 ---@field space_landfill_choice string
+---@field avoid_water_choice boolean
+---@field avoid_cliffs_choice boolean
 ---@field start_choice boolean
 ---@field deconstruction_choice boolean
 ---@field pipe_choice string
@@ -93,7 +95,7 @@ local function create_state(event)
 	local state = {} --[[@as State]]
 	state._callback = "start"
 	state.tick = 0
-	state.mod_version = game.active_mods["mining-patch-planner"]
+	state.mod_version = script.active_mods["mining-patch-planner"]
 	state._preview_rectangle = nil
 	state._collected_ghosts = {}
 	state._render_objects = {}
@@ -101,7 +103,7 @@ local function create_state(event)
 	
 
 	---@type PlayerData
-	local player_data = global.players[event.player_index]
+	local player_data = storage.players[event.player_index]
 
 	-- game state properties
 	state.surface = event.surface
@@ -115,7 +117,7 @@ local function create_state(event)
 	end
 
 	if state.is_space then
-		if game.entity_prototypes["se-space-pipe"] then
+		if prototypes.entity["se-space-pipe"] then
 			state.pipe_choice = "se-space-pipe"
 		else
 			state.pipe_choice = "none"
@@ -163,14 +165,15 @@ local function process_entities(entities, available_resource_categories)
 		if cached_resource_categories[category] and available_resource_categories[category] then
 			counts[name] = 1 + (counts[name] or 0)
 			filtered[#filtered+1] = entity
-			local x, y = entity.position.x, entity.position.y
+			local position = entity.position
+			local x, y = position.x, position.y
 			if x < x1 then x1 = x end
 			if y < y1 then y1 = y end
 			if x2 < x then x2 = x end
 			if y2 < y then y2 = y end
 		end
 	end
-	
+
 	local resource_counts = {}
 	for k, v in pairs(counts) do table.insert(resource_counts, {name=k, count=v}) end
 	table.sort(resource_counts, function(a, b) return a.count > b.count end)
@@ -191,7 +194,7 @@ local function get_miner_categories(player_data)
 	if player_data.choices.layout_choice == "blueprints" then
 		return player_data.blueprints.cache[player_data.choices.blueprint_choice.item_number]:get_resource_categories()
 	else
-		return game.entity_prototypes[player_data.choices.miner_choice].resource_categories or {}
+		return prototypes.entity[player_data.choices.miner_choice].resource_categories or {}
 	end
 end
 
@@ -220,7 +223,7 @@ end
 ---@param event EventData.on_player_selected_area
 function algorithm.on_player_selected_area(event)
 	---@type PlayerData
-	local player_data = global.players[event.player_index]
+	local player_data = storage.players[event.player_index]
 	local state, err = create_state(event)
 	if not state then return nil, err end
 	local layout = layouts[player_data.choices.layout_choice]
@@ -249,8 +252,8 @@ function algorithm.on_player_selected_area(event)
 	if #state.resources == 0 then
 		for resource, category in pairs(state.found_resources) do
 			if not layout_categories[category] then
-				local miner_name = game.entity_prototypes[state.miner_choice].localised_name
-				local resource_name = game.entity_prototypes[resource].localised_name
+				local miner_name = prototypes.entity[state.miner_choice].localised_name
+				local resource_name = prototypes.entity[resource].localised_name
 				return nil, {"", {"mpp.msg_miner_err_2_1"}, " \"", miner_name, "\" ", {"mpp.msg_miner_err_2_2"}, " \"", resource_name, "\""}
 			end
 		end
@@ -277,11 +280,11 @@ function algorithm.on_player_selected_area(event)
 	end
 
 	if state.ore_filtering_selected then
-		local proto = game.entity_prototypes[state.ore_filtering_selected]
+		local proto = prototypes.entity[state.ore_filtering_selected]
 		state.requires_fluid = not not proto.mineable_properties.required_fluid
 	else
 		for _, t in pairs(resource_counts) do
-			local proto = game.entity_prototypes[t.name]
+			local proto = prototypes.entity[t.name]
 			if proto.mineable_properties.required_fluid then
 				state.requires_fluid = true
 				break
@@ -296,15 +299,17 @@ function algorithm.on_player_selected_area(event)
 		local same = mpp_util.coords_overlap(coords, last_state.coords) and last_state.surface == event.surface
 
 		if same then
-			for _, id in ipairs(renderables) do
-				rendering.destroy(id)
+			for _, renderObject in ipairs(renderables) do
+				-- TODO: fix renderable
+				-- rendering.destroy(id)
+				renderObject.destroy()
 			end
 			state._previous_state = last_state
 		else
 			local ttl = mpp_util.get_display_duration(event.player_index)
-			for _, id in ipairs(renderables) do
-				if rendering.is_valid(id) then
-					rendering.set_time_to_live(id, ttl)
+			for _, renderObject in ipairs(renderables) do
+				if renderObject.valid then
+					renderObject.time_to_live = ttl
 				end
 			end
 		end
@@ -314,7 +319,8 @@ function algorithm.on_player_selected_area(event)
 	local validation_result, error = layout:validate(state)
 	if validation_result then
 		layout:initialize(state)
-		state.player.play_sound{path="utility/blueprint_selection_ended"}
+		-- TODO: sound
+		-- state.player.play_sound{path="utility/blueprint_selection_ended"}
 
 		-- "Progress" bar
 		local c = state.coords
@@ -336,7 +342,7 @@ end
 
 function algorithm.on_player_alt_selected_area(event)
 	---@type PlayerData
-	local player_data = global.players[event.player_index]
+	local player_data = storage.players[event.player_index]
 
 	local selection_collection = player_data.selection_collection
 	local selection_render = player_data.selection_render
@@ -372,9 +378,9 @@ function algorithm.on_gui_open(player_data)
 
 	local ttl = mpp_util.get_display_duration(last_state.player.index)
 	if ttl > 0 then
-		for _, id in ipairs(last_state._render_objects) do
-			if rendering.is_valid(id) then
-				rendering.set_time_to_live(id, 0)
+		for _, renderObject in ipairs(last_state._render_objects) do
+			if renderObject.valid then
+				renderObject.time_to_live = 0
 			end
 		end
 	end
@@ -388,14 +394,21 @@ function algorithm.on_gui_close(player_data)
 
 	local ttl = mpp_util.get_display_duration(last_state.player.index)
 	if ttl > 0 then
-		for _, id in ipairs(last_state._render_objects) do
-			if rendering.is_valid(id) then
-				rendering.set_time_to_live(id, ttl)
+		for _, renderObject in ipairs(last_state._render_objects) do
+			if renderObject.valid then
+				renderObject.time_to_live = ttl
 			end
+			-- if rendering.is_valid(id) then
+			-- 	rendering.set_time_to_live(id, ttl)
+			-- end
 		end
 	else
-		for _, id in ipairs(last_state._render_objects) do
-			rendering.destroy(id)
+		for _, renderObject in ipairs(last_state._render_objects) do
+			-- TODO: fix render object
+			-- rendering.destroy(id)
+			if renderObject.valid then
+				renderObject.destroy()
+			end
 		end
 	end
 end
@@ -417,15 +430,22 @@ function algorithm.cleanup_last_state(player_data)
 	end
 
 	if type(state._render_objects) == "table" then
-		for _, id in ipairs(state._render_objects) do
-			if rendering.is_valid(id) then
-				rendering.destroy(id)
+		for _, renderObject in ipairs(state._render_objects) do
+			if renderObject.valid then
+				renderObject.destroy()
 			end
+			-- if rendering.is_valid(id) then
+			-- 	rendering.destroy(id)
+			-- end
 		end
 		state._render_objects = {}
 	end
 
-	rendering.destroy(state._preview_rectangle)
+	-- TODO: fix rendering
+	--rendering.destroy(state._preview_rectangle)
+	if state._preview_rectangle.valid then
+		state._preview_rectangle.destroy()
+	end
 	mpp_util.update_undo_button(player_data)
 
 	player_data.last_state = nil
@@ -433,8 +453,11 @@ end
 
 ---@param player_data PlayerData
 function algorithm.clear_selection(player_data)
-	for k, v in pairs(player_data.selection_render or {}) do
-		rendering.destroy(v)
+	for k, renderObject in pairs(player_data.selection_render or {}) do
+		-- rendering.destroy(v)
+		if renderObject.valid then
+			renderObject.destroy()
+		end
 	end
 	player_data.selection_render = {}
 	player_data.selection_collection = {}

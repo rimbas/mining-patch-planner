@@ -13,7 +13,7 @@ local miner_blacklist = {
 }
 
 function enums.get_default_miner()
-	if game.active_mods["nullius"] then
+	if script.active_mods["nullius"] then
 		return "nullius-medium-miner-1"
 	end
 	return "electric-mining-drill"
@@ -24,10 +24,10 @@ end
 function enums.get_available_miners()
 	enums.get_available_miners = function() return cached_miners, cached_resource_categories end
 
-	local all_miners = game.get_filtered_entity_prototypes{{filter="type", type="mining-drill"}}
+	local all_miners = prototypes.get_entity_filtered{{filter="type", type="mining-drill"}}
 	---@type table<string, LuaEntityPrototype>
 	--local all_fluids = game.get_filtered_item_prototypes({filter="type", type="
-	local all_resources = game.get_filtered_entity_prototypes{{filter="type", type="resource"}}
+	local all_resources = prototypes.get_entity_filtered{{filter="type", type="resource"}}
 	---@type table<string, LuaResourceCategoryPrototype>
 
 	for name, proto in pairs(all_resources) do
@@ -71,7 +71,7 @@ function enums.get_available_miners()
 		::continue_miner::
 	end
 
-	if game.active_mods["Cursed-FMD"] then
+	if script.active_mods["Cursed-FMD"] then
 		local mangled_categories = {}
 		local miners = {}
 		for name, proto in pairs(all_miners) do

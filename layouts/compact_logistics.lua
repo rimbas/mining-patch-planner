@@ -9,7 +9,7 @@ local builder = require("mpp.builder")
 local layout = table.deepcopy(super_compact)
 
 layout.name = "compact_logistics"
-layout.translation = {"", "[entity=logistic-chest-passive-provider] ", {"mpp.settings_layout_choice_compact_logistics"}}
+layout.translation = {"", "[entity=passive-provider-chest] ", {"mpp.settings_layout_choice_compact_logistics"}}
 
 layout.restrictions.lamp_available = false
 layout.restrictions.belt_available = false

@@ -4,6 +4,7 @@ local grid_mt = require("mpp.grid_mt")
 local pole_grid_mt = require("mpp.pole_grid_mt")
 local mpp_util = require("mpp.mpp_util")
 local builder = require("mpp.builder")
+local cliffs = require("mpp.cliffs")
 local coord_convert, coord_revert = mpp_util.coord_convert, mpp_util.coord_revert
 local internal_revert, internal_convert = mpp_util.internal_revert, mpp_util.internal_convert
 local miner_direction, opposite = mpp_util.miner_direction, mpp_util.opposite
@@ -192,6 +193,65 @@ function layout:initialize_grid(state)
 	end
 
 	state.grid = setmetatable(grid, grid_mt)
+
+	return "preprocess_grid"
+end
+
+---@param self SimpleLayout
+---@param state SimpleState
+function layout:preprocess_grid(state)
+	local miner = state.miner
+	local c = state.coords
+	local grid = state.grid
+	local M = state.miner
+
+	local tile_area = {
+		left_top={c.x1-miner.area-1, c.y1-miner.area-1},
+		right_bottom={c.x2+miner.area+1, c.y2+miner.area+1}
+	}
+	local conv = coord_convert[state.direction_choice]
+	local gx, gy = state.coords.ix1 - 1, state.coords.iy1 - 1
+	if state.avoid_water_choice then
+		local avoid_tiles = state.surface.find_tiles_filtered{area=tile_area, collision_mask="water_tile"}
+
+		local gx, gy = state.coords.ix1 - 1, state.coords.iy1 - 1
+		for i, avoid_tile in ipairs(avoid_tiles) do
+			local tx, ty = avoid_tile.position.x-.5, avoid_tile.position.y-.5
+			local x, y = conv(tx-gx, ty-gy, c.w, c.h)
+			local tile = grid:get_tile(ceil(x), ceil(y))
+			tile.avoid = true
+			grid:forbid(ceil(x)-M.size+1, ceil(y)-M.size+1, M.size)
+		end
+	end
+	
+	if state.avoid_cliffs_choice then
+		local avoided_cliffs = state.surface.find_entities_filtered{area=tile_area, type="cliff"}
+		
+		for _, cliff in ipairs(avoided_cliffs) do
+			local px, py = cliff.position.x-1, cliff.position.y-1
+			local fx, fy = px-gx, py-gy
+			
+			for _, exclusion in ipairs(cliffs.hardcoded_collisions[cliff.cliff_orientation]) do
+				
+				local x, y = conv(fx+exclusion[1], fy+exclusion[2], c.w, c.h)
+				-- rendering.draw_circle{
+				-- 	surface=state.surface,
+				-- 	target = {fx+.5+exclusion[1], fy+.5+exclusion[2]},
+				-- 	radius = 0.45,
+				-- 	filled = false,
+				-- 	width = 1,
+				-- 	color = {.8, 0, 0},
+				-- }
+				
+				x, y = ceil(x), ceil(y)
+				local tile = grid:get_tile(x, y)
+				if tile then
+					tile.avoid = true
+				end
+				grid:forbid(x-M.size+1, y-M.size+1, M.size)
+			end
+		end
+	end
 
 	return "process_grid"
 end
@@ -1013,7 +1073,7 @@ function layout:expensive_deconstruct(state)
 	local c, DIR = state.coords, state.direction_choice
 	local player, surface = state.player, state.surface
 
-	local deconstructor = global.script_inventory[state.deconstruction_choice and 2 or 1]
+	local deconstructor = storage.script_inventory[state.deconstruction_choice and 2 or 1]
 
 	for _, t in pairs(self:_get_deconstruction_objects(state)) do
 		for _, object in ipairs(t) do
@@ -1178,7 +1238,7 @@ function layout:placement_landfill(state)
 		if state.is_space then
 			fill_tiles = surface.find_tiles_filtered{area=area, name="se-space"}
 		else
-			fill_tiles = surface.find_tiles_filtered{area=area, collision_mask="water-tile"}
+			fill_tiles = surface.find_tiles_filtered{area=area, collision_mask="water_tile"}
 		end
 		state.fill_tiles = fill_tiles
 	end
@@ -1234,20 +1294,20 @@ end
 function layout:_display_lane_filling(state)
 	if not state.display_lane_filling_choice or not state.belts then return end
 	
-	local drill_speed = game.entity_prototypes[state.miner_choice].mining_speed
-	local belt_speed = game.entity_prototypes[state.belt_choice].belt_speed * 60 * 4
+	local drill_speed = prototypes.entity[state.miner_choice].mining_speed
+	local belt_speed = prototypes.entity[state.belt_choice].belt_speed * 60 * 4
 	local dominant_resource = state.resource_counts[1].name
-	local resource_hardness = game.entity_prototypes[dominant_resource].mineable_properties.mining_time or 1
+	local resource_hardness = prototypes.entity[dominant_resource].mineable_properties.mining_time or 1
 	local drill_productivity, module_speed = 1 + state.player.force.mining_drill_productivity_bonus, 1
 	if state.module_choice ~= "none" then
-		local mod = game.item_prototypes[state.module_choice]
+		local mod = prototypes.item[state.module_choice]
 		module_speed = module_speed + (mod.module_effects.speed and mod.module_effects.speed.bonus or 0) * state.miner.module_inventory_size
 		drill_productivity = drill_productivity + (mod.module_effects.productivity and mod.module_effects.productivity.bonus or 0) * state.miner.module_inventory_size
 	end
 	local multiplier = drill_speed / resource_hardness * module_speed * drill_productivity
 
 	local throughput1, throughput2 = 0, 0
-	--local ore_hardness = game.entity_prototypes[state.found_resources
+	--local ore_hardness = prototypes.entity[state.found_resources
 	for i, belt in pairs(state.belts) do
 		---@cast belt BeltSpecification
 		local function lane_capacity(lane) if lane then return #lane * multiplier end return 0 end
@@ -1286,6 +1346,9 @@ end
 function layout:finish(state)
 	if state.print_placement_info_choice and state.player.valid then
 		state.player.print({"mpp.msg_print_info_miner_placement", #state.best_attempt.miners, state.belt_count, #state.resources})
+		if state.best_attempt.unconsumed > 0 then
+			state.player.print({"mpp.msg_print_missed_resource", state.best_attempt.unconsumed})
+		end
 	end
 
 	self:_display_lane_filling(state)

@@ -62,7 +62,7 @@ function builder.create_entity_builder(state)
 			position = ghost.position,
 			direction = ghost.direction,
 			build_check_type = defines.build_check_type.blueprint_ghost,
-			forced = true,
+			--forced = true,
 		} then
 			return
 		end

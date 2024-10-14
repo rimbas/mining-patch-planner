@@ -93,8 +93,8 @@ end
 function bp_meta:evaluate_miners()
 	for _, ent in pairs(self.entities) do
 		local name = ent.name
-		if game.entity_prototypes[name].type == "mining-drill" then
-			--local proto = game.entity_prototypes[name]
+		if prototypes.entity[name].type == "mining-drill" then
+			--local proto = prototypes.entity[name]
 			self.miner_name = name
 			return
 		end
@@ -115,7 +115,7 @@ end
 
 function bp_meta:check_valid()
 	for k, v in pairs(self.entity_names) do
-		if not game.entity_prototypes[k] and not game.item_prototypes[k] then
+		if not prototypes.entity[k] and not prototypes.item[k] then
 			self.valid = false
 			return false
 		end
@@ -128,7 +128,7 @@ end
 ---@return table<string, boolean>
 function bp_meta:get_resource_categories()
 	local categories = {}
-	local proto = game.entity_prototypes[self.miner_name]
+	local proto = prototypes.entity[self.miner_name]
 	if proto.resource_categories then
 		for cat, bool in pairs(proto.resource_categories) do
 			categories[cat] = bool
@@ -161,7 +161,7 @@ function bp_meta:get_entity_categories()
 		local name = ent.name
 		local category = category_map[name]
 		if not category then
-			local ent_type = game.entity_prototypes[name].type
+			local ent_type = prototypes.entity[name].type
 			category = categories[ent_type] or "other"
 			category_map[name] = category
 		end

@@ -103,7 +103,7 @@ function mpp_util.entity_struct(entity_name)
 	if cached then return cached end
 	---@diagnostic disable-next-line: missing-fields
 	local struct = {} --[[@as EntityStruct]]
-	local proto = game.entity_prototypes[entity_name]
+	local proto = prototypes.entity[entity_name]
 	local flags = proto.flags or {}
 
 	local cbox = proto.collision_box
@@ -175,7 +175,7 @@ function mpp_util.miner_struct(mining_drill_name)
 	local cached = miner_struct_cache[mining_drill_name]
 	if cached then return cached end
 
-	local miner_proto = game.entity_prototypes[mining_drill_name]
+	local miner_proto = prototypes.entity[mining_drill_name]
 
 	local miner = mpp_util.entity_struct(mining_drill_name) --[[@as MinerStruct]]
 
@@ -291,7 +291,7 @@ function mpp_util.pole_struct(pole_name)
 	local cached_struct = pole_struct_cache[pole_name]
 	if cached_struct then return cached_struct end
 
-	local pole_proto = game.entity_prototypes[pole_name]
+	local pole_proto = prototypes.entity[pole_name]
 	if not pole_proto then
 		return {
 			place = false, -- nonexistent pole, use fallbacks and don't place
@@ -303,16 +303,17 @@ function mpp_util.pole_struct(pole_name)
 	end
 	local pole = mpp_util.entity_struct(pole_name) --[[@as PoleStruct]]
 
-	local radius = pole_proto.supply_area_distance --[[@as number]]
+	-- TODO: fix for quality local radius = pole_proto.supply_area_distance --[[@as number]]
+	local radius = pole_proto.get_supply_area_distance()
 	pole.supply_area_distance = radius
 	pole.supply_width = floor(radius * 2)
 	pole.radius = pole.supply_width / 2
-	pole.wire = pole_proto.max_wire_distance
+	pole.wire = pole_proto.get_max_wire_distance()
 
 	pole.filtered = logic_any(
 		pole.filtered,
-		pole_proto.supply_area_distance < 0.5,
-		pole_proto.max_wire_distance < 1
+		radius < 0.5,
+		pole.wire < 1
 	)
 
 	-- local distance = beacon_proto.supply_area_distance
@@ -339,10 +340,10 @@ function mpp_util.beacon_struct(beacon_name)
 	local cached_struct = beacon_cache[beacon_name]
 	if cached_struct then return cached_struct end
 
-	local beacon_proto = game.entity_prototypes[beacon_name]
+	local beacon_proto = prototypes.entity[beacon_name]
 	local beacon = mpp_util.entity_struct(beacon_name) --[[@as BeaconStruct]]
 
-	local distance = beacon_proto.supply_area_distance
+	local distance = beacon_proto.get_supply_area_distance();
 	beacon.area = beacon.size + distance * 2
 	beacon.extent_negative = -distance
 
@@ -357,10 +358,10 @@ local hardcoded_pipes = {}
 ---@return string|nil, LuaEntityPrototype|nil
 function mpp_util.find_underground_pipe(pipe_name)
 	if hardcoded_pipes[pipe_name] then
-		return hardcoded_pipes[pipe_name], game.entity_prototypes[hardcoded_pipes[pipe_name]]
+		return hardcoded_pipes[pipe_name], prototypes.entity[hardcoded_pipes[pipe_name]]
 	end
 	local ground_name = pipe_name.."-to-ground"
-	local ground_proto = game.entity_prototypes[ground_name]
+	local ground_proto = prototypes.entity[ground_name]
 	if ground_proto then
 		return ground_name, ground_proto
 	end
@@ -406,7 +407,7 @@ function mpp_util.belt_struct(belt_name)
 
 	---@diagnostic disable-next-line: missing-fields
 	local belt = {} --[[@as BeltStruct]]
-	local belt_proto = game.entity_prototypes[belt_name]
+	local belt_proto = prototypes.entity[belt_name]
 
 	belt.name = belt_name
 
@@ -422,7 +423,7 @@ function mpp_util.belt_struct(belt_name)
 		for pattern, replacement in pairs(match_attempts) do
 			local new_name = string.gsub(belt_name, pattern, replacement)
 			if new_name == belt_name then goto continue end
-			related = game.entity_prototypes[new_name]
+			related = prototypes.entity[new_name]
 			if related then
 				belt.related_underground_belt = new_name
 				belt.underground_reach = related.max_underground_distance
@@ -447,7 +448,7 @@ function mpp_util.inserter_struct(inserter_name)
 	local cached = inserter_struct_cache[inserter_name]
 	if cached then return cached end
 
-	local inserter_proto = game.entity_prototypes[inserter_name]
+	local inserter_proto = prototypes.entity[inserter_name]
 	local inserter = mpp_util.entity_struct(inserter_name) --[[@as InserterStruct]]
 
 	local function rotations(_x, _y)
@@ -634,11 +635,19 @@ function mpp_util.validate_blueprint(player, blueprint)
 	end
 
 	local miners, _ = enums.get_available_miners()
+	
 	local cost = blueprint.cost_to_build
 	local drills = {}
-	for name, drill in pairs(miners) do
-		if cost[name] then
-			drills[#drills+1] = drill.localised_name
+	-- for name, drill in pairs(miners) do
+	-- 	if cost[name] then
+	-- 		drills[#drills+1] = drill.localised_name
+	-- 	end
+	-- end
+
+	for _, price in ipairs(cost) do
+		---@cast price ItemCountWithQuality
+		if miners[price.name] then
+			drills[#drills+1] = miners[price.name].localised_name
 		end
 	end
 
@@ -708,7 +717,7 @@ local even_width_memoize = {}
 function mpp_util.entity_even_width(name)
 	local check = even_width_memoize[name]
 	if check then return check end
-	local proto = game.entity_prototypes[name]
+	local proto = prototypes.entity[name]
 	local cbox = proto.collision_box
 	local cbox_tl, cbox_br = cbox.left_top, cbox.right_bottom
 	local cw, ch = cbox_br.x - cbox_tl.x, cbox_br.y - cbox_tl.y
@@ -799,6 +808,9 @@ function mpp_util.update_undo_button(player_data)
 	
 	local enabled = false
 	local undo_button = player_data.gui.undo_button
+	
+	if undo_button.valid ~= true then return end
+	
 	local last_state = player_data.last_state
 	
 	if last_state then
