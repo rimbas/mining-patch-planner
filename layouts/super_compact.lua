@@ -318,7 +318,9 @@ function layout:prepare_belt_layout(state)
 			local pole_built = built or capped
 			local last = x + m.size * 2 > end_x
 
-			if last and not capped then
+			if last and not capped and not built then
+				-- no op
+			elseif last and not capped then
 				-- last passtrough and no trailing miner
 				que_entity{
 					name=state.belt_choice,

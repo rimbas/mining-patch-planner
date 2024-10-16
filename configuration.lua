@@ -150,6 +150,10 @@ function conf.update_player_data(player_index)
 	new_config.blueprint_add_mode = pass_same_type(old_config.blueprint_add_mode, new_config.blueprint_add_mode)
 	new_config.blueprint_items = old_config.blueprint_items or game.create_inventory(1)
 	new_config.last_state = old_config.last_state
+	new_config.filtered_entities = old_config.filtered_entities
+	-- new_config.selection_render = old_config.selection_render
+	-- new_config.selection_cache = old_config.selection_cache
+	-- new_config.selection_collection = old_config.selection_collection
 
 	local old_choices = old_config.choices or {}
 	for key, new_choice in pairs(new_config.choices) do

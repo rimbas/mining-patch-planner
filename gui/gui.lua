@@ -815,25 +815,25 @@ local function update_misc_selection(player)
 		icon_enabled=("entity/cliff")
 	}
 
-	if layout.restrictions.module_available then
-		---@type string|nil
-		local existing_choice = choices.module_choice
-		if not prototypes.item[existing_choice] then
-			existing_choice = nil
-			choices.module_choice = "none"
-		end
+	-- if layout.restrictions.module_available then
+	-- 	---@type string|nil
+	-- 	local existing_choice = choices.module_choice
+	-- 	if not prototypes.item[existing_choice] then
+	-- 		existing_choice = nil
+	-- 		choices.module_choice = "none"
+	-- 	end
 
-		values[#values+1] = {
-			action="mpp_prototype",
-			value="module",
-			tooltip={"gui.module"},
-			icon=("mpp_no_module"),
-			elem_type="item",
-			elem_filters={{filter="type", type="module"}},
-			elem_value = existing_choice,
-			type="choose-elem-button",
-		}
-	end
+	-- 	values[#values+1] = {
+	-- 		action="mpp_prototype",
+	-- 		value="module",
+	-- 		tooltip={"gui.module"},
+	-- 		icon=("mpp_no_module"),
+	-- 		elem_type="item",
+	-- 		elem_filters={{filter="type", type="module"}},
+	-- 		elem_value = existing_choice,
+	-- 		type="choose-elem-button",
+	-- 	}
+	-- end
 	
 	if layout.restrictions.lamp_available then
 		values[#values+1] = {
@@ -844,25 +844,25 @@ local function update_misc_selection(player)
 		}
 	end
 	
-	if layout.restrictions.pipe_available then
-		---@type string | nil
-		local existing_choice = choices.pipe_choice
-		if not prototypes.entity[existing_choice] then
-			existing_choice = nil
-			choices.pipe_choice = "none"
-		end
+	-- if layout.restrictions.pipe_available then
+	-- 	---@type string | nil
+	-- 	local existing_choice = choices.pipe_choice
+	-- 	if not prototypes.entity[existing_choice] then
+	-- 		existing_choice = nil
+	-- 		choices.pipe_choice = "none"
+	-- 	end
 
-		values[#values+1] = {
-			action="mpp_prototype",
-			value="pipe",
-			tooltip={"entity-name.pipe"},
-			icon=("mpp_no_pipe"),
-			elem_type="entity",
-			elem_filters={{filter="type", type="pipe"}},
-			elem_value = existing_choice,
-			type="choose-elem-button",
-		}
-	end
+	-- 	values[#values+1] = {
+	-- 		action="mpp_prototype",
+	-- 		value="pipe",
+	-- 		tooltip={"entity-name.pipe"},
+	-- 		icon=("mpp_no_pipe"),
+	-- 		elem_type="entity",
+	-- 		elem_filters={{filter="type", type="pipe"}},
+	-- 		elem_value = existing_choice,
+	-- 		type="choose-elem-button",
+	-- 	}
+	-- end
 
 	if layout.restrictions.deconstruction_omit_available then
 		values[#values+1] = {

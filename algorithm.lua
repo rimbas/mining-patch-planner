@@ -33,7 +33,7 @@ require_layout("blueprints")
 ---@field coords Coords
 ---@field _previous_state MininimumPreservedState?
 ---@field _collected_ghosts LuaEntity[]
----@field _preview_rectangle nil|LuaRenderObject LuaRendering.draw_rectangle
+---@field _preview_rectangle? LuaRenderObject LuaRendering.draw_rectangle
 ---@field _lane_info_rendering LuaRenderObject[]
 ---@field _render_objects LuaRenderObject[] LuaRendering objects
 

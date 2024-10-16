@@ -38,7 +38,7 @@ function builder.create_entity_builder(state)
 		ghost.raise_built = true
 		ghost.player = state.player
 		ghost.force = state.player.force
-		ghost.inner_name=ghost.name
+		ghost.inner_name=ghost.name --[[@as string]]
 		ghost.name="entity-ghost"
 		ghost.position=coord_revert_world(gx, gy, DIR, ghost.grid_x, ghost.grid_y, tw, th)
 		ghost.direction=direction_conv[ghost.direction or defines.direction.north]
