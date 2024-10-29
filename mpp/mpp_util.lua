@@ -780,7 +780,7 @@ function mpp_util.check_filtered(thing)
 	return
 		blacklist[thing.name]
 		or not thing.items_to_place_this
-		or (thing.flags and thing.flags.hidden)
+		or thing.hidden
 end
 
 ---@param player_data any

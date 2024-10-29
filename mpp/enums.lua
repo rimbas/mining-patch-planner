@@ -19,6 +19,8 @@ function enums.get_default_miner()
 	return "electric-mining-drill"
 end
 
+local FMD_active = script.active_mods["Cursed-FMD"]
+
 ---Get mining drills and resource categories
 ---@return LuaEntityPrototype[], table
 function enums.get_available_miners()
@@ -71,56 +73,31 @@ function enums.get_available_miners()
 		::continue_miner::
 	end
 
-	if script.active_mods["Cursed-FMD"] then
-		local mangled_categories = {}
-		local miners = {}
-		for name, proto in pairs(all_miners) do
-			if string.find(name, ";") then -- Cursed-FMD hack
-				for resource_name, _ in pairs(proto.resource_categories) do
-					if not invalid_resource[resource_name] and not string.find(resource_name, "core-fragment") then
-						mangled_categories[resource_name] = true
-					end
-				end
-			else
-				if proto.flags and proto.flags.hidden then goto continue_miner end
-				if miner_blacklist[name] then goto continue_miner end
-
-				for resource_name, _ in pairs(proto.resource_categories) do
-					if not invalid_resource[resource_name] and not string.find(resource_name, "core-fragment") then
-						miners[name] = proto
-					end
-				end
-			end
-			::continue_miner::
-		end
-		cached_miners = miners
-		cached_resource_categories = mangled_categories
-	else
-		local miners = {}
-		local resource_categories = {
-			["basic-solid"] = true,
-			["hard-resource"] = true,
-		}
-		for name, proto in pairs(all_miners) do
-			if proto.flags and proto.flags.hidden then goto continue_miner end
-			if miner_blacklist[name] then goto continue_miner end
-			--if not proto.resource_categories["basic-solid"] then goto continue_miner end
-			for resource_category, bool in pairs(proto.resource_categories) do
-				resource_categories[resource_category] = bool
-			end
-
-			miners[name] = proto
-
-			::continue_miner::
+	local miners = {}
+	local resource_categories = {
+		["basic-solid"] = true,
+		["hard-resource"] = true,
+	}
+	for name, proto in pairs(all_miners) do
+		if FMD_active and string.find(name, "__") then goto continue_miner end
+		if proto.hidden then goto continue_miner end
+		if miner_blacklist[name] then goto continue_miner end
+		--if not proto.resource_categories["basic-solid"] then goto continue_miner end
+		for resource_category, bool in pairs(proto.resource_categories) do
+			resource_categories[resource_category] = bool
 		end
 
-		cached_miners = miners
-		cached_resource_categories = resource_categories
-		--[[ {
-			["basic-solid"] = true,
-			["hard-resource"] = true,
-		}]]
+		miners[name] = proto
+
+		::continue_miner::
 	end
+
+	cached_miners = miners
+	cached_resource_categories = resource_categories
+	--[[ {
+		["basic-solid"] = true,
+		["hard-resource"] = true,
+	}]]
 	return enums.get_available_miners()
 end
 
