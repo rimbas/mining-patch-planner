@@ -4,6 +4,8 @@ local EAST, NORTH, SOUTH, WEST, ROTATION = mpp_util.directions()
 local coord_revert_world = mpp_util.revert_world
 local builder = {}
 
+local quality_enabled = script.feature_flags.quality
+
 ---@class GhostSpecification : LuaSurface.create_entity_param.entity_ghost
 ---@field grid_x number Grid x coordinate
 ---@field grid_y number Grid x coordinate
@@ -42,7 +44,9 @@ function builder.create_entity_builder(state)
 		ghost.name="entity-ghost"
 		ghost.position=coord_revert_world(gx, gy, DIR, ghost.grid_x, ghost.grid_y, tw, th)
 		ghost.direction=direction_conv[ghost.direction or defines.direction.north]
-
+		
+		if not quality_enabled then ghost.quality = nil end
+		
 		local pickup, drop = ghost.pickup_position, ghost.drop_position
 		if pickup then
 			local x, y = mpp_util.rotate(pickup.x, pickup.y, direction[DIR])

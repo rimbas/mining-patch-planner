@@ -246,13 +246,14 @@ function layout:prepare_belt_layout(state)
 			line.last_x = miner.x + out_x
 			line.last_miner = miner
 		end
-		line[#line+1] = miner
 	end
 
-	local temp_belts = {}
-	for k, v in pairs(belt_lanes) do temp_belts[#temp_belts+1] = v end
-	table.sort(temp_belts, function(a, b) return a.row_index < b.row_index end)
-	state.belts = temp_belts
+	do
+		local temp_belts = {}
+		for k, v in pairs(belt_lanes) do if v.last_miner then temp_belts[#temp_belts+1] = v end end
+		table.sort(temp_belts, function(a, b) return a.row_index < b.row_index end)
+		state.belts = temp_belts
+	end
 
 	local shift_x, shift_y = state.best_attempt.sx, state.best_attempt.sy
 

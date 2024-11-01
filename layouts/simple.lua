@@ -915,6 +915,7 @@ function layout:prepare_belt_layout(state)
 		for x = x1, x2 do
 			builder_belts[#builder_belts+1] = {
 				name=state.belt_choice,
+				quality=state.belt_quality_choice,
 				thing="belt",
 				grid_x=x,
 				grid_y=y,
@@ -1015,6 +1016,7 @@ function layout:prepare_pole_layout(state)
 		-- TODO: move this out after ensure_connectity call
 		builder_power_poles[#builder_power_poles+1] = {
 			name=state.pole_choice,
+			quality=state.pole_quality_choice,
 			thing="pole",
 			grid_x = pole.grid_x,
 			grid_y = pole.grid_y,
@@ -1132,6 +1134,7 @@ function layout:placement_miners(state)
 
 		local ghost = create_entity{
 			name = state.miner_choice,
+			quality = state.miner_quality_choice,
 			thing="miner",
 			grid_x = miner.origin_x,
 			grid_y = miner.origin_y,
@@ -1266,7 +1269,7 @@ function layout:placement_landfill(state)
 				player=state.player,
 				force=state.player.force,
 				position=fill.position --[[@as MapPosition]],
-				inner_name=landfill,
+				inner_name=fill.prototype.default_cover_tile.name,
 			}
 
 			if tile_ghost then

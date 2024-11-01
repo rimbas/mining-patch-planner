@@ -61,6 +61,7 @@ local layout = table.deepcopy(base)
 
 ---@class BpPlacementEnt
 ---@field name string
+---@field quality string
 ---@field ent BlueprintEntityEx
 ---@field type string
 ---@field thing GridBuilding
@@ -424,6 +425,7 @@ function layout:collect_entities(state)
 					origin_y = y + ry,
 					w = rw, h = rh,
 					direction = ent.direction,
+					quality = ent.quality,
 				}
 
 				if ent_category == "beacon" then
@@ -536,6 +538,7 @@ function layout:prepare_beacon_layout(state)
 		builder_all[#builder_all+1] = {
 			thing = "beacon",
 			name = struct.name,
+			quality = beacon.quality,
 			grid_x = beacon.origin_x,
 			grid_y = beacon.origin_y,
 			extent_w = struct.extent_w,
@@ -641,6 +644,7 @@ function layout:prepare_inserter_layout(state)
 		builder_all[#builder_all+1] = {
 			thing = "inserter",
 			name = struct.name,
+			quality = inserter.quality,
 			grid_x = inserter.origin_x,
 			grid_y = inserter.origin_y,
 			direction = inserter.direction,
@@ -675,7 +679,7 @@ function layout:prepare_electricity(state)
 	local builder_all = state.builder_all
 
 	for _, power_pole in ipairs(state.collected_power) do
-		local struct = mpp_util.pole_struct(power_pole.name)
+		local struct = mpp_util.pole_struct(power_pole.name, power_pole.quality)
 		local x, y = power_pole.x, power_pole.y
 		local needs_power = G:needs_power(x, y, struct)
 
@@ -686,6 +690,7 @@ function layout:prepare_electricity(state)
 		builder_all[#builder_all+1] = {
 			thing = "pole",
 			name = struct.name,
+			quality = power_pole.quality,
 			grid_x = power_pole.origin_x,
 			grid_y = power_pole.origin_y,
 			direction = power_pole.direction,
@@ -1010,6 +1015,7 @@ function layout:prepare_belt_layout_finalize(state)
 		builder_all[#builder_all+1] = {
 			thing="belt",
 			name = bp_ent.name,
+			quality = bp_ent.quality,
 			grid_x = piece.origin_x,
 			grid_y = piece.origin_y,
 			direction = piece.direction,
@@ -1050,6 +1056,7 @@ function layout:prepare_container_layout(state)
 		builder_all[#builder_all+1] = {
 			thing = "container",
 			name = name,
+			quality = container.quality,
 			grid_x = container.origin_x,
 			grid_y = container.origin_y,
 			extent_w = struct.extent_w,
@@ -1077,6 +1084,7 @@ function layout:prepare_other(state)
 		builder_all[#builder_all+1] = {
 			thing = "other",
 			name = name,
+			quality = other.quality,
 			grid_x = other.origin_x,
 			grid_y = other.origin_y,
 			extent_w = struct.extent_w,
@@ -1111,6 +1119,7 @@ function layout:placement_miners(state)
 			grid_x = miner.origin_x,
 			grid_y = miner.origin_y,
 			direction = miner.direction,
+			quality = miner.ent.quality,
 		}
 
 		if ghost and miner.ent.items then
@@ -1141,7 +1150,7 @@ function layout:placement_all(state)
 			return true
 		end
 
-		local thing = state.builder_all[i]
+		local thing = builder_all[i]
 
 		local ghost = create_entity(thing)
 

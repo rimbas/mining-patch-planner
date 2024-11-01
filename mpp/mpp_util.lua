@@ -93,14 +93,22 @@ mpp_util.direction_coord = direction_coord
 ---@field extent_w number Half of width
 ---@field extent_h number Half of height
 
----@type table<string, EntityStruct>
+---@type table<string, table<string, EntityStruct>>
 local entity_cache = {}
 
 ---@param entity_name string
+---@param quality_name? string
 ---@return EntityStruct
-function mpp_util.entity_struct(entity_name)
-	local cached = entity_cache[entity_name]
-	if cached then return cached end
+function mpp_util.entity_struct(entity_name, quality_name)
+	quality_name = script.feature_flags.quality and quality_name or "normal"
+	local quality_table = entity_cache[quality_name]
+	if quality_table then
+		local cached_struct = quality_table[entity_name]
+		if cached_struct then return cached_struct end
+	else
+		entity_cache[quality_name] = {}
+	end
+	
 	---@diagnostic disable-next-line: missing-fields
 	local struct = {} --[[@as EntityStruct]]
 	local proto = prototypes.entity[entity_name]
@@ -125,7 +133,7 @@ function mpp_util.entity_struct(entity_name)
 		struct.h == 0
 	)
 
-	entity_cache[entity_name] = struct
+	entity_cache[quality_name][entity_name] = struct
 	return struct
 end
 
@@ -282,14 +290,22 @@ end
 ---@field supply_area_distance number
 ---@field extent_negative number Negative extent of the supply reach
 
----@type table<string, PoleStruct>
+---@type table<string, table<string, PoleStruct>>
 local pole_struct_cache = {}
 
 ---@param pole_name string
+---@param quality_name? string
 ---@return PoleStruct
-function mpp_util.pole_struct(pole_name)
-	local cached_struct = pole_struct_cache[pole_name]
-	if cached_struct then return cached_struct end
+function mpp_util.pole_struct(pole_name, quality_name)
+	quality_name = script.feature_flags.quality and quality_name or "normal"
+	
+	local quality_table = pole_struct_cache[quality_name]
+	if quality_table then
+		local cached_struct = quality_table[pole_name]
+		if cached_struct then return cached_struct end
+	else
+		pole_struct_cache[quality_name] = {}
+	end
 
 	local pole_proto = prototypes.entity[pole_name]
 	if not pole_proto then
@@ -301,14 +317,14 @@ function mpp_util.pole_struct(pole_name)
 			wire = 9,
 		}
 	end
-	local pole = mpp_util.entity_struct(pole_name) --[[@as PoleStruct]]
+	local pole = mpp_util.entity_struct(pole_name, quality_name) --[[@as PoleStruct]]
 
 	-- TODO: fix for quality local radius = pole_proto.supply_area_distance --[[@as number]]
-	local radius = pole_proto.get_supply_area_distance()
+	local radius = pole_proto.get_supply_area_distance(quality_name)
 	pole.supply_area_distance = radius
 	pole.supply_width = floor(radius * 2)
 	pole.radius = pole.supply_width / 2
-	pole.wire = pole_proto.get_max_wire_distance()
+	pole.wire = pole_proto.get_max_wire_distance(quality_name)
 
 	pole.filtered = logic_any(
 		pole.filtered,
@@ -324,7 +340,7 @@ function mpp_util.pole_struct(pole_name)
 
 	pole.extent_negative = -extent
 
-	pole_struct_cache[pole_name] = pole
+	pole_struct_cache[quality_name][pole_name] = pole
 	return pole
 end
 
@@ -560,7 +576,7 @@ end
 function mpp_util.calculate_pole_spacing(state, miner_count, lane_count, force_capable)
 	local cov = {}
 	local m = mpp_util.miner_struct(state.miner_choice)
-	local p = mpp_util.pole_struct(state.pole_choice)
+	local p = mpp_util.pole_struct(state.pole_choice, state.pole_quality_choice)
 
 	-- Shift subtract
 	local covered_miners = ceil(p.supply_width / m.size)
@@ -797,7 +813,7 @@ end
 ---Checks if a player has hidden the entity choice
 ---@param player_data any
 ---@param category MppSettingSections
----@param thing MinerStruct|LuaEntityPrototype
+---@param thing MinerStruct|LuaEntityPrototype|LuaQualityPrototype
 ---@return false
 function mpp_util.check_entity_hidden(player_data, category, thing)
 	return (not player_data.entity_filtering_mode and player_data.filtered_entities[category..":"..thing.name])
@@ -809,7 +825,7 @@ function mpp_util.update_undo_button(player_data)
 	local enabled = false
 	local undo_button = player_data.gui.undo_button
 	
-	if undo_button.valid ~= true then return end
+	if not undo_button or undo_button.valid ~= true then return end
 	
 	local last_state = player_data.last_state
 	
@@ -852,6 +868,68 @@ function mpp_util.protype_has_script_create_effect(prototype)
 
 	end
 	return false
+end
+
+---@type SettingValueEntry[]
+local quality_listing_cache
+
+---@return SettingValueEntry[]
+function mpp_util.quality_list()
+	if quality_listing_cache then return quality_listing_cache end
+	
+	quality_listing_cache = {}
+	for name, quality in pairs(prototypes.quality) do
+		if quality.hidden then goto skip_quality end
+		quality_listing_cache[#quality_listing_cache+1] = {
+			value = name,
+			icon = "quality/"..name,
+			filterable = true,
+			tooltip = {"quality-name."..name},
+		}
+		::skip_quality::
+	end
+	
+	return quality_listing_cache
+end
+
+---@class QualityStruct
+---@field name string
+---@field color Color
+---@field text_color string
+---@field localised_name LocalisedString
+
+---@type table<string, QualityStruct>
+local quality_cache = {}
+do
+	for name, quality in pairs(prototypes.quality) do
+		local color = quality.color
+		local a, r, g, b = color.a, color.r, color.g, color.b
+		a = max(r,g,b)
+		a, r, g, b = floor(a*255), floor(r*255), floor(g*255), floor(b*255)
+		quality_cache[name] = {
+			name = name,
+			localised_name = quality.localised_name,
+			color = color,
+			text_color = ("#%02x%02x%02x%02x"):format(a,r,g,b),
+		}
+	end
+end
+
+if script.feature_flags.quality then
+	---@param name LocalisedString
+	---@param quality_name string
+	---@return LocalisedString
+	function mpp_util.entity_name_with_quality(name, quality_name)
+		local quality = quality_cache[quality_name]
+		return {"", "[font=default-bold]", name, " [color="..quality.text_color.."](", quality.localised_name, ")[/color][/font]"}
+	end
+else
+	---@param name LocalisedString
+	---@param quality_name string
+	---@return LocalisedString
+	function mpp_util.entity_name_with_quality(name, quality_name)
+		return name
+	end
 end
 
 return mpp_util

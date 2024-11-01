@@ -8,6 +8,13 @@ local bp_meta = require("mpp.blueprintmeta")
 local render_util = require("mpp.render_util")
 local mpp_util = require("mpp.mpp_util")
 
+---@class MppStorage
+---@field players table<number, PlayerData>
+---@field tasks State[]
+---@field version number
+
+storage = storage --[[@as MppStorage]]
+
 script.on_init(function()
 	storage.players = {}
 	---@type State[]
@@ -258,6 +265,25 @@ end
 script.on_event(defines.events.on_player_cursor_stack_changed, cursor_stack_check)
 
 script.on_event(defines.events.on_player_changed_surface, cursor_stack_check)
+
+script.on_event(defines.events.on_research_finished, function(event)
+	---@cast event EventData.on_research_finished
+	local effects = event.research.prototype.effects
+	local qualities_to_unhide = {}
+	for _, effect in pairs(effects) do
+		---@cast effect TechnologyModifier
+		if effect.type == "unlock-quality" then
+			qualities_to_unhide[#qualities_to_unhide+1] = effect.quality --[[@as string]]
+		end
+	end
+	
+	if #qualities_to_unhide == 0 then return end
+	
+	conf.unhide_qualities_for_force(event.research.force, qualities_to_unhide)
+	for _, player_data in pairs(storage.players) do
+		gui.update_quality_sections(player_data)
+	end
+end)
 
 do
 	local events = compatibility.get_se_events()

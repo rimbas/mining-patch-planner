@@ -19,7 +19,7 @@ local function reset_gui(player)
 end
 
 script.on_configuration_changed(function(config_changed_data)
-	local version = storage.version or 0
+	local version = storage.version or current_version
 	if config_changed_data.mod_changes["mining-patch-planner"] and version < current_version then
 		storage.tasks = storage.tasks or {}
 		conf.initialize_deconstruction_filter()
@@ -76,5 +76,16 @@ script.on_configuration_changed(function(config_changed_data)
 		-- end
 	end
 
+	if version < 010617 then
+		for player_index, player_data in pairs(storage.players) do
+			local filtered = player_data.filtered_entities
+			for k, v in pairs(filtered) do
+				if v == true then
+					filtered[k] = "user_hidden"
+				end
+			end
+		end
+	end
+	
 	storage.version = current_version
 end)

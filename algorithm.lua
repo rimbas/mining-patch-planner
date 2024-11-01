@@ -50,12 +50,17 @@ require_layout("blueprints")
 ---@field layout_choice string
 ---@field direction_choice string
 ---@field miner_choice string
+---@field miner_quality_choice string
 ---@field pole_choice string
+---@field pole_quality_choice string
 ---@field belt_choice string Belt name
+---@field belt_quality_choice string
 ---@field space_belt_choice string
+---@field space_belt_quality_choice string
 ---@field lamp_choice boolean Lamp placement
 ---@field coverage_choice boolean
 ---@field logistics_choice string
+---@field logistics_quality_choice string
 ---@field landfill_choice boolean
 ---@field space_landfill_choice string
 ---@field avoid_water_choice boolean
@@ -124,6 +129,7 @@ local function create_state(event)
 		end
 
 		state.belt_choice = state.space_belt_choice
+		state.belt_quality_choice = state.space_belt_quality_choice
 	end
 
 	-- if state.filt

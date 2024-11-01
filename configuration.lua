@@ -1,7 +1,13 @@
 local util = require("util")
 local conf = {}
 
+---@alias FilteredEntityStatus
+---| "auto_hidden" marked hidden automaticall
+---| "user_hidden" marked hidden by user
+---| false not hidden
+
 ---@class PlayerData
+---@field quality_pickers boolean Show quality pickers
 ---@field advanced boolean Preserve in migrations
 ---@field blueprint_add_mode boolean Preserve in migrations
 ---@field entity_filtering_mode boolean Preserve in migrations
@@ -10,7 +16,7 @@ local conf = {}
 ---@field choices PlayerChoices Preserve in migrations
 ---@field blueprints PlayerGuiBlueprints 
 ---@field last_state MininimumPreservedState? Preserve in migrations
----@field filtered_entities table<string, true>
+---@field filtered_entities table<string, FilteredEntityStatus> string is of format "category:name"
 ---@field tick_expires integer When was gui closed, for undo button disabling
 ---@field selection_collection LuaEntity[] Selected resources
 ---@field selection_cache table<number, table<number, true>> Acceleration structure
@@ -21,11 +27,16 @@ local conf = {}
 ---@field blueprint_choice LuaItemStack? Currently selected blueprint (flow)
 ---@field direction_choice string
 ---@field miner_choice string
+---@field miner_quality_choice string
 ---@field pole_choice string
+---@field pole_quality_choice string
 ---@field lamp_choice boolean
 ---@field belt_choice string
+---@field belt_quality_choice string
 ---@field space_belt_choice string
+---@field space_belt_quality_choice string
 ---@field logistics_choice string
+---@field logistics_quality_choice string
 ---@field landfill_choice boolean
 ---@field space_landfill_choice string
 ---@field avoid_water_choice boolean
@@ -34,6 +45,7 @@ local conf = {}
 ---@field start_choice boolean
 ---@field deconstruction_choice boolean
 ---@field pipe_choice string
+---@field pipe_quality_choice string
 ---@field module_choice string
 ---@field show_non_electric_miners_choice boolean
 ---@field force_pipe_placement_choice boolean
@@ -48,6 +60,7 @@ local conf = {}
 ---@field section table<MppSettingSections, LuaGuiElement>
 ---@field tables table<string, LuaGuiElement>
 ---@field selections table<string, LuaGuiElement>
+---@field quality_toggle LuaGuiElement
 ---@field advanced_settings LuaGuiElement
 ---@field filtering_settings LuaGuiElement
 ---@field layout_dropdown LuaGuiElement
@@ -71,6 +84,7 @@ local nil_inventory_placeholder = nil
 
 ---@type PlayerData
 conf.default_config = {
+	quality_pickers = false,
 	advanced = false,
 	entity_filtering_mode = false,
 	blueprint_add_mode = false,
@@ -85,17 +99,23 @@ conf.default_config = {
 		layout_choice = "simple",
 		direction_choice = "north",
 		miner_choice = "electric-mining-drill",
+		miner_quality_choice = "normal",
 		pole_choice = "medium-electric-pole",
+		pole_quality_choice = "normal",
 		belt_choice = "transport-belt",
+		belt_quality_choice = "normal",
 		space_belt_choice = "se-space-transport-belt",
+		space_belt_quality_choice = "normal",
 		lamp_choice = false,
 		logistics_choice = "passive-provider-chest",
+		logistics_quality_choice = "normal",
 		landfill_choice = false,
 		space_landfill_choice = "se-space-platform-scaffold",
 		coverage_choice = false,
 		start_choice = false,
 		deconstruction_choice = false,
 		pipe_choice = "pipe",
+		pipe_quality_choice = "normal",
 		module_choice = "none",
 		blueprint_choice = nil,
 		dumb_power_connectivity_choice = false,
@@ -122,6 +142,7 @@ conf.default_config = {
 		blueprint_add_section = nil_element_placeholder,
 		blueprint_receptacle = nil_element_placeholder,
 		layout_dropdown = nil_element_placeholder,
+		quality_toggle = nil_element_placeholder,
 	},
 
 	blueprints = {
@@ -141,11 +162,35 @@ local function pass_same_type(old, new)
 	return new
 end
 
+---quality choices
+local quality_settings = {
+	"miner_quality",
+	"belt_quality",
+	"space_belt_quality",
+	"pole_quality",
+	"logistics_quality",
+}
+
+---@param player LuaPlayer
+---@return string[]
+function conf.get_locked_qualities(player)
+	local force = player.force
+	local locked_qualities = {}
+	for name, quality in pairs(prototypes.quality) do
+		if quality.hidden then goto skip_quality end
+		if force.is_quality_unlocked(quality) then goto skip_quality end
+		locked_qualities[#locked_qualities+1] = name
+		::skip_quality::
+	end
+	return locked_qualities
+end
+
 function conf.update_player_data(player_index)
 	---@type PlayerData
 	local old_config = storage.players[player_index]
 	local new_config = table.deepcopy(conf.default_config) --[[@as PlayerData]]
 
+	new_config.quality_pickers = pass_same_type(old_config.quality_pickers, new_config.quality_pickers)
 	new_config.advanced = pass_same_type(old_config.advanced, new_config.advanced)
 	new_config.blueprint_add_mode = pass_same_type(old_config.blueprint_add_mode, new_config.blueprint_add_mode)
 	new_config.blueprint_items = old_config.blueprint_items or game.create_inventory(1)
@@ -154,6 +199,15 @@ function conf.update_player_data(player_index)
 	-- new_config.selection_render = old_config.selection_render
 	-- new_config.selection_cache = old_config.selection_cache
 	-- new_config.selection_collection = old_config.selection_collection
+	
+	for _, quality_name in pairs(conf.get_locked_qualities(game.get_player(player_index) --[[@as LuaPlayer]])) do
+		for _, quality_setting in pairs(quality_settings) do
+			local concat = quality_setting..":"..quality_name
+			if new_config.filtered_entities[concat] == nil then
+				new_config.filtered_entities[concat] = "auto_hidden"
+			end
+		end
+	end
 
 	local old_choices = old_config.choices or {}
 	for key, new_choice in pairs(new_config.choices) do
@@ -166,11 +220,43 @@ end
 ---@param player_index number
 function conf.initialize_global(player_index)
 	local old_data = storage.players[player_index]
-	storage.players[player_index] = table.deepcopy(conf.default_config)
+	local new_data = table.deepcopy(conf.default_config) --[[@as PlayerData]]
+	storage.players[player_index] = new_data
+	
+	for _, quality_name in pairs(conf.get_locked_qualities(game.get_player(player_index) --[[@as LuaPlayer]])) do
+		for _, quality_setting in pairs(quality_settings) do
+			local concat = quality_setting..":"..quality_name
+			if old_data and old_data.filtered_entities[concat] == true then
+				new_data.filtered_entities[concat] = "user_hidden"
+			else
+				new_data.filtered_entities[concat] = "auto_hidden"
+			end
+		end
+	end
+	
 	if old_data and old_data.blueprint_items then
-		storage.players[player_index].blueprint_items = old_data.blueprint_items
+		new_data.blueprint_items = old_data.blueprint_items
 	else
-		storage.players[player_index].blueprint_items = game.create_inventory(1)
+		new_data.blueprint_items = game.create_inventory(1)
+	end
+end
+
+---@param force LuaForce
+---@param qualities string[]
+function conf.unhide_qualities_for_force(force, qualities)
+	for index, player_data in pairs(storage.players) do
+		local player = game.players[index]
+		if player.force ~= force then goto skip_player end
+		local filtered_entities = player_data.filtered_entities
+		for _, quality_setting in pairs(quality_settings) do
+			for _, quality_name in ipairs(qualities) do
+				local concat = quality_setting..":"..quality_name
+				if filtered_entities[concat] == "auto_hidden" then
+					filtered_entities[concat] = false
+				end
+			end
+		end
+		::skip_player::
 	end
 end
 

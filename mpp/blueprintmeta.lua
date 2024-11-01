@@ -115,7 +115,10 @@ end
 
 function bp_meta:check_valid()
 	for k, v in pairs(self.entity_names) do
-		if not prototypes.entity[k] and not prototypes.item[k] then
+		if not prototypes.entity[v.name or k] and not prototypes.item[v.name or k] then
+			self.valid = false
+			return false
+		elseif v.quality and not prototypes.quality[v.quality] then
 			self.valid = false
 			return false
 		end

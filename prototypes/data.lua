@@ -7,7 +7,7 @@ data:extend{
 		icon=graphics.."drill-icon.png",
 		icon_size = 64,
 		flags = {"only-in-cursor", "spawnable", "not-stackable"},
-		hidden_in_factoriopedia = true,
+		-- hidden_in_factoriopedia = true,
 		hidden = true,
 		stack_size = 1,
 		order="c[automated-construction]-e[miner-planner]",

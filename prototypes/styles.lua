@@ -43,6 +43,32 @@ default_style.mpp_blueprint_mode_button_active = {
 	}
 }
 
+default_style.mpp_quality_table = {
+	type = "table_style",
+	parent = "filter_slot_table",
+	-- top_padding = 4,
+	column_widths = {width=24},
+}
+default_style.mpp_button_quality = {
+	type = "button_style",
+	parent = "slot_button",
+	size = 24,
+}
+default_style.mpp_button_quality_active = {
+	type = "button_style",
+	parent = "yellow_slot_button",
+	size = 24,
+}
+default_style.mpp_button_quality_hidden = {
+	type = "button_style",
+	parent = "red_slot_button",
+	size = 24,
+}
+default_style.mpp_quality_badge = {
+	type = "image_style",
+	size = 14,
+}
+
 default_style.mpp_fake_item_placeholder = {
 	type="image_style",
 	stretch_image_to_widget_size = true,
