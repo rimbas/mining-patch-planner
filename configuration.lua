@@ -217,6 +217,18 @@ function conf.update_player_data(player_index)
 	storage.players[player_index] = new_config
 end
 
+function conf.update_player_quality_data(player_index)
+	local filtered_entities = storage.players[player_index].filtered_entities
+	for _, quality_name in pairs(conf.get_locked_qualities(game.get_player(player_index) --[[@as LuaPlayer]])) do
+		for _, quality_setting in pairs(quality_settings) do
+			local concat = quality_setting..":"..quality_name
+			if filtered_entities[concat] == nil then
+				filtered_entities[concat] = "auto_hidden"
+			end
+		end
+	end
+end
+
 ---@param player_index number
 function conf.initialize_global(player_index)
 	local old_data = storage.players[player_index]

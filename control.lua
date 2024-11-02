@@ -1,4 +1,5 @@
 require("mpp.global_extends")
+local current_version = require("mpp.version")
 local conf = require("configuration")
 local compatibility = require("mpp.compatibility")
 require("migration")
@@ -19,6 +20,7 @@ script.on_init(function()
 	storage.players = {}
 	---@type State[]
 	storage.tasks = {}
+	storage.version = current_version
 	conf.initialize_deconstruction_filter()
 
 	for _, player in pairs(game.players) do

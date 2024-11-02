@@ -1213,7 +1213,7 @@ local function update_quality_sections(player_data)
 	player_data.gui.tables["logistics_quality"].visible = shown and quality_enabled and advanced
 end
 function gui.update_quality_sections(player_data)
-	if #player_data.gui.tables == 0 then return end
+	if table_size(player_data.gui.tables) == 0 then return end
 	local ql = mpp_util.quality_list()
 	local tables = player_data.gui.tables
 	local opts = {style_func = style_helper_quality, alternate_visibility=true}

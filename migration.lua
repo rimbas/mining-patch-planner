@@ -1,7 +1,6 @@
+local current_version = require("mpp.version")
 local conf = require("configuration")
 local enums = require("mpp.enums")
-
-local current_version = 010617 -- 1.6.17
 
 -- resetting a GUI manually from console
 -- /c __mining-patch-planner__ game.player.gui.screen.mpp_settings_frame.destroy()
@@ -19,7 +18,8 @@ local function reset_gui(player)
 end
 
 script.on_configuration_changed(function(config_changed_data)
-	local version = storage.version or current_version
+	local version = storage.version or 0
+	storage.version = current_version
 	if config_changed_data.mod_changes["mining-patch-planner"] and version < current_version then
 		storage.tasks = storage.tasks or {}
 		conf.initialize_deconstruction_filter()
@@ -33,7 +33,12 @@ script.on_configuration_changed(function(config_changed_data)
 	else
 		for player_index, data in pairs(storage.players) do
 			reset_gui(game.players[player_index])
+			conf.update_player_quality_data(player_index)
 		end
+	end
+
+	if version == 0 then
+		return
 	end
 
 	if version < 010600 then
@@ -57,7 +62,6 @@ script.on_configuration_changed(function(config_changed_data)
 			blueprints.flow = {}
 			blueprints.button = {}
 			blueprints.delete = {}
-			blueprints.original_id = {}
 		end
 	end
 	
@@ -86,6 +90,4 @@ script.on_configuration_changed(function(config_changed_data)
 			end
 		end
 	end
-	
-	storage.version = current_version
 end)
