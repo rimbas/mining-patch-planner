@@ -1,8 +1,25 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.6.21
+Date: 2024-11-03
+  Translation:
+    - Updated Russian translation. (provided by Astorin)
+  Bugfixes:
+    - Fixed migration logic.
+---------------------------------------------------------------------------------------------------
+Version: 1.6.20
+Date: 2024-11-02
+  Bugfixes:
+    - Fixed an edge case in migration logic when only MPP was updated.
+---------------------------------------------------------------------------------------------------
+Version: 1.6.19
+Date: 2024-11-02
+  Bugfixes:
+    - Version bump to run fixed migration again.
+---------------------------------------------------------------------------------------------------
 Version: 1.6.18
 Date: 2024-11-01
   Bugfixes:
-    - Fix migration logic.
+    - Fixed migration logic.
 ---------------------------------------------------------------------------------------------------
 Version: 1.6.17
 Date: 2024-11-01
