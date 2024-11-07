@@ -1,7 +1,13 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.6.24
+Date: 2024-11-07
+  Features:
+    - Added support for mining drill into container and inserter/loader setups in Blueprint layout.
+---------------------------------------------------------------------------------------------------
 Version: 1.6.23
 Date: 2024-11-07
   Bugfixes:
+    - Disabled pipe and module choice buttons again until Wube fixes choose-elem-button.
     - Fix missing quality on ghosts in builtin layouts.
     - Fix spacing in Sparse layout.
     - Handle extents when mining drill size has odd parity but even mining area.

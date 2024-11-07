@@ -29,6 +29,7 @@ function layout:prepare_belt_layout(state)
 		local out_pos = state.miner.output_rotated[miner.direction]
 		belts[#belts+1] = {
 			name=state.logistics_choice,
+			quality=state.logistics_quality_choice,
 			thing="belt",
 			grid_x=miner.x + out_pos.x,
 			grid_y=miner.y + out_pos.y,

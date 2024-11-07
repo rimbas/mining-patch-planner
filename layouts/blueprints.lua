@@ -549,6 +549,56 @@ function layout:prepare_beacon_layout(state)
 		::continue::
 	end
 
+	return "prepare_container_layout"
+end
+
+
+---@param self BlueprintLayout
+---@param state BlueprintState
+---@return CallbackState
+function layout:prepare_container_layout(state)
+	local G = state.grid
+	local builder_all = state.builder_all
+	local output_locations = state.entity_output_locations
+	local input_locations = state.entity_input_locations
+	
+	local function find_output(x1, y1, x2, y2)
+		for iy = y1, y2 do
+			local output_row = output_locations[iy]
+			if output_row then
+				for ix = x1, x2 do
+					if output_row[ix] then
+						return true
+					end
+				end
+			end
+		end
+	end
+	
+	for _, container in ipairs(state.collected_containers) do
+		local name = container.name
+		local struct = mpp_util.entity_struct(name)
+		local x, y = container.x, container.y
+		
+
+		
+		if not find_output(x, y, x+struct.w-1, y+struct.h-1) then goto continue end
+
+		G:build_thing(container.x, container.y, "container", struct.w-1, struct.h-1)
+
+		builder_all[#builder_all+1] = {
+			thing = "container",
+			name = name,
+			quality = container.quality,
+			grid_x = container.origin_x,
+			grid_y = container.origin_y,
+			extent_w = struct.extent_w,
+			extent_h = struct.extent_h,
+		}
+
+		::continue::
+	end
+
 	return "prepare_inserter_layout"
 end
 
@@ -628,9 +678,15 @@ function layout:prepare_inserter_layout(state)
 			or
 			(
 				input_tile
-				and input_tile.built_on ~= "miner"
+				and not (
+					input_tile.built_on == "miner"
+					or input_tile.built_on == "container"
+				)
 				and output_tile
-				and output_tile.built_on ~= "miner"
+				and not (
+					output_tile.built_on == "miner"
+					or output_tile.built_on == "container"
+				)
 			)
 		then
 			goto continue
@@ -731,7 +787,7 @@ function layout:prepare_belt_layout_init(state)
 	--local debug_draw = drawing(state, true, false)
 
 	if not state.collected_belts or #state.collected_belts == 0 then
-		return "prepare_container_layout"
+		return "prepare_other"
 	end
 
 	---@type table<BpBeltPiece, true>
@@ -1031,44 +1087,8 @@ function layout:prepare_belt_layout_finalize(state)
 		}
 	end
 
-	return "prepare_container_layout"
-end
-
----@param self BlueprintLayout
----@param state BlueprintState
----@return CallbackState
-function layout:prepare_container_layout(state)
-	local G = state.grid
-	local builder_all = state.builder_all
-	local output_locations = state.entity_output_locations
-	local input_locations = state.entity_input_locations
-	
-	for _, container in ipairs(state.collected_containers) do
-		local name = container.name
-		local struct = mpp_util.entity_struct(name)
-		local x, y = container.x, container.y
-
-		local output_row = output_locations[y]
-		if not output_row or not output_row[x] then goto continue end
-
-		G:build_thing(container.x, container.y, "container", struct.w-1, struct.h-1)
-
-		builder_all[#builder_all+1] = {
-			thing = "container",
-			name = name,
-			quality = container.quality,
-			grid_x = container.origin_x,
-			grid_y = container.origin_y,
-			extent_w = struct.extent_w,
-			extent_h = struct.extent_h,
-		}
-
-		::continue::
-	end
-
 	return "prepare_other"
 end
-
 
 ---@param self BlueprintLayout
 ---@param state BlueprintState

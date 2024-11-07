@@ -294,7 +294,7 @@ function layout:prepare_belt_layout(state)
 			for _, miner in ipairs(lane2) do
 				local out_x = m.out_x
 
-				for ny = y + 1, y + m.outer_span * 2 - 1 do
+				for ny = y + 1, y + m.outer_span * 2 - 1 - m.wrong_parity do
 					que_entity{
 						name=state.belt_choice,
 						quality=state.belt_quality_choice,

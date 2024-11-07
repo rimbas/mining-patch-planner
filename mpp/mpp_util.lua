@@ -153,7 +153,7 @@ end
 ---@field size number Physical miner size
 ---@field size_sq number Size squared
 ---@field symmetric boolean
----@field parity (-1|0) Parity offset for even sized drills, -1 when odd
+---@field parity (-1|0) Parity offset for even sized drills, -1 when even
 ---@field resource_categories table<string, boolean>
 ---@field radius float Mining area reach
 ---@field area number Full coverage span of the miner
@@ -172,6 +172,7 @@ end
 ---@field pipe_right number Y height on right side
 ---@field output_rotated table<defines.direction, MapPosition> Rotated output positions in reference to (0, 0) origin
 ---@field power_source_tooltip (string|table)?
+---@field wrong_parity number Does miner have a wrong parity between size and area
 
 ---@type table<string, MinerStruct>
 local miner_struct_cache = {}
@@ -196,10 +197,11 @@ function mpp_util.miner_struct(mining_drill_name)
 	miner.radius = miner_proto.mining_drill_radius
 	miner.area = ceil(miner.radius * 2)
 	miner.area_sq = miner.area ^ 2
-	if miner.parity == 0 and miner.area % 2 == 1 then
-		miner.outer_span = floor((miner.area - miner.size) / 2)
-	else
+	miner.wrong_parity = 0
+	miner.outer_span = floor((miner.area - miner.size) / 2)
+	if miner.parity == 0 and miner.area % 2 == 0 then
 		miner.outer_span = floor((miner.area - miner.size + 1) / 2)
+		miner.wrong_parity = 1
 	end
 	miner.resource_categories = miner_proto.resource_categories
 	miner.name = miner_proto.name

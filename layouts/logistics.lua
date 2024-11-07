@@ -69,6 +69,7 @@ function layout:prepare_belt_layout(state)
 			if indices[j] then
 				belts[#belts+1] = {
 					name=state.logistics_choice,
+					quality=state.logistics_quality_choice,
 					thing="belt",
 					grid_x=x,
 					grid_y=y,

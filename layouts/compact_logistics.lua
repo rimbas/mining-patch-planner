@@ -58,12 +58,14 @@ function layout:prepare_belt_layout(state)
 			if miner and miner.built_on == "miner" then
 				que_entity{
 					name=state.logistics_choice,
+					quality=state.logistics_quality_choice,
 					thing="belt",
 					grid_x=shift_x+m.size+1,
 					grid_y=y,
 				}
 				power_poles[#power_poles+1] = {
 					name=state.pole_choice,
+					quality=state.pole_quality_choice,
 					thing="pole",
 					grid_x = shift_x,
 					grid_y = y,
@@ -90,6 +92,7 @@ function layout:prepare_belt_layout(state)
 			if built then
 				que_entity{
 					name=state.logistics_choice,
+					quality=state.logistics_quality_choice,
 					thing="belt",
 					grid_x=x+1,
 					grid_y=y,
@@ -99,6 +102,7 @@ function layout:prepare_belt_layout(state)
 			if pole_built then
 				power_poles[#power_poles+1] = {
 					name=state.pole_choice,
+					quality=state.pole_quality_choice,
 					thing="pole",
 					grid_x = x + 2,
 					grid_y = y,
