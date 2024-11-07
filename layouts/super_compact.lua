@@ -266,6 +266,7 @@ function layout:prepare_belt_layout(state)
 			for sx = 0, 2 do
 				que_entity{
 					name=state.belt_choice,
+					quality=state.belt_quality_choice,
 					thing="belt",
 					grid_x=belt_start-sx,
 					grid_y=y,
@@ -276,6 +277,7 @@ function layout:prepare_belt_layout(state)
 			for sx = 0, m.size+2 do
 				que_entity{
 					name=state.belt_choice,
+					quality=state.belt_quality_choice,
 					thing="belt",
 					grid_x=belt_start-sx,
 					grid_y=y,
@@ -287,6 +289,7 @@ function layout:prepare_belt_layout(state)
 			que_entity{
 				name=underground_belt,
 				type="output",
+				quality=state.belt_quality_choice,
 				thing="belt",
 				grid_x=shift_x-1,
 				grid_y=y,
@@ -295,6 +298,7 @@ function layout:prepare_belt_layout(state)
 			que_entity{
 				name=underground_belt,
 				type="input",
+				quality=state.belt_quality_choice,
 				thing="belt",
 				grid_x=shift_x+m.size+1,
 				grid_y=y,
@@ -303,6 +307,7 @@ function layout:prepare_belt_layout(state)
 			if built_miner then
 				power_poles[#power_poles+1] = {
 					name=state.pole_choice,
+					quality=state.pole_quality_choice,
 					thing="pole",
 					grid_x = shift_x,
 					grid_y = y,
@@ -325,6 +330,7 @@ function layout:prepare_belt_layout(state)
 				-- last passtrough and no trailing miner
 				que_entity{
 					name=state.belt_choice,
+					quality=state.belt_quality_choice,
 					thing="belt",
 					grid_x=x+1,
 					grid_y=y,
@@ -334,6 +340,7 @@ function layout:prepare_belt_layout(state)
 				que_entity{
 					name=underground_belt,
 					type="output",
+					quality=state.belt_quality_choice,
 					thing="belt",
 					grid_x=x+1,
 					grid_y=y,
@@ -342,6 +349,7 @@ function layout:prepare_belt_layout(state)
 				que_entity{
 					name=underground_belt,
 					type="input",
+					quality=state.belt_quality_choice,
 					thing="belt",
 					grid_x=x+m.size*2,
 					grid_y=y,
@@ -351,6 +359,7 @@ function layout:prepare_belt_layout(state)
 				for sx = 1, 6 do
 					que_entity{
 						name=state.belt_choice,
+						quality=state.belt_quality_choice,
 						thing="belt",
 						grid_x=x+sx,
 						grid_y=y,
@@ -363,6 +372,7 @@ function layout:prepare_belt_layout(state)
 			if pole_built then
 				power_poles[#power_poles+1] = {
 					name=state.pole_choice,
+					quality=state.pole_quality_choice,
 					thing="pole",
 					grid_x = x + 2,
 					grid_y = y,
@@ -411,6 +421,7 @@ function layout:placement_miners(state)
 		
 		local ghost = create_entity{
 			name = state.miner_choice,
+			quality = state.miner_quality_choice,
 			thing = "miner",
 			grid_x = miner.origin_x,
 			grid_y = miner.origin_y,

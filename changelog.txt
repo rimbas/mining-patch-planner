@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.6.23
+Date: 2024-11-07
+  Bugfixes:
+    - Fix missing quality on ghosts in builtin layouts.
+    - Fix spacing in Sparse layout.
+    - Handle extents when mining drill size has odd parity but even mining area.
+---------------------------------------------------------------------------------------------------
 Version: 1.6.21
 Date: 2024-11-03
   Translation:

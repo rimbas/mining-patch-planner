@@ -96,18 +96,18 @@ function layout:prepare_layout_attempts(state)
 	state.best_attempt_index = 1
 	state.attempt_index = 1 -- first attempt is used up
 	
-	local function calc_slack(tw, near, far)
-		local fullsize = far * 2 + 1
-		local count = ceil(tw / fullsize)
-		local overrun = count * fullsize - tw
+	local M_area = m.area
+	
+	local function calc_slack(tw)
+		local count = ceil(tw / m.area)
+		local overrun = (count * M_area - tw)
 		local slack = overrun % 2
-		--local start = far-near-floor(overrun / 2) - slack
-		local start = (far-near)-floor(overrun / 2) - slack
+		local start = -floor(overrun / 2) - slack + 1
 		return count, start, slack
 	end
 
-	local countx, slackw2, modx = calc_slack(c.tw, floor(m.size/2), floor(m.area/2))
-	local county, slackh2, mody = calc_slack(c.th, floor(m.size/2), floor(m.area/2))
+	local countx, slackw2, modx = calc_slack(c.tw)
+	local county, slackh2, mody = calc_slack(c.th)
 
 	for sy = slackh2, slackh2 + mody do
 		for sx = slackw2, slackw2 + modx do
@@ -281,6 +281,7 @@ function layout:prepare_belt_layout(state)
 			for x = x1, x2 do
 				que_entity{
 					name=state.belt_choice,
+					quality=state.belt_quality_choice,
 					thing="belt",
 					grid_x=x,
 					grid_y=y,
@@ -296,6 +297,7 @@ function layout:prepare_belt_layout(state)
 				for ny = y + 1, y + m.outer_span * 2 - 1 do
 					que_entity{
 						name=state.belt_choice,
+						quality=state.belt_quality_choice,
 						thing="belt",
 						grid_x=miner.x + out_x,
 						grid_y=ny,
@@ -320,13 +322,9 @@ function layout:prepare_pole_layout(state)
 	local P = state.pole
 	local attempt = state.best_attempt
 
-	local pole_proto = prototypes.entity[state.pole_choice]
-	local supply_area_distance, supply_area, wire_distance = 3.5, 6, 9
-	if pole_proto then
-		supply_area_distance = pole_proto.get_supply_area_distance()
-		supply_area = floor(supply_area_distance * 2)
-		wire_distance = pole_proto.get_max_wire_distance()
-	end
+	local pole_struct = mpp_util.pole_struct(state.pole_choice, state.pole_quality_choice)
+	local supply_area = pole_struct.supply_width
+	local wire_distance = pole_struct.wire
 
 	local builder_power_poles = {}
 	state.builder_power_poles = builder_power_poles
@@ -361,6 +359,7 @@ function layout:prepare_pole_layout(state)
 
 				builder_power_poles[#builder_power_poles+1] = {
 					name=state.pole_choice,
+					quality=state.pole_quality_choice,
 					thing="pole",
 					grid_x = backtrack_pole.x,
 					grid_y = backtrack_pole.y,

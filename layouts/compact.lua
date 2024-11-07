@@ -195,12 +195,15 @@ function layout:prepare_belts(state)
 
 	--local debug_draw = drawing(state, false, false)
 
-	if power_grid then
+	if power_grid and #power_grid == 0 then
+		return "expensive_deconstruct"
+	elseif power_grid then
 		local connected = power_grid:ensure_connectivity(connectivity)
 
 		for _, pole in pairs(connected) do
 			table_insert(builder_power_poles, {
 				name = P.name,
+				quality = state.pole_quality_choice,
 				thing = "pole",
 				grid_x = pole.grid_x,
 				grid_y = pole.grid_y,
@@ -276,6 +279,7 @@ function layout:prepare_belts(state)
 			local bx1, bx2 = interval.x1, interval.x2
 			builder_belts[#builder_belts+1] = {
 				name = interval.is_first and belt_name or underground_name,
+				quality = state.belt_quality_choice,
 				thing = "belt", direction=WEST,
 				grid_x = bx1, grid_y = y,
 				type = not interval.is_first and "input" or nil
@@ -283,12 +287,14 @@ function layout:prepare_belts(state)
 			for x = bx1 + 1, bx2 - 1 do
 				builder_belts[#builder_belts+1] = {
 					name = belt_name,
+					quality = state.belt_quality_choice,
 					thing = "belt", direction=WEST,
 					grid_x = x, grid_y = y,
 				}
 			end
 			builder_belts[#builder_belts+1] = {
 				name = i == #belt_intervals and belt_name or underground_name,
+				quality = state.belt_quality_choice,
 				thing = "belt", direction=WEST,
 				grid_x = bx2, grid_y = y,
 				type = not interval.is_last and "output" or nil

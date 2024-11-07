@@ -145,8 +145,8 @@ function layout:initialize_grid(state)
 	end
 	c.th, c.tw = th, tw
 
-	local y1, y2 = -miner.area, th + miner.area+1
-	local x1, x2 = -miner.area, tw + miner.area+1
+	local y1, y2 = -miner.area-2, th + miner.area+1
+	local x1, x2 = -miner.area-2, tw + miner.area+1
 	c.extent_x1, c.extent_y1, c.extent_x2, c.extent_y2 = x1, y1, x2, y2
 
 	--[[ debug rendering - bounds

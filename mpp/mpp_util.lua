@@ -194,9 +194,13 @@ function mpp_util.miner_struct(mining_drill_name)
 	miner.symmetric = miner.size % 2 == 1
 	miner.parity = miner.size % 2 - 1
 	miner.radius = miner_proto.mining_drill_radius
-	miner.area = ceil(miner_proto.mining_drill_radius * 2)
+	miner.area = ceil(miner.radius * 2)
 	miner.area_sq = miner.area ^ 2
-	miner.outer_span = floor((miner.area - miner.size) / 2)
+	if miner.parity == 0 and miner.area % 2 == 1 then
+		miner.outer_span = floor((miner.area - miner.size) / 2)
+	else
+		miner.outer_span = floor((miner.area - miner.size + 1) / 2)
+	end
 	miner.resource_categories = miner_proto.resource_categories
 	miner.name = miner_proto.name
 	miner.module_inventory_size = miner_proto.module_inventory_size
@@ -526,7 +530,7 @@ end
 function mpp_util.calculate_pole_coverage(state, miner_count, lane_count)
 	local cov = {}
 	local m = mpp_util.miner_struct(state.miner_choice)
-	local p = mpp_util.pole_struct(state.pole_choice)
+	local p = mpp_util.pole_struct(state.pole_choice, state.pole_quality_choice)
 
 	-- Shift subtract
 	local covered_miners = ceil(p.supply_width / m.size)
