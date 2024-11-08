@@ -188,7 +188,7 @@ function layout:_get_pipe_layout_specification(state)
 
 	for _, pre_lane in pairs(state.miner_lanes) do
 		if not pre_lane[1] then goto continue_lanes end
-		local y = pre_lane[1].y + M.pipe_left
+		local y = pre_lane[1].y
 		local sx = attempt.sx + M.outer_span - 1
 		---@type MinerPlacement[]
 		local lane = table.mapkey(pre_lane, function(t) return t.column end) -- make array with intentional gaps between miners
@@ -202,7 +202,7 @@ function layout:_get_pipe_layout_specification(state)
 				pipe_layout[#pipe_layout+1] = {
 					structure="horizontal",
 					x=sx + start_shift + (current_start-1) * M.area - gutter * 2 + 1,
-					y=y,
+					y=y + M.pipe_left[pre_lane[1].line%2*SOUTH] ,
 					w=current_length * M.area+gutter * 2 - 1 - start_shift,
 				}
 				current_start, current_length = nil, 0
@@ -214,7 +214,7 @@ function layout:_get_pipe_layout_specification(state)
 				pipe_layout[#pipe_layout+1] = {
 					structure="horizontal",
 					x=sx+(i-1)*M.area-gutter*2+1,
-					y=y,
+					y=y+ M.pipe_left[pre_lane[1].line%2*SOUTH],
 					w=gutter*2-1
 				}
 			end
@@ -227,11 +227,23 @@ function layout:_get_pipe_layout_specification(state)
 		local lane = attempt.lane_layout[i]
 		pipe_layout[#pipe_layout+1] = {
 			structure="cap_vertical",
-			x=attempt.sx + M.outer_span - 1,
-			y=lane.y+M.pipe_left,
+			x=attempt.sx + M.outer_span - 1 - M.wrong_parity,
+			y=lane.y+M.pipe_left[lane.row_index%2*SOUTH],
 			skip_up=i == 1,
 			skip_down=i == state.miner_lane_count,
 		}
+		if i > 1 then
+			local prev_lane = attempt.lane_layout[i-1]
+			local y1 = prev_lane.y+M.pipe_left[prev_lane.row_index%2*SOUTH]+1
+			local y2 = lane.y+M.pipe_left[lane.row_index%2*SOUTH]-1
+			pipe_layout[#pipe_layout+1] = {
+				structure="joiner_vertical",
+				x=attempt.sx + M.outer_span - 1 - M.wrong_parity,
+				y=y1,
+				h=y2-y1+1,
+				belt_y=prev_lane.y+M.size,
+			}
+		end
 	end
 
 	return pipe_layout

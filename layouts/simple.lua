@@ -712,6 +712,7 @@ end
 ---@field radius number
 ---@field skip_up boolean
 ---@field skip_down boolean
+---@field belt_y number
 
 --- Process gaps between miners in "miner space" and translate them to grid specification
 ---@param self SimpleLayout
@@ -725,7 +726,7 @@ function layout:_get_pipe_layout_specification(state)
 
 	for _, pre_lane in pairs(state.miner_lanes) do
 		if not pre_lane[1] then goto continue_lanes end
-		local y = pre_lane[1].y + M.pipe_left
+		local y = pre_lane[1].y
 		local sx = state.best_attempt.sx - 1
 		local lane = table.mapkey(pre_lane, function(t) return t.column end) -- make array with intentional gaps between miners
 
@@ -754,7 +755,7 @@ function layout:_get_pipe_layout_specification(state)
 				structure="horizontal",
 				x = gap_start,
 				w = gap_length-1,
-				y = y,
+				y = y + M.pipe_left[pre_lane[1].line%2*SOUTH],
 			}
 		end
 
@@ -766,10 +767,22 @@ function layout:_get_pipe_layout_specification(state)
 		pipe_layout[#pipe_layout+1] = {
 			structure="cap_vertical",
 			x=attempt.sx-1,
-			y=lane.y + M.pipe_left,
+			y=lane.y + M.pipe_left[lane.row_index%2*SOUTH],
 			skip_up=i == 1,
 			skip_down=i == state.miner_lane_count,
 		}
+		if i > 1 then
+			local prev_lane = attempt.lane_layout[i-1]
+			local y1 = prev_lane.y+M.pipe_left[prev_lane.row_index%2*SOUTH]+1
+			local y2 = lane.y+M.pipe_left[lane.row_index%2*SOUTH]-1
+			pipe_layout[#pipe_layout+1] = {
+				structure="joiner_vertical",
+				x=attempt.sx-1,
+				y=y1,
+				h=y2-y1+1,
+				belt_y=prev_lane.y+M.size,
+			}
+		end
 	end
 
 	return pipe_layout
@@ -831,6 +844,48 @@ function layout:prepare_pipe_layout(state)
 			que_entity{name=ground_pipe, thing="pipe", grid_x=x, grid_y=y+1, direction=NORTH}
 		end
 	end
+	local function joiner_vertical(x, y, h, belt_y)
+		if h <= span then return end
+		local quotient, remainder = math.divmod(h, span)
+		-- local breakpoint = true
+		function make_points(step_size)
+			local t = {}
+			for i = 1, quotient do
+				t[#t+1] = y+i*step_size-1
+			end
+			return t
+		end
+		local stepping = make_points(ceil(h / (quotient+1)))
+		local overlaps = false
+		for _, py in ipairs(stepping) do
+			if py == belt_y or (py+1) == belt_y then
+				overlaps = true
+				break
+			end
+		end
+		if overlaps then
+			quotient = quotient+1
+			stepping = make_points(ceil(h / (quotient+1)))
+		end
+		
+		for _, py in ipairs(stepping) do
+			que_entity{
+				name=ground_pipe,
+				thing="pipe",
+				grid_x=x,
+				grid_y = py,
+				direction=SOUTH,
+			}
+			que_entity{
+				name=ground_pipe,
+				thing="pipe",
+				grid_x=x,
+				grid_y = py+1,
+				direction=NORTH,
+			}
+		end
+		
+	end
 
 	for i, p in ipairs(state.pipe_layout_specification) do
 		local structure = p.structure
@@ -856,6 +911,8 @@ function layout:prepare_pipe_layout(state)
 			vertical_filled(x, y1, h)
 		elseif structure == "cap_vertical" then
 			cap_vertical(x1, y1, p.skip_up, p.skip_down)
+		elseif structure == "joiner_vertical" then
+			joiner_vertical(x1, y1, h, p.belt_y)
 		end
 		::continue_pipe::
 	end

@@ -304,13 +304,13 @@ function render_util.draw_drill_struct(player_data, event)
 		-- pipe connections
 		renderer.draw_line{
 			width=4, color = {0, .7, 1},
-			from={fx1-.3, y+drill.pipe_left-.5},
-			to={fx1-.3, y+drill.pipe_left+.5},
+			from={fx1-.3, y+drill.pipe_left[0]-.5},
+			to={fx1-.3, y+drill.pipe_left[0]+.5},
 		}
 		renderer.draw_line{
 			width=4, color = {.7, .7, 0},
-			from={fx1+drill.size+.3, y+drill.pipe_left-.5},
-			to={fx1+drill.size+.3, y+drill.pipe_left+.5},
+			from={fx1+drill.size+.3, y+drill.pipe_right[0]-.5},
+			to={fx1+drill.size+.3, y+drill.pipe_right[0]+.5},
 		}
 	end
 

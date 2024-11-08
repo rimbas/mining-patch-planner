@@ -168,8 +168,8 @@ end
 ---@field extent_positive number
 ---@field supports_fluids boolean
 ---@field oversized boolean Is mining drill oversized
----@field pipe_left number Y height on left side
----@field pipe_right number Y height on right side
+---@field pipe_left table<defines.direction, number> Y height on left side
+---@field pipe_right table<defines.direction, number> Y height on right side
 ---@field output_rotated table<defines.direction, MapPosition> Rotated output positions in reference to (0, 0) origin
 ---@field power_source_tooltip (string|table)?
 ---@field wrong_parity number Does miner have a wrong parity between size and area
@@ -242,14 +242,30 @@ function mpp_util.miner_struct(mining_drill_name)
 		local connections = miner_proto.fluidbox_prototypes[1].pipe_connections
 
 		for _, conn in pairs(connections) do
-			---@cast conn FluidBoxConnection
-			-- pray a mod that does weird stuff with pipe connections doesn't appear
-			local debugger = true
+			---@cast conn PipeConnectionDefinition
+			if conn.direction == WEST and miner.pipe_left == nil then
+				local pos = conn.positions[1].y + floor(miner.size/2)
+				miner.pipe_left = {
+					[NORTH] = pos,
+					[EAST] = pos,
+					[SOUTH] = miner.size - pos-1,
+					[WEST] = miner.size - pos-1,
+				}
+			elseif conn.direction == EAST and miner.pipe_right == nil then
+				local pos = conn.positions[1].y + floor(miner.size/2)
+				miner.pipe_right = {
+					[NORTH] = pos,
+					[EAST] = pos,
+					[SOUTH] = miner.size - pos-1,
+					[WEST] = miner.size - pos-1,
+				}
+			end
 		end
 
-		miner.pipe_left = floor(miner.size / 2) + miner.parity
-		miner.pipe_right = floor(miner.size / 2) + miner.parity
-		miner.supports_fluids = true
+		-- miner.pipe_left = floor(miner.size / 2) + miner.parity
+		-- miner.pipe_right = floor(miner.size / 2) + miner.parity
+		
+		miner.supports_fluids = miner.pipe_left ~= nil and miner.pipe_right ~= nil
 	else
 		miner.supports_fluids = false
 	end
@@ -587,7 +603,7 @@ function mpp_util.calculate_pole_spacing(state, miner_count, lane_count, force_c
 	-- Shift subtract
 	local covered_miners = ceil(p.supply_width / m.size)
 	local miner_step = covered_miners * m.size
-	if force_capable then
+	if force_capable and force_capable ~= 0 then
 		miner_step = force_capable == true and miner_step or force_capable --[[@as number]]
 		force_capable = miner_step
 	end
