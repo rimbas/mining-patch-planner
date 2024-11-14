@@ -1143,7 +1143,7 @@ function layout:placement_miners(state)
 		}
 
 		if ghost and miner.ent.items then
-			ghost.item_requests = miner.ent.items
+			ghost.insert_plan = miner.ent.items
 		end
 	end
 
@@ -1175,7 +1175,7 @@ function layout:placement_all(state)
 		local ghost = create_entity(thing)
 
 		if ghost and thing.items then
-			ghost.item_requests = thing.items
+			ghost.insert_plan = thing.items
 		end
 
 		::continue::

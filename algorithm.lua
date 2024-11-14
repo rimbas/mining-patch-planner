@@ -228,6 +228,7 @@ end
 --- Returns nil if it fails
 ---@param event EventData.on_player_selected_area
 function algorithm.on_player_selected_area(event)
+	local player = game.players[event.player_index]
 	---@type PlayerData
 	local player_data = storage.players[event.player_index]
 	local state, err = create_state(event)
@@ -297,6 +298,11 @@ function algorithm.on_player_selected_area(event)
 			end
 		end
 	end
+	
+	-- local uranium_mining = player.force.technologies["uranium-mining"]
+	-- if state.requires_fluid and uranium_mining and not uranium_mining.researched then
+	-- 	return nil, {"cant-build-reason.mining-with-fluid-not-available"}
+	-- end
 
 	local last_state = player_data.last_state --[[@as MininimumPreservedState]]
 	if last_state ~= nil then

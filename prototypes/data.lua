@@ -19,6 +19,8 @@ data:extend{
 			mode = "any-entity",
 			entity_filter_mode = "whitelist",
 			entity_type_filters = {"resource"},
+			tile_filter_mode = "whitelist",
+			tile_filters = {"water-wube"},
 		},
 		alt_select = {
 			border_color = {r=237/255, g=149/255, b=100/255, a=1},
@@ -26,6 +28,8 @@ data:extend{
 			mode = "any-entity",
 			entity_filter_mode = "whitelist",
 			entity_type_filters = {"resource"},
+			tile_filter_mode = "whitelist",
+			tile_filters = {"water-wube"},
 		}
 		-- selection_mode={"any-entity"},
 		-- entity_filter_mode="whitelist",

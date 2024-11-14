@@ -429,7 +429,7 @@ function layout:placement_miners(state)
 		}
 
 		if state.module_choice ~= "none" then
-			ghost.item_requests = {[state.module_choice] = module_inv_size}
+			ghost.insert_plan = {[state.module_choice] = module_inv_size}
 		end
 	end
 

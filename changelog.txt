@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.6.26
+Date: 2024-11-14
+  Bugfixes:
+    - Fixed regression with tile ghosts preventing placement on resources.
+    - Fixed item request crash in blueprint layout.
+---------------------------------------------------------------------------------------------------
 Version: 1.6.25
 Date: 2024-11-08
   Bugfixes:
@@ -13,8 +19,8 @@ Version: 1.6.23
 Date: 2024-11-07
   Bugfixes:
     - Disabled pipe and module choice buttons again until Wube fixes choose-elem-button.
-    - Fix missing quality on ghosts in builtin layouts.
-    - Fix spacing in Sparse layout.
+    - Fixed missing quality on ghosts in builtin layouts.
+    - Fixed spacing in Sparse layout.
     - Handle extents when mining drill size has odd parity but even mining area.
 ---------------------------------------------------------------------------------------------------
 Version: 1.6.21
