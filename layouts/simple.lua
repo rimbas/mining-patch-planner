@@ -214,7 +214,6 @@ function layout:preprocess_grid(state)
 	if state.avoid_water_choice then
 		local avoid_tiles = state.surface.find_tiles_filtered{area=tile_area, collision_mask="water_tile"}
 
-		local gx, gy = state.coords.ix1 - 1, state.coords.iy1 - 1
 		for i, avoid_tile in ipairs(avoid_tiles) do
 			local tx, ty = avoid_tile.position.x-.5, avoid_tile.position.y-.5
 			local x, y = conv(tx-gx, ty-gy, c.w, c.h)
@@ -809,6 +808,7 @@ function layout:prepare_pipe_layout(state)
 
 	local function que_entity(t) builder_pipes[#builder_pipes+1] = t end
 	local pipe = state.pipe_choice
+	local pipe_quality = state.pipe_quality_choice
 
 	local ground_pipe, ground_proto = mpp_util.find_underground_pipe(pipe)
 	---@cast ground_pipe string
@@ -820,28 +820,28 @@ function layout:prepare_pipe_layout(state)
 	end
 
 	local function horizontal_underground(x, y, w)
-		que_entity{name=ground_pipe, thing="pipe", grid_x=x, grid_y=y, direction=WEST}
-		que_entity{name=ground_pipe, thing="pipe", grid_x=x+w, grid_y=y, direction=EAST}
+		que_entity{name=ground_pipe, quality=pipe_quality, thing="pipe", grid_x=x, grid_y=y, direction=WEST}
+		que_entity{name=ground_pipe, quality=pipe_quality, thing="pipe", grid_x=x+w, grid_y=y, direction=EAST}
 	end
 	local function horizontal_filled(x1, y, w)
 		for x = x1, x1+w do
-			que_entity{name=pipe, thing="pipe", grid_x=x, grid_y=y}
+			que_entity{name=pipe, quality=pipe_quality, thing="pipe", grid_x=x, grid_y=y}
 		end
 	end
 	local function vertical_filled(x, y1, h)
 		for y = y1, y1 + h do
-			que_entity{name=pipe, thing="pipe", grid_x=x, grid_y=y}
+			que_entity{name=pipe, quality=pipe_quality, thing="pipe", grid_x=x, grid_y=y}
 		end
 	end
 	local function cap_vertical(x, y, skip_up, skip_down)
-		que_entity{name=pipe, thing="pipe", grid_x=x, grid_y=y}
+		que_entity{name=pipe, quality=pipe_quality, thing="pipe", grid_x=x, grid_y=y}
 
 		if not ground_pipe then return end
 		if not skip_up then
-			que_entity{name=ground_pipe, thing="pipe", grid_x=x, grid_y=y-1, direction=SOUTH}
+			que_entity{name=ground_pipe, quality=pipe_quality, thing="pipe", grid_x=x, grid_y=y-1, direction=SOUTH}
 		end
 		if not skip_down then
-			que_entity{name=ground_pipe, thing="pipe", grid_x=x, grid_y=y+1, direction=NORTH}
+			que_entity{name=ground_pipe, quality=pipe_quality, thing="pipe", grid_x=x, grid_y=y+1, direction=NORTH}
 		end
 	end
 	local function joiner_vertical(x, y, h, belt_y)
@@ -1199,7 +1199,19 @@ function layout:placement_miners(state)
 		}
 
 		if state.module_choice ~= "none" then
-			ghost.insert_plan = {[state.module_choice] = module_inv_size}
+			local item_plan = {}
+			for j = 1, module_inv_size do
+				item_plan[j] = {
+					inventory=defines.inventory.mining_drill_modules,
+					stack=j-1,
+				}
+			end
+			ghost.insert_plan = {
+				{
+					id={name=state.module_choice, quality=state.module_quality_choice},
+					items={in_inventory=item_plan},
+				}
+			}
 		end
 	end
 
@@ -1320,6 +1332,15 @@ function layout:placement_landfill(state)
 		local tile = grid:get_tile(ceil(x), ceil(y))
 
 		if tile and tile.built_on then
+			if fill.name == "out-of-map" then
+				goto skip_fill
+			end
+			local cover_tile = fill.prototype.default_cover_tile
+			
+			if not cover_tile then
+				goto skip_fill
+			end
+				
 			local tile_ghost = surface.create_entity{
 				raise_built=true,
 				name="tile-ghost",
@@ -1343,6 +1364,7 @@ function layout:placement_landfill(state)
 				target={tx+.5, ty+.5},
 			}
 			--]]
+			::skip_fill::
 		end
 	end
 
@@ -1359,10 +1381,19 @@ function layout:_display_lane_filling(state)
 	local dominant_resource = state.resource_counts[1].name
 	local resource_hardness = prototypes.entity[dominant_resource].mineable_properties.mining_time or 1
 	local drill_productivity, module_speed = 1 + state.player.force.mining_drill_productivity_bonus, 1
+	local function quality_clamp(val, level) return floor((val + val * .3 * level) * 100)/100 end
 	if state.module_choice ~= "none" then
 		local mod = prototypes.item[state.module_choice]
-		module_speed = module_speed + (mod.module_effects.speed and mod.module_effects.speed.bonus or 0) * state.miner.module_inventory_size
-		drill_productivity = drill_productivity + (mod.module_effects.productivity and mod.module_effects.productivity.bonus or 0) * state.miner.module_inventory_size
+		local level = prototypes.quality[state.module_quality_choice].level
+		local speed = mod.module_effects.speed and mod.module_effects.speed or 0
+		local productivity = mod.module_effects.productivity and mod.module_effects.productivity or 0
+		if mod.category == "speed" then
+			speed = quality_clamp(speed, level)
+		elseif mod.category == "productivity" then
+			productivity = quality_clamp(productivity, level)
+		end
+		module_speed = module_speed + speed * state.miner.module_inventory_size
+		drill_productivity = drill_productivity + productivity * state.miner.module_inventory_size
 	end
 	local multiplier = drill_speed / resource_hardness * module_speed * drill_productivity
 

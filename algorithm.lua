@@ -68,7 +68,9 @@ require_layout("blueprints")
 ---@field start_choice boolean
 ---@field deconstruction_choice boolean
 ---@field pipe_choice string
+---@field pipe_quality_choice string
 ---@field module_choice string
+---@field module_quality_choice string
 ---@field force_pipe_placement_choice boolean
 ---@field print_placement_info_choice boolean
 ---@field display_lane_filling_choice boolean

@@ -429,7 +429,19 @@ function layout:placement_miners(state)
 		}
 
 		if state.module_choice ~= "none" then
-			ghost.insert_plan = {[state.module_choice] = module_inv_size}
+			local item_plan = {}
+			for j = 1, module_inv_size do
+				item_plan[j] = {
+					inventory=defines.inventory.mining_drill_modules,
+					stack=j-1,
+				}
+			end
+			ghost.insert_plan = {
+				{
+					id={name=state.module_choice, quality=state.module_quality_choice},
+					items={in_inventory=item_plan},
+				}
+			}
 		end
 	end
 

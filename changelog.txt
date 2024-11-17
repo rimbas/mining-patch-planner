@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.6.27
+Date: 2024-11-17
+  Features:
+    - Re-enabled module fill and pipe settings. Minimum Factorio version bumped up to 2.0.18.
+  Bugfixes:
+    - Fixed crash when planning near out-of-map tiles.
+---------------------------------------------------------------------------------------------------
 Version: 1.6.26
 Date: 2024-11-14
   Bugfixes:

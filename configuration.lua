@@ -47,6 +47,7 @@ local conf = {}
 ---@field pipe_choice string
 ---@field pipe_quality_choice string
 ---@field module_choice string
+---@field module_quality_choice string
 ---@field show_non_electric_miners_choice boolean
 ---@field force_pipe_placement_choice boolean
 ---@field print_debug_info_choice boolean
@@ -117,6 +118,7 @@ conf.default_config = {
 		pipe_choice = "pipe",
 		pipe_quality_choice = "normal",
 		module_choice = "none",
+		module_quality_choice = "normal",
 		blueprint_choice = nil,
 		dumb_power_connectivity_choice = false,
 		debugging_choice = "none",
@@ -169,6 +171,8 @@ local quality_settings = {
 	"space_belt_quality",
 	"pole_quality",
 	"logistics_quality",
+	"module_quality",
+	"pipe_quality",
 }
 
 ---@param player LuaPlayer
@@ -218,13 +222,24 @@ function conf.update_player_data(player_index)
 end
 
 function conf.update_player_quality_data(player_index)
-	local filtered_entities = storage.players[player_index].filtered_entities
+	local player_data = storage.players[player_index]
+	local filtered_entities = player_data.filtered_entities
 	for _, quality_name in pairs(conf.get_locked_qualities(game.get_player(player_index) --[[@as LuaPlayer]])) do
 		for _, quality_setting in pairs(quality_settings) do
 			local concat = quality_setting..":"..quality_name
 			if filtered_entities[concat] == nil then
 				filtered_entities[concat] = "auto_hidden"
 			end
+		end
+	end
+	
+	local choices = player_data.choices
+	local quality_prototypes = prototypes.quality
+	for _, setting in ipairs(quality_settings) do
+		local setting_name = setting.."_choice"
+		local choice = choices[setting_name]
+		if quality_prototypes[choice] == nil then
+			choices[setting_name] = "normal"
 		end
 	end
 end

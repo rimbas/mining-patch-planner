@@ -69,7 +69,7 @@ local entity_sections = {
 ---@field action "mpp_prototype" Action tag override
 ---@field elem_type string
 ---@field elem_filters PrototypeFilter?
----@field elem_value string?
+---@field elem_value string?|table?
 
 ---@class TagsSimpleChoiceButton
 ---@field value string
@@ -184,10 +184,9 @@ local function create_setting_selector(player_data, root, action_type, action, v
 				tooltip=mpp_util.wrap_tooltip(value.tooltip),
 				elem_type=value.elem_type,
 				elem_filters=value.elem_filters,
-				item=value.elem_value, -- duplicate them all;
-				entity=value.elem_value, -- and let Wube sort them out
 				tags={[action_type_override]=action, value=value.value, default=value.default},
 			}
+			button.elem_value = value.elem_value
 			local fake_placeholder = button.add{
 				type="sprite",
 				sprite=value.icon,
@@ -956,25 +955,38 @@ local function update_misc_selection(player)
 		icon_enabled=("entity/cliff")
 	}
 
-	-- if layout.restrictions.module_available then
-	-- 	---@type string|nil
-	-- 	local existing_choice = choices.module_choice
-	-- 	if not prototypes.item[existing_choice] then
-	-- 		existing_choice = nil
-	-- 		choices.module_choice = "none"
-	-- 	end
+	if layout.restrictions.module_available then
+		---@type string|nil
+		local existing_choice = choices.module_choice
+		if not prototypes.item[existing_choice] then
+			existing_choice = nil
+			choices.module_choice = "none"
+		end
+		local existing_quality_choice = choices.module_quality_choice
+		if not prototypes.quality[existing_quality_choice] then
+			existing_quality_choice = "normal"
+			choices.module_quality_choice = existing_quality_choice
+		end
 
-	-- 	values[#values+1] = {
-	-- 		action="mpp_prototype",
-	-- 		value="module",
-	-- 		tooltip={"gui.module"},
-	-- 		icon=("mpp_no_module"),
-	-- 		elem_type="item",
-	-- 		elem_filters={{filter="type", type="module"}},
-	-- 		elem_value = existing_choice,
-	-- 		type="choose-elem-button",
-	-- 	}
-	-- end
+		local elem_value
+		if existing_choice then
+				elem_value = {
+				name = existing_choice,
+				quality = existing_quality_choice,
+			}
+		end
+		
+		values[#values+1] = {
+			action="mpp_prototype",
+			value="module",
+			tooltip={"gui.module"},
+			icon=("mpp_no_module"),
+			elem_type="item-with-quality",
+			elem_filters={{filter="type", type="module"}},
+			elem_value = elem_value,
+			type="choose-elem-button",
+		}
+	end
 	
 	if layout.restrictions.lamp_available then
 		values[#values+1] = {
@@ -985,25 +997,38 @@ local function update_misc_selection(player)
 		}
 	end
 	
-	-- if layout.restrictions.pipe_available then
-	-- 	---@type string | nil
-	-- 	local existing_choice = choices.pipe_choice
-	-- 	if not prototypes.entity[existing_choice] then
-	-- 		existing_choice = nil
-	-- 		choices.pipe_choice = "none"
-	-- 	end
+	if layout.restrictions.pipe_available then
+		---@type string | nil
+		local existing_choice = choices.pipe_choice
+		local existing_quality_choice = choices.pipe_quality_choice
+		if not prototypes.entity[existing_choice] then
+			existing_choice = nil
+			choices.pipe_choice = "none"
+		end
+		if not prototypes.quality[existing_quality_choice] then
+			existing_quality_choice = "normal"
+			choices.pipe_quality_choice = existing_quality_choice
+		end
+		
+		local elem_value
+		if existing_choice then
+				elem_value = {
+				name = existing_choice,
+				quality = existing_quality_choice,
+			}
+		end
 
-	-- 	values[#values+1] = {
-	-- 		action="mpp_prototype",
-	-- 		value="pipe",
-	-- 		tooltip={"entity-name.pipe"},
-	-- 		icon=("mpp_no_pipe"),
-	-- 		elem_type="entity",
-	-- 		elem_filters={{filter="type", type="pipe"}},
-	-- 		elem_value = existing_choice,
-	-- 		type="choose-elem-button",
-	-- 	}
-	-- end
+		values[#values+1] = {
+			action="mpp_prototype",
+			value="pipe",
+			tooltip={"entity-name.pipe"},
+			icon=("mpp_no_pipe"),
+			elem_type="entity-with-quality",
+			elem_filters={{filter="type", type="pipe"}},
+			elem_value = elem_value,
+			type="choose-elem-button",
+		}
+	end
 
 	if layout.restrictions.deconstruction_omit_available then
 		values[#values+1] = {
@@ -1511,9 +1536,19 @@ local function on_gui_elem_changed(event)
 	if evt_ele_tags["mpp_prototype"] then
 		local action = evt_ele_tags.value
 		local old_choice = player_data.choices[action.."_choice"]
-		local choice = element.elem_value
-		element.children[1].visible = not choice
-		player_data.choices[action.."_choice"] = choice or "none"
+		local old_quality_choice = player_data.choices[action.."_choice"]
+		local elem_value = element.elem_value
+		if elem_value then
+			local choice = elem_value.name
+			local quality_choice = element.elem_value.quality
+			element.children[1].visible = false
+			player_data.choices[action.."_choice"] = choice or "none"
+			player_data.choices[action.."_quality_choice"] = quality_choice or "normal"
+		else
+			element.children[1].visible = true
+			player_data.choices[action.."_choice"] = "none"
+			player_data.choices[action.."_quality_choice"] = "normal"
+		end
 	end
 end
 
