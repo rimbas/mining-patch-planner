@@ -42,6 +42,7 @@ script.on_configuration_changed(function(config_changed_data)
 			reset_gui(player, data)
 			--conf.initialize_global(player_index)
 			conf.update_player_data(player_index)
+			conf.update_player_quality_data(player_index)
 		end
 	else
 		for player_index, data in pairs(storage.players) do

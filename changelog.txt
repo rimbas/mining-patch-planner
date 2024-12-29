@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.6.29
+Date: 2024-11-28
+  Bugfixes:
+    - Stop planning if resources require fluid mining technology and it's not researched. Minimum Factorio version bumped to 2.0.21.
+    - Fixed a crash related to quality research.
+---------------------------------------------------------------------------------------------------
 Version: 1.6.27
 Date: 2024-11-17
   Features:

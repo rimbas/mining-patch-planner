@@ -1241,6 +1241,10 @@ function gui.update_quality_sections(player_data)
 	if table_size(player_data.gui.tables) == 0 then return end
 	local ql = mpp_util.quality_list()
 	local tables = player_data.gui.tables
+	for _, table in pairs(tables) do
+		if not table.valid then return end
+	end
+	
 	local opts = {style_func = style_helper_quality, alternate_visibility=true}
 	create_setting_selector(
 		player_data, tables["miner_quality"], "mpp_action", "miner_quality", ql, opts
