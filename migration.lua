@@ -51,6 +51,18 @@ script.on_configuration_changed(function(config_changed_data)
 		end
 	end
 
+	if config_changed_data.old_version and string.sub(config_changed_data.old_version, 1, 3) == "1.1" then
+		-- delete tasks old 1.1 tasks
+		storage.tasks = {}
+		
+		rendering.clear("mining-patch-planner")
+		
+		for player_index, data in pairs(storage.players) do
+			---@cast data PlayerData
+			data.last_state = nil
+		end
+	end
+	
 	if version == 0 then
 		return
 	end
@@ -77,21 +89,6 @@ script.on_configuration_changed(function(config_changed_data)
 			blueprints.button = {}
 			blueprints.delete = {}
 		end
-	end
-	
-	if version < 010615 then
-		-- delete tasks old 1.1 tasks
-		storage.tasks = {}
-		-- for _, task in ipairs(storage.tasks) do
-		-- 	local a = 1
-		-- end
-		
-		rendering.clear("mining-patch-planner")
-		
-		-- for player_index, data in pairs(storage.players) do
-		-- 	local a = 1
-		-- 	---@cast data PlayerData
-		-- end
 	end
 
 	if version < 010617 then
