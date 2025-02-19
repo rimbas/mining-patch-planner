@@ -476,8 +476,8 @@ function mpp_util.belt_struct(belt_name)
 end
 
 ---@class InserterStruct : EntityStruct
----@field pickup_rotated table<defines.direction, MapPosition.0>
----@field drop_rotated table<defines.direction, MapPosition.0>
+---@field pickup_rotated table<defines.direction, Vector>
+---@field drop_rotated table<defines.direction, Vector>
 
 ---@type table<string, InserterStruct>
 local inserter_struct_cache = {}
@@ -489,6 +489,7 @@ function mpp_util.inserter_struct(inserter_name)
 	local inserter_proto = prototypes.entity[inserter_name]
 	local inserter = mpp_util.entity_struct(inserter_name) --[[@as InserterStruct]]
 
+	---@return table<defines.direction, Vector>
 	local function rotations(_x, _y)
 		_x, _y = floor(_x), floor(_y)
 		return {
@@ -499,8 +500,8 @@ function mpp_util.inserter_struct(inserter_name)
 		}
 	end
 
-	local pickup_position = inserter_proto.inserter_pickup_position --[[@as MapPosition.1]]
-	local drop_position = inserter_proto.inserter_drop_position --[[@as MapPosition.1]]
+	local pickup_position = inserter_proto.inserter_pickup_position --[[@as Vector]]
+	local drop_position = inserter_proto.inserter_drop_position --[[@as Vector]]
 	inserter.pickup_rotated = rotations(pickup_position[1], pickup_position[2])
 	inserter.drop_rotated = rotations(drop_position[1], drop_position[2])
 
@@ -509,17 +510,17 @@ function mpp_util.inserter_struct(inserter_name)
 end
 
 ---@param ent BlueprintEntityEx
----@return MapPosition.0, MapPosition.0
+---@return Vector.0, Vector.0
 function mpp_util.inserter_hand_locations(ent)
 	local inserter = mpp_util.inserter_struct(ent.name);
 	local pickup, drop = ent.pickup_position, ent.drop_position
 	if pickup then
-		pickup = {x = floor(pickup.x+.5), y = floor(pickup.y+.5)}
+		pickup = {x = floor((pickup.x or pickup[1])+.5), y = floor((pickup.y or pickup[2])+.5)}
 	else
 		pickup = inserter.pickup_rotated[ent.direction or NORTH]
 	end
 	if drop then
-		drop = {x = floor(drop.x+.5), y = floor(drop.y+.5)}
+		drop = {x = floor((drop.x or drop[1])+.5), y = floor((drop.y or drop[2])+.5)}
 	else
 		drop = inserter.drop_rotated[ent.direction or NORTH]
 	end

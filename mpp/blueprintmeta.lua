@@ -20,8 +20,8 @@ bp_meta.__index = bp_meta
 ---@class BlueprintEntityEx : BlueprintEntity
 ---@field capstone_x boolean
 ---@field capstone_y boolean
----@field pickup_position MapPosition.0
----@field drop_position MapPosition.0
+---@field pickup_position Vector.0
+---@field drop_position Vector.0
 
 ---Blueprint analysis data
 ---@param bp LuaItemStack
