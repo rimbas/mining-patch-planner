@@ -181,7 +181,7 @@ function layout:prepare_layout_attempts(state)
 		start_x, slack_x = 0, 0
 	end
 
-	-- TODO: make attempts use 
+	-- TODO: make attempts use
 	attempts[1] = {
 		sx = start_x, sy = start_y,
 		cx = count_x, cy = count_y,
@@ -234,7 +234,7 @@ function layout:_placement_attempt(state, attempt)
 	local bpw, bph = bp.w, bp.h
 	local heuristic = simple._get_miner_placement_heuristic(self --[[@as SimpleLayout]], state)
 	local heuristic_values = common.init_heuristic_values()
-	
+
 	--local debug_draw = drawing(state, true, false)
 
 	-- debug_draw:draw_circle{
@@ -265,7 +265,7 @@ function layout:_placement_attempt(state, attempt)
 				if (ent.capstone_y and not capstone_y) or (ent.capstone_x and not capstone_x) then
 					goto skip_ent
 				end
-				
+
 				local ent_struct = mpp_util.entity_struct(ent.name)
 				local bpx = ceil(ent.position.x - ent_struct.x)
 				local bpy = ceil(ent.position.y - ent_struct.y)
@@ -379,7 +379,7 @@ function layout:collect_entities(state)
 	local collected_belts = state.collected_belts
 	local collected_other = state.collected_other
 	local collected_containers = state.collected_containers
-	
+
 	local s_ix = attempt.s_ix or 0
 	local s_iy = attempt.s_iy or 0
 	local s_ie = attempt.s_ie or 1
@@ -454,7 +454,7 @@ function layout:collect_entities(state)
 		end
 		s_ix = 0
 	end
-	
+
 	return "prepare_miner_layout"
 end
 
@@ -561,7 +561,7 @@ function layout:prepare_container_layout(state)
 	local builder_all = state.builder_all
 	local output_locations = state.entity_output_locations
 	local input_locations = state.entity_input_locations
-	
+
 	local function find_output(x1, y1, x2, y2)
 		for iy = y1, y2 do
 			local output_row = output_locations[iy]
@@ -574,14 +574,14 @@ function layout:prepare_container_layout(state)
 			end
 		end
 	end
-	
+
 	for _, container in ipairs(state.collected_containers) do
 		local name = container.name
 		local struct = mpp_util.entity_struct(name)
 		local x, y = container.x, container.y
-		
 
-		
+
+
 		if not find_output(x, y, x+struct.w-1, y+struct.h-1) then goto continue end
 
 		G:build_thing(container.x, container.y, "container", struct.w-1, struct.h-1)
@@ -629,7 +629,7 @@ function layout:prepare_inserter_layout(state)
 			out_y = inserter.y + next_coord.y
 			in_x = inserter.x - next_coord.x
 			in_y = inserter.y - next_coord.y
-			
+
 			if inserter.ent.type == "input" then
 				in_x, in_y, out_x, out_y = out_x, out_y, in_x, in_y
 			end
@@ -662,7 +662,7 @@ function layout:prepare_inserter_layout(state)
 		else
 			goto continue
 		end
-		
+
 		--debug_draw:draw_circle{x = inserter.x, y = inserter.y, filled = true, radius = 0.2}
 		-- output point is green
 		--debug_draw:draw_circle{x = out_x, y = out_y, radius = 0.3, color = {0.2, 0.8, 0.2}}
@@ -707,6 +707,7 @@ function layout:prepare_inserter_layout(state)
 			extent_w = struct.extent_w,
 			extent_h = struct.extent_h,
 			conditions = inserter.ent.conditions, -- inserter
+			use_filters = inserter.ent.use_filters, -- inserter
 			filters = inserter.ent.filters, -- inserter
 			filter_mode = inserter.ent.filter_mode,
 			override_stack_size = inserter.ent.override_stack_size,
@@ -809,7 +810,7 @@ function layout:prepare_belt_layout_init(state)
 
 	for _, belt in ipairs(state.collected_belts) do
 		local struct = mpp_util.entity_struct(belt.name)
-		
+
 		---@type BpBeltPiece
 		local belt_piece = {
 			ent = belt.ent,
@@ -989,7 +990,7 @@ function layout:prepare_belt_layout_backward(state)
 				next=piece,
 				direction=opposing(dir_side2)
 			}
-			
+
 			local dir_straight = (piece_dir + SOUTH) % ROTATION
 			local straight = direction_coord[dir_straight]
 			local piece_straight = belt_grid:get_tile(x+straight.x, y+straight.y)
