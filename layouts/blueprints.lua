@@ -109,7 +109,7 @@ end
 ---@param self BlueprintLayout
 ---@param state BlueprintState
 function layout:initialize(state)
-	state.miner = mpp_util.miner_struct(state.cache.miner_name)
+	state.miner = mpp_util.miner_struct(state.cache.miner_name, true)
 	state.miner_choice = state.cache.miner_name
 end
 
@@ -493,6 +493,7 @@ function layout:prepare_miner_layout(state)
 		}
 
 		local output = M.output_rotated[miner.direction]
+		-- local output = M.output_rotated[mpp_util.clamped_rotation(miner.direction, M.rotation_bump)]
 		append_transfer_location(output_locations, miner.x + output.x, miner.y + output.y)
 
 		--[[ debug visualisation - mining drill placement

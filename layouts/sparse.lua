@@ -5,7 +5,7 @@ local drawing  = require("mpp.drawing")
 
 local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
-local EAST, NORTH, SOUTH, WEST = mpp_util.directions()
+local EAST, NORTH, SOUTH, WEST, ROTATION = mpp_util.directions()
 
 local simple = require("layouts.simple")
 
@@ -99,7 +99,7 @@ function layout:prepare_layout_attempts(state)
 	local M_area = m.area
 	
 	local function calc_slack(tw)
-		local count = ceil(tw / m.area)
+		local count = ceil(tw / M_area)
 		local overrun = (count * M_area - tw)
 		local slack = overrun % 2
 		local start = -floor(overrun / 2) - slack + 1
@@ -285,8 +285,18 @@ function layout:prepare_belt_layout(state)
 		belt_lanes[#belt_lanes+1] = belt
 
 		if lane1 or lane2 then
-			local x1 = attempt.sx + 1 + pipe_adjust
-			local x2 = max(get_lane_length(lane1)+m.out_x+1, get_lane_length(lane2)+ m.out_x + 1)
+			local x1 = attempt.sx + pipe_adjust - m.extent_negative
+			local out_x1 = m.output_rotated[SOUTH].x
+			local out_x2 = m.output_rotated[NORTH].x
+			local x2
+			if lane1 and lane2 then
+				x2 = max(get_lane_length(lane1)+out_x1, get_lane_length(lane2)+ out_x2+1)
+			elseif lane1 then
+				x2 = get_lane_length(lane1) + out_x1
+			else
+				x2 = get_lane_length(lane2)+ out_x2 + 1
+			end
+				
 			longest_belt = max(longest_belt, x2 - x1 + 1)
 			belt.x1, belt.x2, belt.built = x1, x2, true
 
@@ -303,9 +313,9 @@ function layout:prepare_belt_layout(state)
 		end
 
 		if lane2 then
+			local out_x = m.output_rotated[NORTH].x
 			for _, miner in ipairs(lane2) do
-				local out_x = m.out_x
-
+				
 				for ny = y + 1, y + m.outer_span * 2 - 1 - m.wrong_parity do
 					que_entity{
 						name=state.belt_choice,
@@ -317,6 +327,7 @@ function layout:prepare_belt_layout(state)
 					}
 				end
 			end
+			
 		end
 	end
 

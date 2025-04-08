@@ -197,13 +197,13 @@ function render_util.draw_drill_struct(player_data, event)
 	--renderer.draw_cross{x=fx1, y=fy1, w=fx2-fx1, h=fy2-fy1}
 	--renderer.draw_cross{x=fx1, y=fy1, w=2}
 
-	local drill = mpp_util.miner_struct(player_data.choices.miner_choice)
+	local drill = mpp_util.miner_struct(player_data.choices.miner_choice, false)
 
 	renderer.draw_circle{
-		x = fx1 + drill.drop_pos.x,
-		y = fy1 + drill.drop_pos.y,
+		x = fx1 + drill.size / 2 + drill.drop_pos.x,
+		y = fy1 + drill.size / 2 + drill.drop_pos.y,
 		c = {0, 1, 0},
-		r = 0.2,
+		r = 0.1,
 	}
 
 	-- drop pos
@@ -317,6 +317,13 @@ function render_util.draw_drill_struct(player_data, event)
 	renderer.draw_text{
 		target={fx1 + drill.extent_negative, fy1 + drill.extent_negative-1.5},
 		text = string.format("oversized: %s", drill.oversized),
+		alignment = "left",
+		vertical_alignment="middle",
+	}
+	
+	renderer.draw_text{
+		target={fx1 + drill.extent_negative, fy1 + drill.extent_negative-2.0},
+		text = string.format("rotation bump: %s", drill.rotation_bump),
 		alignment = "left",
 		vertical_alignment="middle",
 	}

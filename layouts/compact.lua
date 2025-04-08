@@ -237,7 +237,7 @@ function layout:prepare_belts(state)
 
 		if not lane1 and not lane2 then goto continue_lane end
 
-		local x2 = max(get_lane_length(lane1, M.output_rotated[SOUTH].x), get_lane_length(lane2, M.out_x))
+		local x2 = max(get_lane_length(lane1, M.output_rotated[SOUTH].x), get_lane_length(lane2, M.output_rotated[NORTH].x))
 		state.belt_count = state.belt_count + 1
 
 		belt.x2, belt.built = x2, true

@@ -1,8 +1,13 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.6.35
+Date: 2025-04-08
+  Bugfixes:
+    - Fixed output position handling when mining drills output to sides other than north.
+---------------------------------------------------------------------------------------------------
 Version: 1.6.34
 Date: 2025-04-01
   Bugfixes:
-    - Fixed missing inserter filter usage flag in Blueprint layout. (thanks to marfenij)
+    - Fixed missing inserter filter usage flag in Blueprint layout. (Thanks to marfenij for the pull request)
 ---------------------------------------------------------------------------------------------------
 Version: 1.6.33
 Date: 2025-02-19
@@ -17,7 +22,7 @@ Date: 2025-01-29
 Version: 1.6.30
 Date: 2024-12-29
   Translation:
-    - Added French translation. (thanks to Danura30082)
+    - Added French translation. (Thanks to Danura30082)
 ---------------------------------------------------------------------------------------------------
 Version: 1.6.29
 Date: 2024-11-28
@@ -59,7 +64,7 @@ Date: 2024-11-07
 Version: 1.6.21
 Date: 2024-11-03
   Translation:
-    - Updated Russian translation. (thanks to Astorin)
+    - Updated Russian translation. (Thanks to Astorin)
   Bugfixes:
     - Fixed migration logic.
 ---------------------------------------------------------------------------------------------------
@@ -186,7 +191,7 @@ Date: 2023-11-29
 Version: 1.5.7
 Date: 2023-09-23
   Translation:
-    - Added Polish translation. (thanks to by WukuWukaCiapanos)
+    - Added Polish translation. (Thanks to by WukuWukaCiapanos)
 ---------------------------------------------------------------------------------------------------
 Version: 1.5.6
 Date: 2023-09-14
@@ -317,14 +322,14 @@ Date: 2022-07-20
 Version: 1.2.9
 Date: 2022-06-29
   Translation:
-    - Added Ukrainian translation. (thanks to by Deps Exploits)
+    - Added Ukrainian translation. (Thanks to by Deps Exploits)
 ---------------------------------------------------------------------------------------------------
 Version: 1.2.8
 Date: 2022-06-11
   Bugfixes:
     - Fixed regression with Cursed Filter Mining Drill mod.
   Translation:
-    - Added Russian translation. (thanks to by Aquilo)
+    - Added Russian translation. (Thanks to by Aquilo)
 ---------------------------------------------------------------------------------------------------
 Version: 1.2.7
 Date: 2022-06-09

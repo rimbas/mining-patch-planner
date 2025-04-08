@@ -955,7 +955,7 @@ function layout:prepare_belt_layout(state)
 
 		state.belt_count = state.belt_count + 1
 		local x1 = belt.x1
-		local x2 = max(get_lane_length(lane1, m.output_rotated[SOUTH].x), get_lane_length(lane2, m.out_x))
+		local x2 = max(get_lane_length(lane1, m.output_rotated[SOUTH].x), get_lane_length(lane2,m.output_rotated[NORTH].x))
 		longest_belt = max(longest_belt, x2 - x1 + 1)
 		belt.x2, belt.built = x2, true
 
@@ -1195,7 +1195,7 @@ function layout:placement_miners(state)
 			thing="miner",
 			grid_x = miner.origin_x,
 			grid_y = miner.origin_y,
-			direction = defines.direction[direction],
+			direction = mpp_util.clamped_rotation(defines.direction[direction], M.rotation_bump),
 		}
 
 		if state.module_choice ~= "none" then

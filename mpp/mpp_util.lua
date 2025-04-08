@@ -28,6 +28,16 @@ local coord_convert = {
 }
 mpp_util.coord_convert = coord_convert
 
+---Rotates a direction and clamps it
+---@param direction defines.direction
+---@param rotation defines.direction
+---@return defines.direction
+local function clamped_rotation(direction, rotation)
+	return (direction + rotation) % ROTATION
+end
+
+mpp_util.clamped_rotation = clamped_rotation
+
 ---@type table<DirectionString, CoordinateConverterFunction>
 local coord_revert = {
 	west = coord_convert.west,
@@ -80,6 +90,23 @@ local direction_coord = {
 	[EAST] = {x=1, y=0},
 }
 mpp_util.direction_coord = direction_coord
+
+---@param x number
+---@param y number
+---@param dir defines.direction
+---@return number, number
+local function rotate(x, y, dir)
+	dir = dir % ROTATION
+	if dir == EAST then
+		return -x, -y
+	elseif dir == SOUTH then
+		return y, -x
+	elseif dir == WEST then
+		return x, y
+	end
+	return -y, x
+end
+mpp_util.rotate = rotate
 
 ---@class EntityStruct
 ---@field filtered boolean Should the struct never appear as a valid choice
@@ -162,6 +189,7 @@ end
 ---@field module_inventory_size number
 ---@field middle number "Center" x position
 ---@field drop_pos MapPosition Raw drop position
+---@field rotation_bump defines.direction How much to pre-rotate mining drill to have a north facing drill
 ---@field out_x integer Resource drop position x
 ---@field out_y integer Resource drop position y
 ---@field extent_negative number 
@@ -176,17 +204,24 @@ end
 
 ---@type table<string, MinerStruct>
 local miner_struct_cache = {}
+local miner_struct_bp_cache = {}
 
 ---Calculates values for drill sizes and extents
 ---@param mining_drill_name string
+---@param for_blueprint? boolean Don't do rotation fixing
 ---@return MinerStruct
-function mpp_util.miner_struct(mining_drill_name)
-	local cached = miner_struct_cache[mining_drill_name]
-	if cached then return cached end
+function mpp_util.miner_struct(mining_drill_name, for_blueprint)
+	if for_blueprint then
+		local cached = miner_struct_bp_cache[mining_drill_name]
+		if cached then return cached end
+	else
+		local cached = miner_struct_cache[mining_drill_name]
+		if cached then return cached end
+	end
 
 	local miner_proto = prototypes.entity[mining_drill_name]
 
-	local miner = mpp_util.entity_struct(mining_drill_name) --[[@as MinerStruct]]
+	local miner = table.deepcopy(mpp_util.entity_struct(mining_drill_name)) --[[@as MinerStruct]]
 
 	if miner.w ~= miner.h then
 		-- we have a problem ?
@@ -214,7 +249,25 @@ function mpp_util.miner_struct(mining_drill_name)
 		or miner.area < miner.size
 		or mpp_util.protype_has_script_create_effect(miner_proto)
 
-	local vector = miner_proto.vector_to_place_result
+	local vector = miner_proto.vector_to_place_result --[[@as Vector]]
+
+	local rotation_bump = NORTH --[[@as defines.direction]]
+	if not for_blueprint and vector then
+		local span = miner.size / 2
+		local mx, my = vector[1], vector[2]
+		
+		if mx < -span then
+			miner.rotation_bump = WEST
+		elseif mx > span then
+			miner.rotation_bump = EAST
+		elseif my > span then
+			miner.rotation_bump = SOUTH
+		else
+			miner.rotation_bump = NORTH
+		end
+	end
+	rotation_bump = miner.rotation_bump or rotation_bump
+	
 	if vector then
 		miner.drop_pos = {x=vector[1], y=vector[2], vector[1], vector[2]}
 		miner.out_x = floor(vector[1]+miner.w/2)
@@ -224,19 +277,35 @@ function mpp_util.miner_struct(mining_drill_name)
 		miner.drop_pos = {x=0, y=0}
 		miner.out_x, miner.out_y = 0, 0
 	end
-
-	local output_rotated = {
-		[NORTH] = {miner.out_x, miner.out_y},
-		[EAST] = {miner.size, miner.out_x},
-		[SOUTH] = {miner.size - miner.out_x - 1, miner.size },
-		[WEST] = {-1, miner.size - miner.out_x -1},
-	}
-	output_rotated[NORTH].x, output_rotated[NORTH].y = output_rotated[NORTH][1], output_rotated[NORTH][2]
-	output_rotated[SOUTH].x, output_rotated[SOUTH].y = output_rotated[SOUTH][1], output_rotated[SOUTH][2]
-	output_rotated[WEST].x, output_rotated[WEST].y = output_rotated[WEST][1], output_rotated[WEST][2]
-	output_rotated[EAST].x, output_rotated[EAST].y = output_rotated[EAST][1], output_rotated[EAST][2]
-	miner.output_rotated = output_rotated
-
+	
+	-- terrifying redefine to fix misbehaving drills
+	---@diagnostic disable-next-line: redefined-local
+	local NORTH = clamped_rotation(NORTH, rotation_bump)
+	---@diagnostic disable-next-line: redefined-local
+	local EAST = clamped_rotation(EAST, rotation_bump)
+	---@diagnostic disable-next-line: redefined-local
+	local SOUTH = clamped_rotation(SOUTH, rotation_bump)
+	---@diagnostic disable-next-line: redefined-local
+	local WEST = clamped_rotation(WEST, rotation_bump)
+	
+	local output_rotated = {}
+	do
+		local function rot(x, y, dir)
+			local out_x, out_y = rotate(x, y, dir)
+			return floor(miner.w / 2 + out_x), floor(miner.h / 2 + out_y)
+		end
+		output_rotated[NORTH] = {rot(vector[1], vector[2], NORTH-EAST)}
+		output_rotated[EAST] = {rot(vector[1], vector[2], EAST-EAST)}
+		output_rotated[SOUTH] = {rot(vector[1], vector[2], SOUTH-EAST)}
+		output_rotated[WEST] = {rot(vector[1], vector[2], WEST-EAST)}
+		
+		output_rotated[NORTH].x, output_rotated[NORTH].y = output_rotated[NORTH][1], output_rotated[NORTH][2]
+		output_rotated[SOUTH].x, output_rotated[SOUTH].y = output_rotated[SOUTH][1], output_rotated[SOUTH][2]
+		output_rotated[WEST].x, output_rotated[WEST].y = output_rotated[WEST][1], output_rotated[WEST][2]
+		output_rotated[EAST].x, output_rotated[EAST].y = output_rotated[EAST][1], output_rotated[EAST][2]
+		miner.output_rotated = output_rotated
+	end
+	
 	--pipe height stuff
 	if miner_proto.fluidbox_prototypes and #miner_proto.fluidbox_prototypes > 0 then
 		local connections = miner_proto.fluidbox_prototypes[1].pipe_connections
@@ -298,7 +367,11 @@ function mpp_util.miner_struct(mining_drill_name)
 		}
 	end
 
-	miner_struct_cache[mining_drill_name] = miner
+	if for_blueprint then
+		miner_struct_bp_cache[mining_drill_name] = miner
+	else
+		miner_struct_cache[mining_drill_name] = miner
+	end
 	return miner
 end
 
@@ -411,7 +484,6 @@ function mpp_util.revert(gx, gy, direction, x, y, w, h)
 	return {gx + tx+.5, gy + ty + .5}
 end
 
----comment
 ---@param gx any
 ---@param gy any
 ---@param direction any
@@ -526,22 +598,6 @@ function mpp_util.inserter_hand_locations(ent)
 	end
 
 	return pickup, drop
-end
-
----@param x number
----@param y number
----@param dir defines.direction
----@return number, number
-function mpp_util.rotate(x, y, dir)
-	dir = dir % ROTATION
-	if dir == EAST then
-		return -x, -y
-	elseif dir == SOUTH then
-		return y, -x
-	elseif dir == WEST then
-		return x, y
-	end
-	return -y, x
 end
 
 ---Calculates needed power pole count

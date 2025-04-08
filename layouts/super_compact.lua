@@ -425,7 +425,7 @@ function layout:placement_miners(state)
 			thing = "miner",
 			grid_x = miner.origin_x,
 			grid_y = miner.origin_y,
-			direction = defines.direction[miner.direction],
+			direction = mpp_util.clamped_rotation(defines.direction[miner.direction], M.rotation_bump),
 		}
 
 		if state.module_choice ~= "none" then
