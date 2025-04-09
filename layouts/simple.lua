@@ -47,6 +47,7 @@ local layout = table.deepcopy(base)
 ---@field builder_lamps GhostSpecification[]
 ---@field fill_tiles LuaTile[]
 ---@field fill_tile_progress number
+---@field _profiler LuaProfiler
 
 layout.name = "simple"
 layout.translation = {"", "[entity=transport-belt] ", {"mpp.settings_layout_choice_simple"}}
