@@ -560,19 +560,29 @@ function render_util.draw_drill_convolution(player_data, event)
 			---@cast tile GridTile
 			--local c1, c2 = tile.neighbor_counts[m_size], tile.neighbor_counts[m_area]
 			local c1, c2 = tile.neighbors_inner, tile.neighbors_outer
-			if c1 == 0 and c2 == 0 then goto continue end
-
-			rendering.draw_circle{
-				surface = state.surface, filled=false, color = {0.3, 0.3, 1},
-				width=1, radius = 0.5,
-				target={C.gx + tile.x, C.gy + tile.y},
-			}
+			
+			if c1 ~= 0 or c2 ~= 0 then
+				rendering.draw_circle{
+					surface = state.surface, filled=false, color = {0.3, 0.3, 1},
+					width=1, radius = 0.5,
+					target={C.gx + tile.x, C.gy + tile.y},
+				}
+			end
+			
 			local stagger = (.5 - (tile.x % 2)) * .25
 			local col = c1 == 0 and {0.3, 0.3, 0.3} or {0.6, 0.6, 0.6}
 			rendering.draw_text{
 				surface = state.surface, filled = false, color = col,
-				target={C.gx + tile.x, C.gy + tile.y + stagger},
-				text = string.format("%i,%i", c1, c2),
+				target={C.gx + tile.x, C.gy + tile.y - .2},
+				text = string.format("i%i", c1),
+				alignment = "center",
+				vertical_alignment="middle",
+			}
+			
+			rendering.draw_text{
+				surface = state.surface, filled = false, color = col,
+				target={C.gx + tile.x, C.gy + tile.y + .3},
+				text = string.format("o%i", c2),
 				alignment = "center",
 				vertical_alignment="middle",
 			}

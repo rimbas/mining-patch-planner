@@ -61,6 +61,8 @@ local need_electricity = {
 ---@field consumed boolean Is a miner consuming this tile
 ---@field avoid boolean? Should building on the tile be avoided
 ---@field forbidden boolean? Is the tile in range of mixed resource
+---@field convolve_outer number Separable convolution calculation
+---@field convolve_inner number Separable convolution calculation
 
 ---@class BlueprintGridTile : GridTile
 ---@field neighbor_counts table<number, number>
@@ -138,7 +140,7 @@ function grid_mt:convolve_outer(ox, oy, size, amount)
 			local tile = row[x]
 			if tile == nil then goto continue_column end
 			tile.neighbors_outer = tile.neighbors_outer + 1
-			tile.neighbor_amount = tile.neighbor_amount + amount
+			-- tile.neighbor_amount = tile.neighbor_amount + amount
 			::continue_column::
 		end
 		::continue_row::
@@ -163,14 +165,54 @@ function grid_mt:forbid(ox, oy, size)
 	end
 end
 
+function grid_mt:convolve_separable_horizontal(ox, oy, extent, size, area, list)
+	local nx_1, nx_2 = ox+extent, ox+extent+area-1
+	local nx = ox + size - 1
+	
+	local row = self[oy]
+	for x = nx_1, nx_2 do
+		local tile = row[x]
+		-- if tile == nil then goto continue_row end
+		tile.convolve_outer = tile.convolve_outer + 1
+		if ox <= x and x <= nx then
+			tile.convolve_inner = tile.convolve_inner + 1
+		end
+		list[tile] = true
+		::continue_row::
+	end
+end
+
 ---@param ox number
 ---@param oy number
----@param drill MinerStruct
-function grid_mt:convolve_miner(ox, oy, drill)
-	local x1, y1 = ox-drill.extent_positive, ox-drill.extent_positive
-	local x2, y2 = x1+drill.area, y1+drill.area
-	local ix1, iy1 = ox-drill.size+1, oy-drill.size+1
-	local ix2, iy2 = x1+drill.size, y1+drill.size
+---@param extent number
+---@param size number
+---@param area number
+---@param target GridTile
+function grid_mt:convolve_separable_vertical(ox, oy, extent, size, area, target)
+	local ny_1, ny_2 = oy+extent, oy+extent+area-1
+	local ny = oy + size - 1
+	
+	local tgt_outer, tgt_inner = target.convolve_outer, target.convolve_inner
+	
+	for y = ny_1, ny_2 do
+		local tile = self[y][ox]
+		tile.neighbors_outer = tile.neighbors_outer + tgt_outer
+		if oy <= y and y <= ny then
+			tile.neighbors_inner = tile.neighbors_inner + tgt_inner
+		end
+	end
+end
+
+
+---@param ox number
+---@param oy number
+---@param extent_negative number
+---@param size number
+---@param area number
+function grid_mt:convolve_miner(ox, oy, extent_negative, size, area)
+	local x1, x2 = ox+extent_negative, ox+extent_negative+area-1
+	local y1, y2 = oy+extent_negative, oy+extent_negative+area-1
+	local nx, ny = ox + size-1, oy + size-1
 
 	for y = y1, y2 do
 		local row = self[y]
@@ -180,8 +222,8 @@ function grid_mt:convolve_miner(ox, oy, drill)
 				local tile = row[x]
 				if tile then
 					tile.neighbors_outer = tile.neighbors_outer + 1
-					if ix1 < x and x < ix2 and iy1 < y and y < iy2 then
-						tile.neighbors_outer = tile.neighbors_outer + 1
+					if ox <= x and x <= nx and oy <= y and y <= ny then
+						tile.neighbors_inner = tile.neighbors_inner + 1
 					end
 				end
 			end

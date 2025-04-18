@@ -29,7 +29,7 @@ script.on_init(function()
 end)
 
 ---@param event EventData
-local function task_runner(event)
+function task_runner(event)
 	if #storage.tasks == 0 then
 		return script.on_event(defines.events.on_tick, nil)
 	end
@@ -129,16 +129,58 @@ script.on_event(defines.events.on_player_selected_area, function(event)
 			return
 		end
 	end
+	
+	taskiess = {}
+	
+	local ents = event.entities
+	table.sort(ents, function(a, b) return a.position.y == b.position.y and a.position.x < b.position.x or a.position.y < b.position.y end)
+	local push = table.insert
+	local copy = table.deepcopy(event)
+	
+	if true then
+		local state, error = algorithm.on_player_selected_area(event)
 
-	local state, error = algorithm.on_player_selected_area(event)
+		--rendering.clear("mining-patch-planner")
+		
+		game.print(("size %s,%s\ncount: %i"):format(state.coords.w, state.coords.h, #state.resources))
+		
+		if state then
+			table.insert(storage.tasks, state)
+			-- table.insert(taskiess, state)
+			script.on_event(defines.events.on_tick, task_runner)
+		elseif error then
+			player.print(error)
+		end
+	else
+		local w = 2 ^ 6
+		for mult = 0, 6 do
+			local new = {}
+			for iy = 1, 2^mult do
+				for ix = 1, 2^mult do
+					push(new, ents[(iy-1) * w + ix])
+				end
+			end
+			
+			copy.entities = new
+			
+			for i = 1, 100 do
+				
+				-- local state, error = algorithm.on_player_selected_area(event)
+				local state, error = algorithm.on_player_selected_area(copy)
 
-	--rendering.clear("mining-patch-planner")
+				state._do_profiling = true
+				
+				--rendering.clear("mining-patch-planner")
 
-	if state then
-		table.insert(storage.tasks, state)
-		script.on_event(defines.events.on_tick, task_runner)
-	elseif error then
-		player.print(error)
+				if state then
+					table.insert(storage.tasks, state)
+					-- table.insert(taskiess, state)
+					script.on_event(defines.events.on_tick, task_runner)
+				elseif error then
+					player.print(error)
+				end
+			end
+		end
 	end
 end)
 

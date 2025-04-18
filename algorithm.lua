@@ -79,6 +79,7 @@ require_layout("blueprints")
 ---@field balancer_choice boolean
 ---
 ---@field grid Grid
+---@field convolution_cache GridTile[]
 ---@field deconstruct_specification DeconstructSpecification
 ---@field miner MinerStruct
 ---@field pole PoleStruct
@@ -134,9 +135,7 @@ local function create_state(event)
 		state.belt_quality_choice = state.space_belt_quality_choice
 	end
 
-	-- if state.filt
-
-	state.debug_dump = mpp_util.get_dump_state(event.player_index)
+	-- state.debug_dump = mpp_util.get_dump_state(event.player_index)
 
 	if state.layout_choice == "blueprints" then
 		local blueprint = player_data.choices.blueprint_choice

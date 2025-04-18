@@ -129,19 +129,26 @@ end
 ---@param attempt PlacementAttempt
 ---@param miners MinerPlacement[]
 ---@param postponed MinerPlacement[]
+---@return number #Cost of operation
 function common.process_postponed(state, attempt, miners, postponed)
+	local price = 0
 	local grid = state.grid
 	local M = state.miner
 	local bx, by = attempt.sx + M.size - 1, attempt.sy + M.size - 1
 
+	local ext_negative, ext_positive = M.extent_negative, M.extent_positive
+	local area, size = M.area, M.size
+	local area_sq = M.area_sq
+	
 	for _, miner in ipairs(miners) do
-		grid:consume(miner.x+M.extent_negative, miner.y+M.extent_negative, M.area)
-		bx, by = max(bx, miner.x + M.size -1), max(by, miner.y + M.size -1)
+		grid:consume(miner.x+ext_negative, miner.y+ext_negative, area)
+		bx, by = max(bx, miner.x + size - 1), max(by, miner.y + size - 1)
+		price = price + area_sq
 	end
 
 	for _, miner in ipairs(postponed) do
-		miner.unconsumed = grid:get_unconsumed(miner.x+M.extent_negative, miner.y+M.extent_negative, M.area)
-		bx, by = max(bx, miner.x + M.size -1), max(by, miner.y + M.size -1)
+		miner.unconsumed = grid:get_unconsumed(miner.x+ext_negative, miner.y+ext_negative, area)
+		bx, by = max(bx, miner.x + size -1), max(by, miner.y + size -1)
 	end
 
 	table.sort(postponed, function(a, b)
@@ -157,14 +164,15 @@ function common.process_postponed(state, attempt, miners, postponed)
 
 	for _, miner in ipairs(postponed) do
 		local tile = miner.tile
-		local unconsumed_count = grid:get_unconsumed(miner.x+M.extent_negative, miner.y+M.extent_negative, M.area)
+		local unconsumed_count = grid:get_unconsumed(miner.x+ext_negative, miner.y+ext_negative, area)
 		if unconsumed_count > 0 then
 			common.add_heuristic_values(attempt.heuristics, M, tile, true)
 
-			grid:consume(tile.x+M.extent_negative, tile.y+M.extent_negative, M.area)
+			grid:consume(tile.x+ext_negative, tile.y+ext_negative, area)
+			price = price + area_sq
 			miners[#miners+1] = miner
 			miner.postponed = true
-			bx, by = max(bx, miner.x + M.size - 1), max(by, miner.y + M.size - 1)
+			bx, by = max(bx, miner.x + size - 1), max(by, miner.y + size - 1)
 		end
 	end
 	local unconsumed_sum = 0
@@ -175,6 +183,8 @@ function common.process_postponed(state, attempt, miners, postponed)
 	attempt.bx, attempt.by = bx, by
 	
 	grid:clear_consumed(state.resource_tiles)
+	
+	return price + #state.resource_tiles
 end
 
 local seed
@@ -182,7 +192,7 @@ local function get_map_seed()
 	if seed then return seed end
 	
 	local game_exchange_string = game.get_map_exchange_string()
-	local map_data = game.parse_map_exchange_string(game_exchange_string)
+	local map_data = helpers.parse_map_exchange_string(game_exchange_string)
 
 	local seed_number = map_data.map_gen_settings.seed
 	seed = string.format("%x", seed_number)
@@ -202,10 +212,10 @@ function common.save_state_to_file(state, type_)
 
 	if type_ == "json" then
 		game.print(string.format("Dumped data to %s ", filename))
-		game.write_file("mpp-inspect/"..filename, game.table_to_json(state), false, state.player.index)
+		helpers.write_file("mpp-inspect/"..filename, helpers.table_to_json(state), false, state.player.index)
 	elseif type_ == "lua" then
 		game.print(string.format("Dumped data to %s ", filename))
-		game.write_file("mpp-inspect/"..filename, serpent.dump(state, {}), false, state.player.index)
+		helpers.write_file("mpp-inspect/"..filename, serpent.dump(state, {}), false, state.player.index)
 	end
 end
 

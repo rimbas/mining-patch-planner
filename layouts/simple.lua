@@ -146,8 +146,8 @@ function layout:initialize_grid(state)
 	end
 	c.th, c.tw = th, tw
 
-	local y1, y2 = -miner.area-2, th + miner.area+1
-	local x1, x2 = -miner.area-2, tw + miner.area+1
+	local y1, y2 = -miner.area-2, th + miner.area+3
+	local x1, x2 = -miner.area-2, tw + miner.area+3
 	c.extent_x1, c.extent_y1, c.extent_x2, c.extent_y2 = x1, y1, x2, y2
 
 	--[[ debug rendering - bounds
@@ -189,11 +189,14 @@ function layout:initialize_grid(state)
 				--neighbor_counts = init_counts(),
 				gx = c.x1 + x, gy = c.y1 + y,
 				consumed = false,
+				convolve_outer = 0,
+				convolve_inner = 0,
 			} --[[@as GridTile]]
 		end
 	end
 
 	state.grid = setmetatable(grid, grid_mt)
+	state.convolution_cache = {}
 
 	return "preprocess_grid"
 end
@@ -252,7 +255,7 @@ function layout:preprocess_grid(state)
 			end
 		end
 	end
-
+	
 	return "process_grid"
 end
 
@@ -265,6 +268,7 @@ function layout:process_grid(state)
 	local conv = coord_convert[state.direction_choice]
 	local gx, gy = state.coords.gx, state.coords.gy
 	local resources = state.resources
+	local num_resources = #resources
 
 	local m = state.miner
 	local size, area = m.size, m.area
@@ -273,42 +277,39 @@ function layout:process_grid(state)
 	state.resource_tiles = state.resource_tiles or {}
 	local resource_tiles = state.resource_tiles
 
-	local price = m.area_sq
-	if not m.oversized then price = price + m.size_sq end
-	local budget, cost = 12000, 0
+	local price, price2 = m.area, m.area_sq
+	-- if not m.oversized then price = price + m.size_sq end
+	local budget, cost = 8192, 0
 
+	local filtering_choice = state.ore_filtering_choice
+	
+	local convlist = state.convolution_cache
+	
 	local i = state.resource_iter or 1
-	while i <= #resources and cost < budget do
+	while i <= num_resources and cost < budget do
 		local ent = resources[i] --[[@as LuaEntity]]
 		local x, y, tx, ty, tile
+		i = i + 1
 		if ent == nil or not ent.valid then
 			goto skip_resource
 		end
 		x, y = ent.position.x - gx - .5, ent.position.y - gy - .5
 		tx, ty = conv(x, y, c.w, c.h)
 		tx, ty = floor(tx + 1), floor(ty + 1)
-		tile = grid:get_tile(tx, ty) --[[@as GridTile]]
+		-- tile = grid:get_tile(tx, ty) --[[@as GridTile]]
+		tile = grid[ty][tx]
 		tile.amount = ent.amount
-		--[[
-			TODO: don't do outer convolution for large area drills
-			Large inner and outer areas exceed the O(n^2) bruteforcing
-			look into separable convolutions?
-		]]
-		--grid:convolve_miner(tx-size+1, ty-size+1, m)
 
-		if state.ore_filtering_choice and state.ore_filtering_selected ~= ent.name then
+		if filtering_choice and state.ore_filtering_selected ~= ent.name then
 			grid:forbid(tx-extent_positive, ty-extent_positive, area)
+			cost = cost + price2
 		else
-			if not m.oversized then
-				grid:convolve_inner(tx-size+1, ty-size+1, size)
-			end
-			grid:convolve_outer(tx-extent_positive, ty-extent_positive, area, tile.amount)
+			grid:convolve_separable_horizontal(tx-size+1, ty-size+1, extent_negative, size, area, convlist)
+			table_insert(resource_tiles, tile)
+			cost = cost + price
 		end
 
-		table_insert(resource_tiles, tile)
 		::skip_resource::
-		cost = cost + price
-		i = i + 1
 	end
 	state.resource_iter = i
 
@@ -363,7 +364,49 @@ function layout:process_grid(state)
 		end
 	end --]]
 
-	if state.resource_iter >= #state.resources then
+	if state.resource_iter >= num_resources then
+		state.resource_iter = 1
+		local convolved = state.convolution_cache
+		local new = {}
+		for k, _ in pairs(convolved) do
+			table_insert(new, k)
+		end
+		state.convolution_cache = new
+
+		return "process_grid_convolution"
+	end
+	return true
+end
+
+---@param self SimpleLayout
+---@param state SimpleState
+---@return CallbackState
+function layout:process_grid_convolution(state)
+	local grid = state.grid
+	
+	local resource_tiles = state.convolution_cache
+	local num_resources = #state.convolution_cache
+	
+	local m = state.miner
+	local size, area = m.size, m.area
+	local extent_positive, extent_negative = m.extent_positive, m.extent_negative
+	
+	local price = m.area
+	local budget, cost = 8192, 0
+	
+	local i = state.resource_iter or 1
+	while i <= num_resources and cost < budget do
+		local tile = resource_tiles[i]
+
+		grid:convolve_separable_vertical(tile.x, tile.y, extent_negative, size, area, tile)
+
+		cost = cost + price
+		i = i + 1
+	end
+	state.resource_iter = i
+
+	if state.resource_iter >= num_resources then
+		state.convolution_cache = nil
 		return "prepare_layout_attempts"
 	end
 	return true
@@ -400,6 +443,7 @@ end
 ---@field lane_layout LaneInfo[]
 ---@field bx number Lower right mining drill bound
 ---@field by number Lower right mining drill bound
+---@field price number Performance cost of the operation
 
 ---@class LaneInfo
 ---@field y number
@@ -480,12 +524,15 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 		heuristics = heuristic_values,
 		heuristic_score = -(0/0),
 		unconsumed = 0,
+		price = 0,
 	}
 
-	common.process_postponed(state, result, miners, postponed)
+	local price = common.process_postponed(state, result, miners, postponed)
 
 	common.finalize_heuristic_values(result, heuristic_values, state.coords)
 
+	result.price = price
+	
 	return result
 end
 
@@ -574,6 +621,8 @@ end
 ---@return CallbackState
 function layout:layout_attempt(state)
 
+	local attempt_limit = 25
+	
 	if state.attempt_index >= #state.attempts then
 		--- Draw the best attempt's origin (shift)
 		if __DebugAdapter then
@@ -590,6 +639,8 @@ function layout:layout_attempt(state)
 
 		return "prepare_miner_layout"
 	end
+	
+	state._profiler = helpers.create_profiler(false)
 
 	local attempt_state = state.attempts[state.attempt_index]
 
@@ -608,6 +659,9 @@ function layout:layout_attempt(state)
 		state.best_attempt_score = current_attempt_score
 	end
 
+	state._profiler.stop()
+	game.print{"", state.attempt_index, " ", state._profiler, " ", state.best_attempt.price}
+	
 	state.attempt_index = state.attempt_index + 1
 	return true
 end
