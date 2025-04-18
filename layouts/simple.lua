@@ -278,7 +278,6 @@ function layout:process_grid(state)
 	local resource_tiles = state.resource_tiles
 
 	local price, price2 = m.area, m.area_sq
-	-- if not m.oversized then price = price + m.size_sq end
 	local budget, cost = 8192, 0
 
 	local filtering_choice = state.ore_filtering_choice
@@ -407,7 +406,8 @@ function layout:process_grid_convolution(state)
 
 	if state.resource_iter >= num_resources then
 		state.convolution_cache = nil
-		return "prepare_layout_attempts"
+		-- return "prepare_layout_attempts"
+		return self:prepare_layout_attempts(state)
 	end
 	return true
 end
@@ -541,22 +541,21 @@ end
 function layout:prepare_layout_attempts(state)
 	local m = state.miner
 	--local init_pos_x, init_pos_y = -m.near, -m.near
-	local init_pos_x, init_pos_y = 1, 1
+	-- local init_pos_x, init_pos_y = 1, 1
+	local init_pos_x, init_pos_y = 1-m.middle, 1-m.middle
 	local attempts = {{init_pos_x, init_pos_y}}
 	state.attempts = attempts
 	state.best_attempt_index = 1
-	state.attempt_index = 1 -- first attempt is used up
-	--local ext_behind, ext_forward = -m.far, m.far - m.near
+	state.attempt_index = 1
 	local outer = floor((m.area - m.size)/2)
-	local ext_forward = max(outer, 2)
-	local ext_behind = min(-outer, 0)
+	local ext_pos = m.extent_positive
+	local ext_neg = m.extent_negative
 
-	-- game.print(string.format("forward: %i\n behind: %i\nspan: %i", ext_forward, ext_behind, ext_forward-ext_behind))
-
-	--for sy = ext_behind, ext_forward do
-	--	for sx = ext_behind, ext_forward do
-	for sy = ext_forward, ext_behind, -1 do
-		for sx = ext_forward, ext_behind, -1 do
+	local ext_start_x, ext_end_x = 1-ext_pos, 1
+	local ext_start_y, ext_end_y = 1-ext_pos, max(1-ext_neg, 1)
+	
+	for sy = ext_start_y, ext_end_y, 1 do
+		for sx = ext_start_x, ext_end_x, 1 do
 			if not (sx == init_pos_x and sy == init_pos_y) then
 				attempts[#attempts+1] = {sx, sy}
 			end
@@ -593,76 +592,57 @@ function layout:prepare_layout_attempts(state)
 	end
 	--]]
 
-	return "init_layout_attempt"
+	return "layout_attempts"
 end
 
 ---@param self SimpleLayout
 ---@param state SimpleState
 ---@return CallbackState
-function layout:init_layout_attempt(state)
-	local attempt = state.attempts[state.attempt_index]
-
-	state.best_attempt = self:_placement_attempt(state, attempt[1], attempt[2])
-	state.best_attempt_score = self:_get_layout_heuristic(state)(state.best_attempt.heuristics)
-	state.best_attempt.heuristic_score = state.best_attempt_score
-
-	if state.debug_dump then
-		state.saved_attempts = {}
-		state.saved_attempts[#state.saved_attempts+1] = state.best_attempt
-	end
-
-	state.attempt_index = state.attempt_index + 1
-	return "layout_attempt"
-end
-
----Bruteforce the best solution
----@param self SimpleLayout
----@param state SimpleState
----@return CallbackState
-function layout:layout_attempt(state)
-
-	local attempt_limit = 25
+function layout:layout_attempts(state)
+	local attempt_count = #state.attempts
+	local attempts_done = 0
+	local budget, cost = 12345, 0
 	
-	if state.attempt_index >= #state.attempts then
-		--- Draw the best attempt's origin (shift)
-		if __DebugAdapter then
-			local heuristics = state.best_attempt.heuristics
-			self:_get_layout_heuristic(state)(state.best_attempt.heuristics)
-			local C = state.coords
-			table_insert(state._render_objects, rendering.draw_circle{
-				surface = state.surface, filled=false, color = {0, 0, 0},
-				width=3, radius = 0.4,
-				draw_on_ground = true,
-				target={C.gx + state.best_attempt.sx, C.gy + state.best_attempt.sy},
-			})
-		end
-
-		return "prepare_miner_layout"
-	end
-	
-	state._profiler = helpers.create_profiler(false)
-
-	local attempt_state = state.attempts[state.attempt_index]
-
-	---@type PlacementAttempt
-	local current_attempt = self:_placement_attempt(state, attempt_state[1], attempt_state[2])
-	local current_attempt_score = self:_get_layout_heuristic(state)(current_attempt.heuristics)
-	current_attempt.heuristic_score = current_attempt_score
-
-	if state.debug_dump then
-		state.saved_attempts[#state.saved_attempts+1] = current_attempt
-	end
-
-	if current_attempt_score < state.best_attempt_score or current_attempt.unconsumed < state.best_attempt.unconsumed then
-		state.best_attempt_index = state.attempt_index
+	if state.attempt_index == 1 then
+		local attempt_state = state.attempts[state.attempt_index]
+		local current_attempt = self:_placement_attempt(state, attempt_state[1], attempt_state[2])
+		local current_attempt_score = self:_get_layout_heuristic(state)(current_attempt.heuristics)
 		state.best_attempt = current_attempt
 		state.best_attempt_score = current_attempt_score
+		state.best_attempt.heuristic_score = state.best_attempt_score
+		
+		state.attempt_index = state.attempt_index + 1
+		attempts_done = 1
+		cost = cost + current_attempt.price
+	end
+	
+	while cost < budget and state.attempt_index <= attempt_count do
+		local attempt_state = state.attempts[state.attempt_index]
+		local current_attempt = self:_placement_attempt(state, attempt_state[1], attempt_state[2])
+		local current_attempt_score = self:_get_layout_heuristic(state)(current_attempt.heuristics)
+		current_attempt.heuristic_score = current_attempt_score
+		state.attempt_index = state.attempt_index + 1
+		local price = current_attempt.price
+		cost = cost + price
+		attempts_done = attempts_done + 1
+		
+		if current_attempt_score < state.best_attempt_score or current_attempt.unconsumed < state.best_attempt.unconsumed then
+			state.best_attempt_index = state.attempt_index
+			state.best_attempt = current_attempt
+			state.best_attempt_score = current_attempt_score
+		end
+		
+		local remainder = budget - cost
+		local avg = cost / attempts_done
+		if avg * 0.65 > remainder then
+			break
+		end
+	end
+	
+	if state.attempt_index > #state.attempts then
+		return "prepare_miner_layout"
 	end
 
-	state._profiler.stop()
-	game.print{"", state.attempt_index, " ", state._profiler, " ", state.best_attempt.price}
-	
-	state.attempt_index = state.attempt_index + 1
 	return true
 end
 

@@ -142,7 +142,7 @@ script.on_event(defines.events.on_player_selected_area, function(event)
 
 		--rendering.clear("mining-patch-planner")
 		
-		game.print(("size %s,%s\ncount: %i"):format(state.coords.w, state.coords.h, #state.resources))
+		-- game.print(("size %s,%s\ncount: %i"):format(state.coords.w, state.coords.h, #state.resources))
 		
 		if state then
 			table.insert(storage.tasks, state)

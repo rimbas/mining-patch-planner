@@ -25,7 +25,7 @@ end
 function common.overfill_miner_placement(miner)
 	local size, area = miner.size, miner.area
 	local neighbor_cap = (size/ 2) ^ 2 - 1
-	local leech = (area * 0.5) ^ 2 - 1
+	local leech = 1
 
 	return function(tile)
 		return tile.neighbors_inner > 0 or tile.neighbors_outer > leech
