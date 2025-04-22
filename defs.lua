@@ -80,13 +80,18 @@
 ---@field width number
 ---@field height number
 
----@class BeltSpecification
+---@class BaseBeltSpecification
 ---@field x1 number Start
----@field x2 number End
+---@field x2 number End for mining drill outout
+---@field x_end number End for mining drill bounds
 ---@field y number
 ---@field built boolean? Do miners exist on this belt
 ---@field lane1 MinerPlacement[]
 ---@field lane2 MinerPlacement[]
+
+---@class BeltSpecification : BaseBeltSpecification
+---@field throughput1 number
+---@field throughput2 number
 
 ---@alias LuaRenderingFunction fun(RendererParams): uint64
 

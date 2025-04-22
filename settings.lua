@@ -1,5 +1,11 @@
 data:extend{
 	{
+		type="double-setting",
+		name="mpp-performance-scaling",
+		setting_type="runtime-global",
+		default_value=1.0,
+	},
+	{
 		type="int-setting",
 		name="mpp-lane-filling-info-duration",
 		setting_type="runtime-per-user",

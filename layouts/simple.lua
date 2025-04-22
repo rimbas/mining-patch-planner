@@ -278,7 +278,7 @@ function layout:process_grid(state)
 	local resource_tiles = state.resource_tiles
 
 	local price, price2 = m.area, m.area_sq
-	local budget, cost = 8192, 0
+	local budget, cost = 8192 * state.performace_scaling, 0
 
 	local filtering_choice = state.ore_filtering_choice
 	
@@ -391,7 +391,7 @@ function layout:process_grid_convolution(state)
 	local extent_positive, extent_negative = m.extent_positive, m.extent_negative
 	
 	local price = m.area
-	local budget, cost = 8192, 0
+	local budget, cost = 8192 * state.performace_scaling, 0
 	
 	local i = state.resource_iter or 1
 	while i <= num_resources and cost < budget do
@@ -601,7 +601,7 @@ end
 function layout:layout_attempts(state)
 	local attempt_count = #state.attempts
 	local attempts_done = 0
-	local budget, cost = 12345, 0
+	local budget, cost = 8192 * state.performace_scaling, 0
 	
 	if state.attempt_index == 1 then
 		local attempt_state = state.attempts[state.attempt_index]

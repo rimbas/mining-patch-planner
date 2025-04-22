@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.7.0
+Date: 2025-04-18
+  Optimizations:
+    - Refactored to use better algorithms.
+    - Optimized work done per tick.
+    - Added performance scaling option.
+---------------------------------------------------------------------------------------------------
 Version: 1.6.35
 Date: 2025-04-08
   Bugfixes:

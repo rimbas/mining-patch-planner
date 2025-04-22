@@ -46,6 +46,7 @@ require_layout("blueprints")
 ---@field resource_counts {name: string, count: number}[] Highest count resource first
 ---@field requires_fluid boolean
 ---@field mod_version string
+---@field performace_scaling number
 ---
 ---@field layout_choice string
 ---@field direction_choice string
@@ -108,7 +109,7 @@ local function create_state(event)
 	state._collected_ghosts = {}
 	state._render_objects = {}
 	state._lane_info_rendering = {}
-	
+	state.performace_scaling = settings.global["mpp-performance-scaling"].value
 
 	---@type PlayerData
 	local player_data = storage.players[event.player_index]

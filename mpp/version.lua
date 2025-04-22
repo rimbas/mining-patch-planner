@@ -1,2 +1,2 @@
 -- current migration version
-return 010629 -- 1.6.29
+return 010700 -- 1.7.0
