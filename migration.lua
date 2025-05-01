@@ -33,12 +33,13 @@ end
 script.on_configuration_changed(function(config_changed_data)
 	local version = storage.version or 0
 	storage.version = current_version
+	local game_players = game.players
 	if config_changed_data.mod_changes["mining-patch-planner"] and version < current_version then
 		storage.tasks = storage.tasks or {}
 		conf.initialize_deconstruction_filter()
 		for player_index, data in pairs(storage.players) do
 			---@cast data PlayerData
-			local player = game.players[player_index]
+			local player = game_players[player_index]
 			reset_gui(player, data)
 			--conf.initialize_global(player_index)
 			conf.update_player_data(player_index)
@@ -46,7 +47,7 @@ script.on_configuration_changed(function(config_changed_data)
 		end
 	else
 		for player_index, data in pairs(storage.players) do
-			reset_gui(game.players[player_index], data)
+			reset_gui(game_players[player_index], data)
 			conf.update_player_quality_data(player_index)
 		end
 	end
@@ -68,6 +69,10 @@ script.on_configuration_changed(function(config_changed_data)
 	end
 
 	if version < 010700 then
+		if storage.immediate_tasks == nil then
+			storage.immediate_tasks = {}
+		end
+		
 		for _, task in pairs(storage.tasks) do
 			task.performace_scaling = settings.global["mpp-performance-scaling"].value --[[@as number]]
 		end

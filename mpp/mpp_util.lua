@@ -503,6 +503,19 @@ function mpp_util.revert_world(gx, gy, direction, x, y, w, h)
 	return {gx + tx, gy + ty}
 end
 
+---Creates a local to world coord coverter delegate
+---@param C Coords
+---@param direction DirectionString
+---@return fun(x: number, y: number, sx?: number, sy?: number): number, number
+function mpp_util.reverter_delegate(C, direction)
+	local gx, gy, w, h = C.gx, C.gy, C.tw, C.th
+	local converter = coord_revert[direction]
+	return function(x, y, sx, sy)
+		local tx, ty = converter(x-.5, y-.5, w, h)
+		return gx + tx + (sx or 0), gy + ty + (sy or 0)
+	end
+end
+
 ---@class BeltStruct
 ---@field name string
 ---@field related_underground_belt string?
@@ -831,6 +844,13 @@ function mpp_util.directions()
 		defines.direction.west,
 		table_size(defines.direction)
 end
+
+mpp_util.direction_to_string = {
+	[NORTH] = "north",
+	[EAST] = "east",
+	[SOUTH] = "south",
+	[WEST] = "west",
+}
 
 ---@param player_index uint
 ---@return uint

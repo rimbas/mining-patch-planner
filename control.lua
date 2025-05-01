@@ -8,10 +8,15 @@ local gui = require("gui.gui")
 local bp_meta = require("mpp.blueprintmeta")
 local render_util = require("mpp.render_util")
 local mpp_util = require("mpp.mpp_util")
+local task_runner = require("mpp.task_runner")
+local coord_convert, coord_revert = mpp_util.coord_convert, mpp_util.coord_revert
+local EAST, NORTH, SOUTH, WEST, ROTATION = mpp_util.directions()
+local floor = math.floor
 
 ---@class MppStorage
 ---@field players table<number, PlayerData>
 ---@field tasks State[]
+---@field immediate_tasks TaskState[]
 ---@field version number
 
 storage = storage --[[@as MppStorage]]
@@ -20,6 +25,7 @@ script.on_init(function()
 	storage.players = {}
 	---@type State[]
 	storage.tasks = {}
+	storage.immediate_tasks = {}
 	storage.version = current_version
 	conf.initialize_deconstruction_filter()
 
@@ -29,89 +35,21 @@ script.on_init(function()
 end)
 
 ---@param event EventData
-function task_runner(event)
+function task_runner_handler(event)
+	
+	if #storage.immediate_tasks > 0 then
+		for _, task in ipairs(storage.immediate_tasks) do
+			task_runner.belt_plan_task(task --[[@as BeltinatorState]])
+		end
+		storage.immediate_tasks = {}
+	end
+	
 	if #storage.tasks == 0 then
 		return script.on_event(defines.events.on_tick, nil)
 	end
 
-	local state = storage.tasks[1]
-	local layout = algorithm.layouts[state.layout_choice]
-
-	local last_callback = state._callback
-	---@type TickResult
-	local tick_result
-
-	if not __DebugAdapter then
-		tick_result = layout:tick(state)
-	else
-		local success
-		success, tick_result = pcall(layout.tick, layout, state)
-		if success == false then
-			game.print(tick_result)
-			tick_result = false
-		end
-	end
-
-	if last_callback == tick_result then
-		if __DebugAdapter then
-			table.remove(storage.tasks, 1)
-		else
-			error("Layout "..state.layout_choice.." step "..tostring(tick_result).." called itself again")
-		end
-	elseif tick_result == nil then
-		if __DebugAdapter then
-			game.print(("Callback for layout %s after call %s has no result"):format(state.layout_choice, state._callback))
-			table.remove(storage.tasks, 1)
-
-			---@type PlayerData
-			local player_data = storage.players[state.player.index]
-			player_data.last_state = nil
-			-- TODO: fix rendering
-			--rendering.destroy(state._preview_rectangle)
-			if state._preview_rectangle.valid then
-				state._preview_rectangle.destroy()
-			end
-			mpp_util.update_undo_button(player_data)
-		else
-			error("Layout "..state.layout_choice.." missing a callback name")
-		end
-	elseif tick_result == false then
-		local player = state.player
-		if state.blueprint then state.blueprint.clear() end
-		if state.blueprint_inventory then state.blueprint_inventory.destroy() end
-		-- TODO: fix rendering
-		--rendering.destroy(state._preview_rectangle)
-		if state._preview_rectangle.valid then
-			state._preview_rectangle.destroy()
-		end
-
-		---@type PlayerData
-		local player_data = storage.players[player.index]
-		state._previous_state = nil
-		player_data.tick_expires = math.huge
-		if __DebugAdapter then
-			player_data.last_state = state
-		else
-			player_data.last_state = {
-				player = state.player,
-				surface = state.surface,
-				layout_choice = state.layout_choice,
-				resources = state.resources,
-				coords = state.coords,
-				_preview_rectangle = state._preview_rectangle,
-				_collected_ghosts = state._collected_ghosts,
-				_render_objects = state._render_objects,
-				_lane_info_rendering = state._lane_info_rendering,
-			}
-		end
-
-		table.remove(storage.tasks, 1)
-		-- TODO: sound
-		-- player.play_sound{path="utility/build_blueprint_medium"}
-		mpp_util.update_undo_button(player_data)
-	elseif tick_result ~= true then
-		state._callback = tick_result
-	end
+	local layout_task = storage.tasks[1]
+	task_runner.mining_patch_task(layout_task)
 end
 
 script.on_event(defines.events.on_player_selected_area, function(event)
@@ -130,8 +68,6 @@ script.on_event(defines.events.on_player_selected_area, function(event)
 		end
 	end
 	
-	taskiess = {}
-	
 	local ents = event.entities
 	table.sort(ents, function(a, b) return a.position.y == b.position.y and a.position.x < b.position.x or a.position.y < b.position.y end)
 	local push = table.insert
@@ -146,8 +82,7 @@ script.on_event(defines.events.on_player_selected_area, function(event)
 		
 		if state then
 			table.insert(storage.tasks, state)
-			-- table.insert(taskiess, state)
-			script.on_event(defines.events.on_tick, task_runner)
+			script.on_event(defines.events.on_tick, task_runner_handler)
 		elseif error then
 			player.print(error)
 		end
@@ -174,8 +109,7 @@ script.on_event(defines.events.on_player_selected_area, function(event)
 
 				if state then
 					table.insert(storage.tasks, state)
-					-- table.insert(taskiess, state)
-					script.on_event(defines.events.on_tick, task_runner)
+					script.on_event(defines.events.on_tick, task_runner_handler)
 				elseif error then
 					player.print(error)
 				end
@@ -260,7 +194,7 @@ script.on_load(function()
 	end
 
 	if storage.tasks and #storage.tasks > 0 then
-		script.on_event(defines.events.on_tick, task_runner)
+		script.on_event(defines.events.on_tick, task_runner_handler)
 		for _, task in ipairs(storage.tasks) do
 			---@type Layout
 			local layout = algorithm.layouts[task.layout_choice]
@@ -335,6 +269,56 @@ do
 		script.on_event(v, cursor_stack_check)
 	end
 end
+
+script.on_event(defines.events.on_built_entity, function(event)
+	local ent = event.entity
+	local tags = ent.tags
+	if tags == nil or tags.mpp_belt_planner == nil then return end
+	
+	local position = ent.position
+	local gx, gy = position.x, position.y
+	local world_direction = ent.direction
+	
+	ent.destroy()
+	if tags.mpp_belt_planner ~= "main" then return end
+	
+	local state = storage.players[event.player_index].last_state
+	
+	if state == nil then
+		game.get_player(event.player_index).print("Can't plan belt. No previous saved state found.")
+		return
+	end
+	
+	local coords = state.coords
+	local belts = state.belt_planner_belts
+	local count = belts.count
+	
+	local conv = coord_convert[state.direction_choice]
+	-- local rot = mpp_util.bp_direction[state.direction_choice][direction]
+	-- local bump = state.direction_choice == "north" or state.direction_choice EAST
+	local belt_direction = mpp_util.clamped_rotation(((-defines.direction[state.direction_choice]) % ROTATION)-EAST, world_direction)
+	local x, y = gx - coords.gx - .5, gy - coords.gy - .5
+	local tx, ty = conv(x, y, coords.w, coords.h)
+	tx, ty = floor(tx + 1), floor(ty + 1)
+	
+	---@type BeltinatorState
+	local beltinator_state = {
+		type = "belt_planner",
+		surface = state.surface,
+		player = state.player,
+		coords = state.coords,
+		direction_choice = state.direction_choice,
+		belt_x = tx,
+		belt_y = ty,
+		belt_specification = state.belt_planner_belts,
+		belt_choice = state.belt_choice,
+		belt_direction = belt_direction,
+	}
+	
+	table.insert(storage.immediate_tasks, beltinator_state)
+	script.on_event(defines.events.on_tick, task_runner_handler)
+	
+end)
 
 -- script.on_event(defines.events.on_player_main_inventory_changed, function(e)
 -- 	--change_handler(e)

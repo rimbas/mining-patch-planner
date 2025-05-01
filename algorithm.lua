@@ -25,19 +25,29 @@ require_layout("compact_logistics")
 require_layout("sparse_logistics")
 require_layout("blueprints")
 
----@class MininimumPreservedState
----@field layout_choice string
+---@alias TaskType
+---| "layout"
+---| "belt_planner"
+
+---@class TaskState
+---@field type TaskType
+---@field direction_choice string
 ---@field player LuaPlayer
 ---@field surface LuaSurface
----@field resources LuaEntity[] Filtered resources
 ---@field coords Coords
----@field _previous_state MininimumPreservedState?
+
+---@class MinimumPreservedState : TaskState
+---@field layout_choice string
+---@field resources LuaEntity[] Filtered resources
+---@field belt_planner_belts BeltPlannerSpecification
+---@field belt_choice string
+---@field _previous_state MinimumPreservedState?
 ---@field _collected_ghosts LuaEntity[]
 ---@field _preview_rectangle? LuaRenderObject LuaRendering.draw_rectangle
 ---@field _lane_info_rendering LuaRenderObject[]
 ---@field _render_objects LuaRenderObject[] LuaRendering objects
 
----@class State : MininimumPreservedState
+---@class State : MinimumPreservedState
 ---@field _callback string -- callback to be used in the tick
 ---@field tick number
 ---@field is_space boolean
@@ -77,6 +87,7 @@ require_layout("blueprints")
 ---@field display_lane_filling_choice boolean
 ---@field ore_filtering_choice boolean
 ---@field ore_filtering_selected string?
+---@field belt_planner_choice boolean
 ---@field balancer_choice boolean
 ---
 ---@field grid Grid
@@ -117,7 +128,7 @@ local function create_state(event)
 	-- game state properties
 	state.surface = event.surface
 	state.is_space = compatibility.is_space(event.surface.index)
-	state.player = game.players[event.player_index]
+	state.player = game.get_player(event.player_index)
 
 	-- fill in player option properties
 	local player_choices = player_data.choices
@@ -230,7 +241,7 @@ end
 --- Returns nil if it fails
 ---@param event EventData.on_player_selected_area
 function algorithm.on_player_selected_area(event)
-	local player = game.players[event.player_index]
+	local player = game.get_player(event.player_index)
 	---@type PlayerData
 	local player_data = storage.players[event.player_index]
 	local state, err = create_state(event)
@@ -305,7 +316,7 @@ function algorithm.on_player_selected_area(event)
 		return nil, {"cant-build-reason.mining-with-fluid-not-available"}
 	end
 
-	local last_state = player_data.last_state --[[@as MininimumPreservedState]]
+	local last_state = player_data.last_state --[[@as MinimumPreservedState]]
 	if last_state ~= nil then
 		local renderables = last_state._render_objects
 

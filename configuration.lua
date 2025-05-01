@@ -15,7 +15,8 @@ local conf = {}
 ---@field blueprint_items LuaInventory Preserve in migrations
 ---@field choices PlayerChoices Preserve in migrations
 ---@field blueprints PlayerGuiBlueprints 
----@field last_state MininimumPreservedState? Preserve in migrations
+---@field last_state MinimumPreservedState? Preserve in migrations
+---@field last_belt_task BeltinatorState
 ---@field filtered_entities table<string, FilteredEntityStatus> string is of format "category:name"
 ---@field tick_expires integer When was gui closed, for undo button disabling
 ---@field selection_collection LuaEntity[] Selected resources
@@ -56,6 +57,7 @@ local conf = {}
 ---@field debugging_choice string Debugging only value
 ---@field ore_filtering_choice boolean
 ---@field balancer_choice boolean
+---@field belt_planner_choice boolean
 
 ---@class PlayerGui
 ---@field section table<MppSettingSections, LuaGuiElement>
@@ -123,6 +125,7 @@ conf.default_config = {
 		dumb_power_connectivity_choice = false,
 		debugging_choice = "none",
 		ore_filtering_choice = false,
+		belt_planner_choice = true,
 		balancer_choice = false,
 		avoid_water_choice = false,
 		avoid_cliffs_choice = false,
@@ -271,8 +274,9 @@ end
 ---@param force LuaForce
 ---@param qualities string[]
 function conf.unhide_qualities_for_force(force, qualities)
+	local game_players = game.players
 	for index, player_data in pairs(storage.players) do
-		local player = game.players[index]
+		local player = game_players[index]
 		if player.force ~= force then goto skip_player end
 		local filtered_entities = player_data.filtered_entities
 		for _, quality_setting in pairs(quality_settings) do

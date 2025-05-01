@@ -22,10 +22,12 @@ local quality_enabled = script.feature_flags.quality
 ---@field ix number
 ---@field iy number
 
+---@alias EntityBuilderFunction fun(ghost: GhostSpecification, check_allowed: boolean?): LuaEntity?
+
 --- Builder for a convenience function that automatically translates
 --- internal grid state for a surface.create_entity call
----@param state State
----@return fun(ghost: GhostSpecification, check_allowed: boolean?): LuaEntity?
+---@param state MinimumPreservedState | State
+---@return EntityBuilderFunction
 function builder.create_entity_builder(state)
 	local c = state.coords
 	local grid = state.grid
@@ -34,7 +36,7 @@ function builder.create_entity_builder(state)
 	local gx, gy, tw, th = c.gx, c.gy, c.tw, c.th
 	local direction_conv = mpp_util.bp_direction[state.direction_choice]
 	local collected_ghosts = state._collected_ghosts
-	local is_space = state.is_space
+	-- local is_space = state.is_space
 
 	return function(ghost, check_allowed)
 		ghost.raise_built = true
@@ -73,8 +75,13 @@ function builder.create_entity_builder(state)
 
 		local result = surface.create_entity(ghost)
 		if result then
-			grid:build_specification(ghost)
-			collected_ghosts[#collected_ghosts+1] = result
+			if ghost.thing and grid then
+				grid:build_specification(ghost)
+			end
+			
+			if collected_ghosts then
+				collected_ghosts[#collected_ghosts+1] = result
+			end
 		end
 		return result
 	end

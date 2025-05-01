@@ -92,6 +92,12 @@
 ---@class BeltSpecification : BaseBeltSpecification
 ---@field throughput1 number
 ---@field throughput2 number
+---@field index number Belt index for belt planner
+
+---@class BeltPlannerSpecification
+---@field [number] BeltSpecification 
+---@field count number Belt count
+---@field ungrouped boolean Is first step when belts are spaced out?
 
 ---@alias LuaRenderingFunction fun(RendererParams): uint64
 

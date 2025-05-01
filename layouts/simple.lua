@@ -601,7 +601,7 @@ end
 function layout:layout_attempts(state)
 	local attempt_count = #state.attempts
 	local attempts_done = 0
-	local budget, cost = 8192 * state.performace_scaling, 0
+	local budget, cost = 12345 * state.performace_scaling, 0
 	
 	if state.attempt_index == 1 then
 		local attempt_state = state.attempts[state.attempt_index]
@@ -1468,6 +1468,83 @@ end
 
 ---@param self SimpleLayout
 ---@param state SimpleState
+function layout:_give_belt_blueprint(state)
+	local belts = state.belts
+	
+	---@type BeltPlannerSpecification
+	local belt_planner_spec = {count = 0}
+	
+	local count = 0
+	for _, belt in pairs(belts) do
+		if belt.built == true then
+			count = count + 1
+			belt_planner_spec[count] = table.deepcopy(belt)
+		end
+	end
+	
+	local converter = mpp_util.reverter_delegate(state.coords, state.direction_choice)
+	
+	rendering.clear("mining-patch-planner")
+	
+	for i, belt in ipairs(belt_planner_spec) do
+		local index = count - i + 1
+		belt.index = index
+		local gx, gy = converter(belt.x1-1, belt.y)
+		belt.world_x = gx
+		belt.world_y = gy
+		
+		-- rendering.draw_circle{
+		-- 	surface = state.surface,
+		-- 	target = {gx+.5, gy+.5},
+		-- 	radius = 0.45,
+		-- 	width = 3,
+		-- 	color = {1, 1, 1},
+		-- }
+		
+		-- rendering.draw_text{
+		-- 	surface = state.surface,
+		-- 	target = {gx+.5, gy},
+		-- 	color = {1, 1, 1},
+		-- 	text = index,
+		-- 	alignment= "center",
+		-- 	scale = 2,
+		-- }
+	end
+	
+	belt_planner_spec.count = count
+	belt_planner_spec.ungrouped = true
+	
+	state.belt_planner_belts = belt_planner_spec
+	
+	local ply = state.player
+	local stack = ply.cursor_stack --[[@as LuaItemStack]]
+	stack.set_stack("mpp-blueprint-belt-planner")
+	
+	---@type BlueprintEntity[]
+	local ents = {}
+	
+	for i = 1, count do
+		local tags = {mpp_belt_planner = "delete"}
+		if i == 1 then
+			tags.mpp_belt_planner = "main"
+		end
+		ents[i] = {
+			name = state.belt_choice,
+			position = {i, 1},
+			direction = defines.direction.north,
+			entity_number = i,
+			tags = tags,
+		}
+	end
+	
+	stack.set_blueprint_entities(ents)
+	ply.cursor_stack_temporary = true
+	
+	local a = true
+end
+
+---@param self SimpleLayout
+---@param state SimpleState
 ---@return CallbackState
 function layout:finish(state)
 	if state.print_placement_info_choice and state.player.valid then
@@ -1481,6 +1558,10 @@ function layout:finish(state)
 
 	if mpp_util.get_dump_state(state.player.index) then
 		common.save_state_to_file(state, "json")
+	end
+	
+	if state.belt_planner_choice then
+		layout:_give_belt_blueprint(state)
 	end
 
 	return false

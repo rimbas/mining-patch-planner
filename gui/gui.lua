@@ -856,7 +856,7 @@ local function update_pole_selection(player_data)
 
 	local values = {}
 
-	if player_data.advanced and layout.restrictions.pole_zero_gap then
+	if layout.restrictions.pole_zero_gap then
 		values[#values+1] = {
 			value="zero_gap",
 			tooltip={"mpp.choice_none_zero"},
@@ -874,7 +874,7 @@ local function update_pole_selection(player_data)
 		no_quality=true,
 	}
 
-	local existing_choice_is_valid = ("none" == choices.pole_choice or (player_data.advanced and layout.restrictions.pole_zero_gap and "zero_gap" == choices.pole_choice))
+	local existing_choice_is_valid = ("none" == choices.pole_choice or (layout.restrictions.pole_zero_gap and "zero_gap" == choices.pole_choice))
 	local poles = prototypes.get_entity_filtered{{filter="type", type="electric-pole"}}
 	for _, pole_proto in pairs(poles) do
 		if mpp_util.check_filtered(pole_proto) then goto skip_pole end
@@ -953,6 +953,13 @@ local function update_misc_selection(player)
 		tooltip={"mpp.choice_avoid_cliffs"},
 		icon=("entity/cliff"),
 		icon_enabled=("entity/cliff")
+	}
+
+	values[#values+1] = {
+		value="belt_planner",
+		tooltip={"mpp.belt_planner"},
+		icon=("mpp_belt_planner"),
+		icon_enabled=("mpp_belt_planner")
 	}
 
 	if layout.restrictions.module_available then
@@ -1324,7 +1331,7 @@ end
 
 ---@param event EventDataGuiClick
 local function on_gui_click(event)
-	local player = game.players[event.player_index]
+	local player = game.get_player(event.player_index) --[[@as LuaPlayer]]
 	---@type PlayerData
 	local player_data = storage.players[event.player_index]
 	local evt_ele_tags = event.element.tags
@@ -1512,7 +1519,7 @@ script.on_event(defines.events.on_gui_click, on_gui_click)
 
 ---@param event EventDataGuiSelectionStateChanged
 local function on_gui_selection_state_changed(event)
-	local player = game.players[event.player_index]
+	local player = game.get_player(event.player_index) --[[@as LuaPlayer]]
 	if event.element.tags["mpp_drop_down"] then
 		abort_blueprint_mode(player)
 		---@type PlayerData
@@ -1533,7 +1540,7 @@ script.on_event(defines.events.on_gui_selection_state_changed, on_gui_selection_
 ---@param event EventData.on_gui_elem_changed
 local function on_gui_elem_changed(event)
 	local element = event.element
-	local player = game.players[event.player_index]
+	local player = game.get_player(event.player_index) --[[@as LuaPlayer]]
 	---@type PlayerData
 	local player_data = storage.players[event.player_index]
 	local evt_ele_tags = element.tags

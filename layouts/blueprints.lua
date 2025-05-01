@@ -7,10 +7,8 @@ local grid_mt = require("mpp.grid_mt")
 local mpp_util = require("mpp.mpp_util")
 local builder = require("mpp.builder")
 local common   = require("layouts.common")
-local drawing  = require("mpp.drawing")
 local compatibility = require("mpp.compatibility")
 local is_buildable_in_space = compatibility.is_buildable_in_space
-local coord_convert, coord_revert = mpp_util.coord_convert, mpp_util.coord_revert
 local direction_coord = mpp_util.direction_coord
 
 local EAST, NORTH, SOUTH, WEST, ROTATION = mpp_util.directions()

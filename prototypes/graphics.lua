@@ -329,4 +329,12 @@ data:extend{
 		flags = { "gui-icon" },
 		scale = 0.5,
 	},
+	{
+		type = "sprite",
+		name = "mpp_belt_planner",
+		filename = graphics.."belt-planner.png",
+		size = 64,
+		mipmap_count = 0,
+		flags = { "icon" },
+	},
 }

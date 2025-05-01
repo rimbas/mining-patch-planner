@@ -25,7 +25,7 @@ end
 function common.overfill_miner_placement(miner)
 	local size, area = miner.size, miner.area
 	local neighbor_cap = (size/ 2) ^ 2 - 1
-	local leech = 1
+	local leech = (area * 0.5) ^ 2 - 1
 
 	return function(tile)
 		return tile.neighbors_inner > 0 or tile.neighbors_outer > leech
@@ -48,9 +48,11 @@ end
 function common.overfill_layout_heuristic(heuristic)
 	local lane_mult = 1 + ceil(heuristic.lane_count / 2) * 0.05
 	local unconsumed = 1 + log(max(1, heuristic.unconsumed), 10)
-	local value =
-		heuristic.outer_density
-		--* heuristic.centricity
+	local empty_space = heuristic.empty_space
+	local value = 1
+		* heuristic.outer_density
+		-- * heuristic.centricity
+		* empty_space
 		* lane_mult
 		* unconsumed
 	return value
@@ -140,15 +142,23 @@ function common.process_postponed(state, attempt, miners, postponed)
 	local area, size = M.area, M.size
 	local area_sq = M.area_sq
 	
+	local consume_cache = {}
+	
 	for _, miner in ipairs(miners) do
-		grid:consume(miner.x+ext_negative, miner.y+ext_negative, area)
+		-- grid:consume(miner.x+ext_negative, miner.y+ext_negative, area)
+		grid:consume_separable_horizontal(miner.x+ext_negative, miner.y+ext_negative, area, consume_cache)
 		bx, by = max(bx, miner.x + size - 1), max(by, miner.y + size - 1)
-		price = price + area_sq
+		price = price + area
 	end
 
+	for tile, _ in pairs(consume_cache) do
+		grid:consume_separable_vertical(tile.x, tile.y, area)
+	end
+	
 	for _, miner in ipairs(postponed) do
 		miner.unconsumed = grid:get_unconsumed(miner.x+ext_negative, miner.y+ext_negative, area)
 		bx, by = max(bx, miner.x + size -1), max(by, miner.y + size -1)
+		price = price + area
 	end
 
 	table.sort(postponed, function(a, b)

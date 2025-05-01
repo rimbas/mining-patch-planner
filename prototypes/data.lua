@@ -90,3 +90,11 @@ data:extend{
 		associated_control_input="mining-patch-planner-keybind",
 	},
 }
+
+local mpp_blueprint = table.deepcopy(data.raw["blueprint"]["blueprint"])
+
+mpp_blueprint.name = "mpp-blueprint-belt-planner"
+mpp_blueprint.flags = mpp_blueprint.flags or {}
+table.insert(mpp_blueprint.flags, "only-in-cursor")
+
+data.extend{mpp_blueprint}

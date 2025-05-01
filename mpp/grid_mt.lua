@@ -203,7 +203,7 @@ function grid_mt:convolve_separable_vertical(ox, oy, extent, size, area, target)
 	end
 end
 
-
+---@deprecated
 ---@param ox number
 ---@param oy number
 ---@param extent_negative number
@@ -271,6 +271,34 @@ function grid_mt:consume_custom(cx, cy, w, evenw, evenh)
 			end
 		end
 		::continue_row::
+	end
+end
+
+---@param ox number
+---@param oy number
+---@param area number
+---@param list List<GridTile>
+function grid_mt:consume_separable_horizontal(ox, oy, area, list)
+	local nx_1, nx_2 = ox, ox+area-1
+	
+	local row = self[oy]
+	for x = nx_1, nx_2 do
+		local tile = row[x]
+		-- if tile == nil then goto continue_row end
+		-- tile.consume_horizontal = true
+		list[tile] = true
+	end
+end
+
+---@param ox number
+---@param oy number
+---@param area number
+function grid_mt:consume_separable_vertical(ox, oy, area)
+	local ny_1, ny_2 = oy, oy+area-1
+	
+	for y = ny_1, ny_2 do
+		local tile = self[y][ox]
+		tile.consumed = true
 	end
 end
 
