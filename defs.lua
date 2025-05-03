@@ -93,6 +93,7 @@
 ---@field throughput1 number
 ---@field throughput2 number
 ---@field index number Belt index for belt planner
+---@field accomodation_shift number Belt extension to fit around other belts
 
 ---@class BeltPlannerSpecification
 ---@field [number] BeltSpecification 

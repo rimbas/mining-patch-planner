@@ -113,6 +113,7 @@ require_layout("blueprints")
 local function create_state(event)
 	---@diagnostic disable-next-line: missing-fields
 	local state = {} --[[@as State]]
+	state.type = "layout"
 	state._callback = "start"
 	state.tick = 0
 	state.mod_version = script.active_mods["mining-patch-planner"]

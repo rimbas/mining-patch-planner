@@ -34,7 +34,7 @@ end
 
 ---@param heuristic HeuristicsBlock
 function common.simple_layout_heuristic(heuristic)
-	local lane_mult = 1 + ceil(heuristic.lane_count / 2) * 0.05
+	local lane_mult = 1 + ceil(heuristic.lane_count / 2) * 0.1
 	local unconsumed = 1 + log(max(1, heuristic.unconsumed), 10)
 	local value =
 		(heuristic.inner_density + heuristic.empty_space / heuristic.drill_count)

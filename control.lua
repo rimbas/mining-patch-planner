@@ -38,18 +38,30 @@ end)
 function task_runner_handler(event)
 	
 	if #storage.immediate_tasks > 0 then
-		for _, task in ipairs(storage.immediate_tasks) do
-			task_runner.belt_plan_task(task --[[@as BeltinatorState]])
-		end
+		local tasks = storage.immediate_tasks
 		storage.immediate_tasks = {}
+		for _, task in ipairs(tasks) do
+			if not __DebugAdapter then
+				task_runner.belt_plan_task(task --[[@as BeltinatorState]])
+			else
+				local success
+				success, tick_result = pcall(task_runner.belt_plan_task, task)
+				if success == false then
+					game.print(tick_result)
+					tick_result = false
+				end
+			end
+		end
 	end
 	
-	if #storage.tasks == 0 then
+	if #storage.tasks > 0 then
+		local layout_task = storage.tasks[1]
+		task_runner.mining_patch_task(layout_task)
+	end
+	
+	if #storage.tasks == 0 and #storage.immediate_tasks == 0 then
 		return script.on_event(defines.events.on_tick, nil)
 	end
-
-	local layout_task = storage.tasks[1]
-	task_runner.mining_patch_task(layout_task)
 end
 
 script.on_event(defines.events.on_player_selected_area, function(event)
@@ -313,6 +325,7 @@ script.on_event(defines.events.on_built_entity, function(event)
 		belt_specification = state.belt_planner_belts,
 		belt_choice = state.belt_choice,
 		belt_direction = belt_direction,
+		start_x = belts[1].x1,
 	}
 	
 	table.insert(storage.immediate_tasks, beltinator_state)

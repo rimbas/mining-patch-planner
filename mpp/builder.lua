@@ -7,6 +7,8 @@ local builder = {}
 local quality_enabled = script.feature_flags.quality
 
 ---@class GhostSpecification : LuaSurface.create_entity_param.entity_ghost
+---@field inner_name? nil
+---@field position? nil
 ---@field grid_x number Grid x coordinate
 ---@field grid_y number Grid x coordinate
 ---@field radius number? Object radius or default to 0.5 if nil
@@ -26,7 +28,7 @@ local quality_enabled = script.feature_flags.quality
 
 --- Builder for a convenience function that automatically translates
 --- internal grid state for a surface.create_entity call
----@param state MinimumPreservedState | State
+---@param state MinimumPreservedState | State | BeltinatorState
 ---@return EntityBuilderFunction
 function builder.create_entity_builder(state)
 	local c = state.coords

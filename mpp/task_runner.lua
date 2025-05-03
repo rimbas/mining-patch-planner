@@ -1,10 +1,5 @@
 local mpp_util = require("mpp.mpp_util")
-local builder  = require("mpp.builder")
 local belt_planner = require("mpp.belt_planner")
-
-local floor = math.floor
-local EAST, NORTH, SOUTH, WEST, ROTATION = mpp_util.directions()
-local coord_convert, coord_revert = mpp_util.coord_convert, mpp_util.coord_revert
 
 local task_runner = {}
 
@@ -67,6 +62,7 @@ function task_runner.mining_patch_task(state)
 			player_data.last_state = state
 		else
 			player_data.last_state = {
+				type = state.type,
 				player = state.player,
 				surface = state.surface,
 				resources = state.resources,
@@ -91,44 +87,9 @@ function task_runner.mining_patch_task(state)
 	end
 end
 
----comment
 ---@param state BeltinatorState
 function task_runner.belt_plan_task(state)
-	
-	local coords = state.coords
-	local belt_specification = state.belt_specification
-	local count = belt_specification.count
-	local tx, ty = state.belt_x, state.belt_y
-	local world_direction = state.belt_direction
-	
-	local conv = coord_convert[state.direction_choice]
-	-- local rot = mpp_util.bp_direction[state.direction_choice][direction]
-	-- local bump = state.direction_choice == "north" or state.direction_choice EAST
-	-- local belt_direction = mpp_util.clamped_rotation(((-defines.direction[state.direction_choice]) % ROTATION)-EAST, world_direction)
-	local belt_direction = world_direction
-	
-	local create_entity = builder.create_entity_builder(state)
-	
-	if belt_direction == EAST then
-		-- rong direction
-	elseif belt_direction == WEST then
-		-- algorithm to determine collection
-	else
-		local x_direction = belt_direction == NORTH and 1 or -1
-		for i, belt in ipairs(belt_specification) do
-			belt_planner.build_elbow(create_entity, {
-			-- table.insert(segment_specification, {
-				start_direction = WEST,
-				end_direction = belt_direction,
-				type = "elbow",
-				x1 = belt.x1 - 1,
-				y1 = belt.y,
-				x2 = tx + (count - i) * x_direction,
-				y2 = ty,
-				belt_choice = state.belt_choice,
-			})
-		end
-	end
+	belt_planner.layout(state)
 end
 
 return task_runner

@@ -44,6 +44,10 @@ function math.divmod(a, b)
 	return math.floor(a / b), a % b
 end
 
+function math.sign(x)
+	return (x < 0 and 1) or (x == 0 and 0) or -1
+end
+
 ---Collects boolean expression result
 ---Yes, this kills short-circuiting
 ---@param ... boolean

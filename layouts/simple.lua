@@ -551,11 +551,11 @@ function layout:prepare_layout_attempts(state)
 	local ext_pos = m.extent_positive
 	local ext_neg = m.extent_negative
 
-	local ext_start_x, ext_end_x = 1-ext_pos, 1
-	local ext_start_y, ext_end_y = 1-ext_pos, max(1-ext_neg, 1)
+	local ext_start_x, ext_end_x = 1, 1-ext_pos
+	local ext_start_y, ext_end_y = max(1-ext_neg, 1), 1-ext_pos
 	
-	for sy = ext_start_y, ext_end_y, 1 do
-		for sx = ext_start_x, ext_end_x, 1 do
+	for sy = ext_start_y, ext_end_y, -1 do
+		for sx = ext_start_x, ext_end_x, -1 do
 			if not (sx == init_pos_x and sy == init_pos_y) then
 				attempts[#attempts+1] = {sx, sy}
 			end
