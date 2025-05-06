@@ -33,50 +33,63 @@ function common.overfill_miner_placement(miner)
 end
 
 ---@param heuristic HeuristicsBlock
-function common.simple_layout_heuristic(heuristic)
-	local lane_mult = 1 + ceil(heuristic.lane_count / 2) * 0.1
-	local unconsumed = 1 + log(max(1, heuristic.unconsumed), 10)
+---@param miner MinerStruct
+function common.simple_layout_heuristic(heuristic, miner)
+	local lane_mult = 1 + ceil(heuristic.lane_count / 2) * 0.05
+	-- local unconsumed = 1 + log(max(1, heuristic.unconsumed), 10)
+	local consumerism = 1 / log(heuristic.outer_neighbor_sum + 1, 10)
+	local centricity = 1 + (heuristic.centricity / miner.size * 0.5)
 	local value =
 		(heuristic.inner_density + heuristic.empty_space / heuristic.drill_count)
-		--* heuristic.centricity
+		* heuristic.outer_neighbor_sum
+		* centricity
 		* lane_mult
-		* unconsumed
+		-- * unconsumed
 	return value
 end
 
 ---@param heuristic HeuristicsBlock
-function common.overfill_layout_heuristic(heuristic)
+---@param miner MinerStruct
+function common.overfill_layout_heuristic(heuristic, miner)
 	local lane_mult = 1 + ceil(heuristic.lane_count / 2) * 0.05
-	local unconsumed = 1 + log(max(1, heuristic.unconsumed), 10)
-	local empty_space = heuristic.empty_space
+	-- local unconsumed = 1 + log(max(1, heuristic.unconsumed), 10)
+	local empty_space = heuristic.empty_space / heuristic.drill_count
+	local centricity = 1 + (heuristic.centricity / miner.size * 0.5)
 	local value = 1
 		* heuristic.outer_density
-		-- * heuristic.centricity
+		* centricity
 		* empty_space
 		* lane_mult
-		* unconsumed
+		-- * unconsumed
 	return value
 end
 
 ---@class HeuristicsBlock
 --- Values counted per miner placement
+---@field resource_sum number
 ---@field inner_neighbor_sum number Sum of resource tiles drills physically cover
 ---@field outer_neighbor_sum number Sum of all resource tiles drills physically cover
 ---@field empty_space number Sum of empty tiles drills physically cover
 ---@field leech_sum number Sum of resources only in the outer reach
 ---@field postponed_count number Number of postponed drills
+---@field biggest_resource number Biggest resource tile found
 ---
 --- Values calculated after completed layout placement
 ---@field drill_count number Total number of mining drills
 ---@field lane_count number Number of lanes
 ---@field inner_density number Density of tiles physically covered by drills
 ---@field outer_density number Pseudo (because of overlap) density of all tiles reached by drills
----@field centricity number How centered is the layout in respect to patch bounds, 1 to inf
+---@field centricity number Distance from center of mining drill bounds
 ---@field unconsumed number Unreachable resources count (usually insufficient drill reach)
+---@field resource_sum_deviation number
+---@field outer_sum_deviation number
+---@field inner_sum_deviation number
 
 ---@return HeuristicsBlock
 function common.init_heuristic_values()
 	return {
+		resource_sum = 0,
+		biggest_resource = 0,
 		inner_neighbor_sum = 0,
 		outer_neighbor_sum = 0,
 		empty_space = 0,
@@ -87,7 +100,7 @@ function common.init_heuristic_values()
 		lane_count = 1,
 		inner_density = 1,
 		outer_density = 1,
-		centricity = -(0/0),
+		centricity = 0,
 		unconsumed = 0,
 	}
 end
@@ -97,10 +110,12 @@ end
 ---@param tile GridTile
 ---@param postponed boolean?
 function common.add_heuristic_values(H, M, tile, postponed)
+	H.resource_sum = H.resource_sum + tile.neighbors_amount
 	H.inner_neighbor_sum = H.inner_neighbor_sum + tile.neighbors_inner
 	H.outer_neighbor_sum = H.outer_neighbor_sum + tile.neighbors_outer
 	H.empty_space = H.empty_space + (M.size_sq - tile.neighbors_inner)
 	H.leech_sum = H.leech_sum + max(0, tile.neighbors_outer - tile.neighbors_inner)
+	H.biggest_resource = max(H.biggest_resource, tile.amount)
 
 	if postponed then H.postponed_count = H.postponed_count + 1 end
 end
@@ -109,6 +124,8 @@ end
 ---@param block HeuristicsBlock
 ---@param coords Coords
 function common.finalize_heuristic_values(attempt, block, coords)
+	local count = block.drill_count
+	local biggest = block.biggest_resource
 	block.drill_count = #attempt.miners
 	block.lane_count = #attempt.lane_layout
 	block.inner_density = block.inner_neighbor_sum / block.drill_count
@@ -116,14 +133,27 @@ function common.finalize_heuristic_values(attempt, block, coords)
 	
 	local function centricity(m1, m2, size)
 		local center = size / 2
-		local drill = m1 + (m2-m1)/2
+		local drill = m1+(m2-m1-1)/2
 		return center - drill
 	end
-	local x = centricity(attempt.sx-1, attempt.bx, coords.w)
-	local y = centricity(attempt.sy-1, attempt.by, coords.h)
-	block.centricity = 1 + (x * x + y * y) ^ 0.5
+	local x = centricity(attempt.sx, attempt.bx, coords.w)
+	local y = centricity(attempt.sy, attempt.by, coords.h)
+	block.centricity = (x * x + y * y) ^ 0.5
 
 	block.unconsumed = attempt.unconsumed
+	
+	local resource_sum_deviation, resource_sum_avg = 0, block.resource_sum / biggest / count
+	local outer_sum_deviation, outer_sum_avg = 0, block.outer_neighbor_sum / biggest / count
+	local inner_sum_deviation, inner_sum_avg = 0, block.inner_density / biggest / count
+	
+	for _, miner in ipairs(attempt.miners) do
+		resource_sum_deviation = resource_sum_deviation + (miner.tile.neighbors_amount / biggest - resource_sum_avg) ^ 2
+		outer_sum_deviation = outer_sum_deviation + (miner.tile.convolve_outer / biggest - outer_sum_avg) ^ 2
+		inner_sum_deviation = inner_sum_deviation + (miner.tile.convolve_inner / biggest - inner_sum_avg) ^ 2
+	end
+	block.resource_sum_deviation = (resource_sum_deviation / count) ^ 0.5
+	block.outer_sum_deviation = (outer_sum_deviation / count) ^ 0.5
+	block.inner_sum_deviation = (inner_sum_deviation / count) ^ 0.5
 end
 
 ---Utility to fill in postponed miners on unconsumed resources
@@ -221,6 +251,7 @@ function common.save_state_to_file(state, type_)
 	local filename = string.format("layout_%s_%i;%i_%s_%i_%s_%s_%x.%s", get_map_seed(), gx, gy, state.miner_choice, #state.resources, dir, coverage, game.tick, type_)
 
 	if type_ == "json" then
+		state._previous_state = nil
 		game.print(string.format("Dumped data to %s ", filename))
 		helpers.write_file("mpp-inspect/"..filename, helpers.table_to_json(state), false, state.player.index)
 	elseif type_ == "lua" then

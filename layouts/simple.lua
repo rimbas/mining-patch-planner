@@ -183,12 +183,13 @@ function layout:initialize_grid(state)
 			row[x] = {
 				x = x, y = y,
 				amount = 0,
-				neighbor_amount = 0,
 				neighbors_inner = 0,
 				neighbors_outer = 0,
+				neighbors_amount = 0,
 				--neighbor_counts = init_counts(),
 				gx = c.x1 + x, gy = c.y1 + y,
 				consumed = false,
+				convolve_amount = 0,
 				convolve_outer = 0,
 				convolve_inner = 0,
 			} --[[@as GridTile]]
@@ -287,6 +288,7 @@ function layout:process_grid(state)
 	local i = state.resource_iter or 1
 	while i <= num_resources and cost < budget do
 		local ent = resources[i] --[[@as LuaEntity]]
+		local amount = ent.amount
 		local x, y, tx, ty, tile
 		i = i + 1
 		if ent == nil or not ent.valid then
@@ -297,13 +299,14 @@ function layout:process_grid(state)
 		tx, ty = floor(tx + 1), floor(ty + 1)
 		-- tile = grid:get_tile(tx, ty) --[[@as GridTile]]
 		tile = grid[ty][tx]
-		tile.amount = ent.amount
+		tile.amount = amount
 
 		if filtering_choice and state.ore_filtering_selected ~= ent.name then
 			grid:forbid(tx-extent_positive, ty-extent_positive, area)
 			cost = cost + price2
 		else
-			grid:convolve_separable_horizontal(tx-size+1, ty-size+1, extent_negative, size, area, convlist)
+			-- grid:convolve_separable_horizontal(tx-size+1, ty-size+1, extent_negative, size, area, convlist)
+			grid:convolve_separable_horizontal(tx-size+1, ty-size+1, extent_negative, size, area, convlist, amount)
 			table_insert(resource_tiles, tile)
 			cost = cost + price
 		end
@@ -434,10 +437,12 @@ end
 ---@field sy number y shift
 
 ---@class PlacementAttempt
+---@field index number
 ---@field sx number x shift
 ---@field sy number y shift
 ---@field heuristics HeuristicsBlock
 ---@field miners MinerPlacement[]
+---@field postponed MinerPlacement[]
 ---@field heuristic_score number
 ---@field unconsumed number
 ---@field lane_layout LaneInfo[]
@@ -479,7 +484,7 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 	local miners, postponed = {}, {}
 	local heuristic_values = common.init_heuristic_values()
 	local lane_layout = {}
-	local bx, by = shift_x + M.size - 1, shift_y + M.size - 1
+	local bx, by = shift_x, shift_y
 
 	local heuristic = self:_get_miner_placement_heuristic(state)
 
@@ -505,6 +510,7 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 			elseif tile.neighbors_outer > 0 and heuristic(tile) then
 				miners[#miners+1] = miner
 				common.add_heuristic_values(heuristic_values, M, tile)
+				bx, by = max(bx, x + size - 1), max(by, y + size - 1)
 			elseif tile.neighbors_outer > 0 then
 				postponed[#postponed+1] = miner
 			end
@@ -515,11 +521,13 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 
 	---@type PlacementAttempt
 	local result = {
+		index = 0,
 		sx = shift_x,
 		sy = shift_y,
 		bx = bx,
 		by = by,
 		miners = miners,
+		postponed = postponed,
 		lane_layout = lane_layout,
 		heuristics = heuristic_values,
 		heuristic_score = -(0/0),
@@ -527,7 +535,8 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 		price = 0,
 	}
 
-	local price = common.process_postponed(state, result, miners, postponed)
+	-- local price = common.process_postponed(state, result, miners, postponed)
+	local price = 0
 
 	common.finalize_heuristic_values(result, heuristic_values, state.coords)
 
@@ -599,6 +608,7 @@ end
 ---@param state SimpleState
 ---@return CallbackState
 function layout:layout_attempts(state)
+	local M = state.miner
 	local attempt_count = #state.attempts
 	local attempts_done = 0
 	local budget, cost = 12345 * state.performace_scaling, 0
@@ -606,10 +616,19 @@ function layout:layout_attempts(state)
 	if state.attempt_index == 1 then
 		local attempt_state = state.attempts[state.attempt_index]
 		local current_attempt = self:_placement_attempt(state, attempt_state[1], attempt_state[2])
-		local current_attempt_score = self:_get_layout_heuristic(state)(current_attempt.heuristics)
+		local current_attempt_score = self:_get_layout_heuristic(state)(current_attempt.heuristics, M)
+		current_attempt.index = state.attempt_index
 		state.best_attempt = current_attempt
 		state.best_attempt_score = current_attempt_score
 		state.best_attempt.heuristic_score = state.best_attempt_score
+		
+		if state.debug_dump then
+			state.saved_attempts = {}
+			state.saved_attempts[#state.saved_attempts+1] = current_attempt
+			local heuristics = table.deepcopy(current_attempt.heuristics) --[[@as HeuristicsBlock]]
+			common.process_postponed(state, current_attempt, current_attempt.miners, current_attempt.postponed)
+			current_attempt.heuristics = heuristics
+		end
 		
 		state.attempt_index = state.attempt_index + 1
 		attempts_done = 1
@@ -619,14 +638,22 @@ function layout:layout_attempts(state)
 	while cost < budget and state.attempt_index <= attempt_count do
 		local attempt_state = state.attempts[state.attempt_index]
 		local current_attempt = self:_placement_attempt(state, attempt_state[1], attempt_state[2])
-		local current_attempt_score = self:_get_layout_heuristic(state)(current_attempt.heuristics)
+		local current_attempt_score = self:_get_layout_heuristic(state)(current_attempt.heuristics, M)
+		current_attempt.index = state.attempt_index
 		current_attempt.heuristic_score = current_attempt_score
 		state.attempt_index = state.attempt_index + 1
 		local price = current_attempt.price
 		cost = cost + price
 		attempts_done = attempts_done + 1
 		
-		if current_attempt_score < state.best_attempt_score or current_attempt.unconsumed < state.best_attempt.unconsumed then
+		if state.debug_dump and current_attempt.heuristics.drill_count > 0 then
+			state.saved_attempts[#state.saved_attempts+1] = current_attempt
+			local heuristics = table.deepcopy(current_attempt.heuristics) --[[@as HeuristicsBlock]]
+			common.process_postponed(state, current_attempt, current_attempt.miners, current_attempt.postponed)
+			current_attempt.heuristics = heuristics
+		end
+		
+		if current_attempt.heuristics.drill_count > 0 and (current_attempt_score < state.best_attempt_score or current_attempt.unconsumed < state.best_attempt.unconsumed) then
 			state.best_attempt_index = state.attempt_index
 			state.best_attempt = current_attempt
 			state.best_attempt_score = current_attempt_score
@@ -640,6 +667,11 @@ function layout:layout_attempts(state)
 	end
 	
 	if state.attempt_index > #state.attempts then
+		local attempt = state.best_attempt
+		if state.debug_dump == nil then
+			common.process_postponed(state, attempt, attempt.miners, attempt.postponed)
+		end
+		
 		return "prepare_miner_layout"
 	end
 
@@ -1042,7 +1074,7 @@ function layout:prepare_pole_layout(state)
 	local coverage = mpp_util.calculate_pole_coverage(state, state.miner_max_column, state.miner_lane_count)
 
 	local power_grid = pole_grid_mt.new()
-	state.power_grid = power_grid
+	-- state.power_grid = power_grid
 
 	-- rendering.draw_circle{
 	-- 	surface = state.surface,
@@ -1100,7 +1132,6 @@ function layout:prepare_pole_layout(state)
 	end
 
 	local connectivity = power_grid:find_connectivity(state.pole)
-	state.power_connectivity = connectivity
 
 	local connected = power_grid:ensure_connectivity(connectivity)
 
@@ -1116,6 +1147,8 @@ function layout:prepare_pole_layout(state)
 			ix = pole.ix, iy = pole.iy,
 		}
 	end
+	
+	
 
 	return next_step
 end

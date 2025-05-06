@@ -148,7 +148,7 @@ local function create_state(event)
 		state.belt_quality_choice = state.space_belt_quality_choice
 	end
 
-	-- state.debug_dump = mpp_util.get_dump_state(event.player_index)
+	state.debug_dump = mpp_util.get_dump_state(event.player_index)
 
 	if state.layout_choice == "blueprints" then
 		local blueprint = player_data.choices.blueprint_choice

@@ -961,6 +961,12 @@ local function update_misc_selection(player)
 		icon=("mpp_belt_planner"),
 		icon_enabled=("mpp_belt_planner")
 	}
+	
+	values[#values+1] = {
+		value="belt_merge",
+		icon_enabled=("mpp_merge_belt_enabled"),
+		icon=("mpp_merge_belt_disabled"),
+	}
 
 	if layout.restrictions.module_available then
 		---@type string|nil

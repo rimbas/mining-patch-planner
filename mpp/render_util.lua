@@ -666,14 +666,51 @@ function render_util.draw_centricity(player_data, event)
 	local fx1, fy1 = event.area.left_top.x, event.area.left_top.y
 	fx1, fy1 = floor(fx1), floor(fy1)
 
-	local state = player_data.last_state
+	local state = player_data.last_state --[[@as SimpleState]]
 	if not state then return end
 
 	local C = state.coords
 	local grid = state.grid
-
 	
-
+	local attempt = state.best_attempt
+	
+	renderer.draw_text{
+		x = C.gx,
+		y = C.gy,
+		text = 1 + (attempt.heuristics.centricity / state.miner.size * 0.5),
+	}
+	
+	renderer.draw_circle{
+		x = C.ix1 + attempt.sx,
+		y = C.iy1 + attempt.sy,
+		r = 0.5,
+		c = {1, 1, 1},
+		filled = true,
+	}
+	
+	renderer.draw_circle{
+		x = C.ix1 + C.w / 2,
+		y = C.iy1 + C.h / 2,
+		r = 0.5,
+		c = {1, 1, 1},
+		width = 3,
+	}
+	
+	renderer.draw_circle{
+		x = C.ix1 + attempt.sx + (attempt.bx - attempt.sx - 1) / 2,
+		y = C.iy1 + attempt.sy + (attempt.by - attempt.sy - 1) / 2,
+		c = {1, 0.5, 0},
+		r = 0.35,
+		width = 3,
+	}
+	
+	renderer.draw_circle{
+		x = C.ix1 + attempt.sx + (attempt.bx - attempt.sx - 1),
+		y = C.iy1 + attempt.sy + (attempt.by - attempt.sy - 1),
+		c = {1, 1, 0},
+		r = 0.5,
+		width = 3,
+	}
 end
 
 

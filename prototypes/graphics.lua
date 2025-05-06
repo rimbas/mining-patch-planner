@@ -337,4 +337,20 @@ data:extend{
 		mipmap_count = 0,
 		flags = { "icon" },
 	},
+	{
+		type = "sprite",
+		name = "mpp_merge_belt_enabled",
+		filename = graphics.."merge-belt-enabled.png",
+		size = 64,
+		mipmap_count = 0,
+		flags = { "icon" },
+	},
+	{
+		type = "sprite",
+		name = "mpp_merge_belt_disabled",
+		filename = graphics.."merge-belt-disabled.png",
+		size = 64,
+		mipmap_count = 0,
+		flags = { "icon" },
+	},
 }

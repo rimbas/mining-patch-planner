@@ -16,7 +16,7 @@ local conf = {}
 ---@field choices PlayerChoices Preserve in migrations
 ---@field blueprints PlayerGuiBlueprints 
 ---@field last_state MinimumPreservedState? Preserve in migrations
----@field last_belt_task BeltinatorState
+---@field last_belt_task BeltinatorState?
 ---@field filtered_entities table<string, FilteredEntityStatus> string is of format "category:name"
 ---@field tick_expires integer When was gui closed, for undo button disabling
 ---@field selection_collection LuaEntity[] Selected resources
@@ -58,6 +58,7 @@ local conf = {}
 ---@field ore_filtering_choice boolean
 ---@field balancer_choice boolean
 ---@field belt_planner_choice boolean
+---@field belt_merge_choice boolean
 
 ---@class PlayerGui
 ---@field section table<MppSettingSections, LuaGuiElement>
@@ -126,6 +127,7 @@ conf.default_config = {
 		debugging_choice = "none",
 		ore_filtering_choice = false,
 		belt_planner_choice = true,
+		belt_merge_choice = true,
 		balancer_choice = false,
 		avoid_water_choice = false,
 		avoid_cliffs_choice = false,

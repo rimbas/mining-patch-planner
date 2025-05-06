@@ -858,6 +858,10 @@ function mpp_util.get_display_duration(player_index)
 	return settings.get_player_settings(player_index)["mpp-lane-filling-info-duration"].value * 60 --[[@as uint]]
 end
 
+--[[
+/c game.player.mod_settings["mpp-dump-heuristics-data"] = {value=true}
+]]
+
 ---@param player_index uint
 ---@return boolean
 function mpp_util.get_dump_state(player_index)

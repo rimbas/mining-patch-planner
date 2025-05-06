@@ -331,7 +331,7 @@ script.on_event(defines.events.on_built_entity, function(event)
 	table.insert(storage.immediate_tasks, beltinator_state)
 	script.on_event(defines.events.on_tick, task_runner_handler)
 	
-end)
+end, {{filter = "ghost_type", type = "transport-belt"}})
 
 -- script.on_event(defines.events.on_player_main_inventory_changed, function(e)
 -- 	--change_handler(e)

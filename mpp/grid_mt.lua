@@ -50,9 +50,9 @@ local need_electricity = {
 
 ---@class GridTile
 ---@field amount number Amount of resource on tile
----@field neighbor_amount number Total resource sum of neighbors (performance killer?)
 ---@field neighbors_inner number Physical drill coverage
 ---@field neighbors_outer number Drill radius coverage
+---@field neighbors_amount number How much resources a drill covers
 ---@field x integer
 ---@field y integer
 ---@field gx double actual coordinate in surface
@@ -63,6 +63,7 @@ local need_electricity = {
 ---@field forbidden boolean? Is the tile in range of mixed resource
 ---@field convolve_outer number Separable convolution calculation
 ---@field convolve_inner number Separable convolution calculation
+---@field convolve_amount number
 
 ---@class BlueprintGridTile : GridTile
 ---@field neighbor_counts table<number, number>
@@ -140,7 +141,6 @@ function grid_mt:convolve_outer(ox, oy, size, amount)
 			local tile = row[x]
 			if tile == nil then goto continue_column end
 			tile.neighbors_outer = tile.neighbors_outer + 1
-			-- tile.neighbor_amount = tile.neighbor_amount + amount
 			::continue_column::
 		end
 		::continue_row::
@@ -165,7 +165,14 @@ function grid_mt:forbid(ox, oy, size)
 	end
 end
 
-function grid_mt:convolve_separable_horizontal(ox, oy, extent, size, area, list)
+---@param ox number
+---@param oy number
+---@param extent number
+---@param size number
+---@param area number
+---@param list any
+---@param amount number Resource amount
+function grid_mt:convolve_separable_horizontal(ox, oy, extent, size, area, list, amount)
 	local nx_1, nx_2 = ox+extent, ox+extent+area-1
 	local nx = ox + size - 1
 	
@@ -174,11 +181,11 @@ function grid_mt:convolve_separable_horizontal(ox, oy, extent, size, area, list)
 		local tile = row[x]
 		-- if tile == nil then goto continue_row end
 		tile.convolve_outer = tile.convolve_outer + 1
+		tile.convolve_amount = tile.convolve_amount + amount
 		if ox <= x and x <= nx then
 			tile.convolve_inner = tile.convolve_inner + 1
 		end
 		list[tile] = true
-		::continue_row::
 	end
 end
 
@@ -191,16 +198,19 @@ end
 function grid_mt:convolve_separable_vertical(ox, oy, extent, size, area, target)
 	local ny_1, ny_2 = oy+extent, oy+extent+area-1
 	local ny = oy + size - 1
+	local neighbors_amount = 0
 	
 	local tgt_outer, tgt_inner = target.convolve_outer, target.convolve_inner
 	
 	for y = ny_1, ny_2 do
 		local tile = self[y][ox]
+		neighbors_amount = neighbors_amount + tile.convolve_amount
 		tile.neighbors_outer = tile.neighbors_outer + tgt_outer
 		if oy <= y and y <= ny then
 			tile.neighbors_inner = tile.neighbors_inner + tgt_inner
 		end
 	end
+	target.neighbors_amount = neighbors_amount
 end
 
 ---@deprecated
