@@ -39,8 +39,9 @@ function common.simple_layout_heuristic(heuristic, miner)
 	-- local unconsumed = 1 + log(max(1, heuristic.unconsumed), 10)
 	local consumerism = 1 / log(heuristic.outer_neighbor_sum + 1, 10)
 	local centricity = 1 + (heuristic.centricity / miner.size * 0.5)
-	local value =
-		(heuristic.inner_density + heuristic.empty_space / heuristic.drill_count)
+	local value = 1
+		-- (heuristic.inner_density + heuristic.empty_space / heuristic.drill_count)
+		* heuristic.inner_sum_deviation
 		* heuristic.outer_neighbor_sum
 		* centricity
 		* lane_mult
@@ -57,8 +58,9 @@ function common.overfill_layout_heuristic(heuristic, miner)
 	local centricity = 1 + (heuristic.centricity / miner.size * 0.5)
 	local value = 1
 		* heuristic.outer_density
+		* heuristic.resource_sum_deviation
 		* centricity
-		* empty_space
+		-- * empty_space
 		* lane_mult
 		-- * unconsumed
 	return value
@@ -140,8 +142,6 @@ function common.finalize_heuristic_values(attempt, block, coords)
 	local y = centricity(attempt.sy, attempt.by, coords.h)
 	block.centricity = (x * x + y * y) ^ 0.5
 
-	block.unconsumed = attempt.unconsumed
-	
 	local resource_sum_deviation, resource_sum_avg = 0, block.resource_sum / biggest / count
 	local outer_sum_deviation, outer_sum_avg = 0, block.outer_neighbor_sum / biggest / count
 	local inner_sum_deviation, inner_sum_avg = 0, block.inner_density / biggest / count
@@ -166,7 +166,7 @@ function common.process_postponed(state, attempt, miners, postponed)
 	local price = 0
 	local grid = state.grid
 	local M = state.miner
-	local bx, by = attempt.sx + M.size - 1, attempt.sy + M.size - 1
+	local bx, by = attempt.bx, attempt.by
 
 	local ext_negative, ext_positive = M.extent_negative, M.extent_positive
 	local area, size = M.area, M.size
@@ -177,7 +177,7 @@ function common.process_postponed(state, attempt, miners, postponed)
 	for _, miner in ipairs(miners) do
 		-- grid:consume(miner.x+ext_negative, miner.y+ext_negative, area)
 		grid:consume_separable_horizontal(miner.x+ext_negative, miner.y+ext_negative, area, consume_cache)
-		bx, by = max(bx, miner.x + size - 1), max(by, miner.y + size - 1)
+		-- bx, by = max(bx, miner.x + size - 1), max(by, miner.y + size - 1)
 		price = price + area
 	end
 
@@ -187,7 +187,7 @@ function common.process_postponed(state, attempt, miners, postponed)
 	
 	for _, miner in ipairs(postponed) do
 		miner.unconsumed = grid:get_unconsumed(miner.x+ext_negative, miner.y+ext_negative, area)
-		bx, by = max(bx, miner.x + size -1), max(by, miner.y + size -1)
+		-- bx, by = max(bx, miner.x + size -1), max(by, miner.y + size -1)
 		price = price + area
 	end
 
@@ -212,17 +212,17 @@ function common.process_postponed(state, attempt, miners, postponed)
 			price = price + area_sq
 			miners[#miners+1] = miner
 			miner.postponed = true
-			bx, by = max(bx, miner.x + size - 1), max(by, miner.y + size - 1)
+			-- bx, by = max(bx, miner.x + size - 1), max(by, miner.y + size - 1)
 		end
 	end
 	local unconsumed_sum = 0
 	for _, tile in ipairs(state.resource_tiles) do
 		if not tile.consumed then unconsumed_sum = unconsumed_sum + 1 end
 	end
-	attempt.unconsumed = unconsumed_sum
-	attempt.bx, attempt.by = bx, by
+	attempt.heuristics.unconsumed = unconsumed_sum
+	-- attempt.bx, attempt.by = bx, by
 	
-	grid:clear_consumed(state.resource_tiles)
+	-- grid:clear_consumed(state.resource_tiles)
 	
 	return price + #state.resource_tiles
 end
@@ -449,6 +449,45 @@ function common.draw_belt_total(state, pos_x, pos_y, speed1, speed2)
 		text={"mpp.msg_print_info_lane_saturation_bounds", string.format("%.2fx", lower_bound), string.format("%.2fx", upper_bound)},
 	}
 
+end
+
+---@param state SimpleState
+---@return {multiplier: number, stack_size: number}
+function common.get_mining_drill_production(state)
+	
+	local drill_speed = prototypes.entity[state.miner_choice].mining_speed
+	local belt_speed = prototypes.entity[state.belt_choice].belt_speed * 60 * 4
+	local dominant_resource = state.resource_counts[1].name
+	local resource_hardness = prototypes.entity[dominant_resource].mineable_properties.mining_time or 1
+	local drill_productivity, module_speed = 1 + state.player.force.mining_drill_productivity_bonus, 1
+	local function quality_clamp(val, level) return floor((val + val * .3 * level) * 100)/100 end
+	if state.module_choice ~= "none" then
+		local mod = prototypes.item[state.module_choice]
+		local level = prototypes.quality[state.module_quality_choice].level
+		local speed = mod.module_effects.speed and mod.module_effects.speed or 0
+		local productivity = mod.module_effects.productivity and mod.module_effects.productivity or 0
+		if mod.category == "speed" then
+			speed = quality_clamp(speed, level)
+		elseif mod.category == "productivity" then
+			productivity = quality_clamp(productivity, level)
+		end
+		module_speed = module_speed + speed * state.miner.module_inventory_size
+		drill_productivity = drill_productivity + productivity * state.miner.module_inventory_size
+	end
+	local multiplier = drill_speed / resource_hardness * module_speed * drill_productivity
+	return {multiplier=multiplier, stack_size=1}
+end
+
+---@class BeltThroughput
+---@field lane1 number
+---@field lane2 number
+---@field direction defines.direction
+
+---@param state SimpleState
+---@param belt BeltSpecification
+---@return BeltThroughput
+function common.get_belt_throughput(state, belt)
+	
 end
 
 return common

@@ -84,7 +84,7 @@ function belt_planner.layout(state)
 				local belt_y = belt.y
 				local target_y = ty + i - count
 
-				local gx, gy = converter(belt.x1-1, belt.y)
+				local gx, gy = converter(belt.x_start-1, belt.y)
 				rendering.draw_circle{
 					surface = state.surface,
 					target = {gx+.5, gy+.5},
@@ -140,7 +140,7 @@ function belt_planner.layout(state)
 			local accomodation_shift = math.ceil(math.abs(accomodation_value))
 			local target_y = op_y + i - count
 			
-			-- local gx, gy = converter(belt.x1-accomodation_shift, belt.y)
+			-- local gx, gy = converter(belt.x_start-accomodation_shift, belt.y)
 			-- rendering.draw_circle{
 			-- 	surface = state.surface,
 			-- 	target = {gx+.5, gy+.5},
@@ -153,9 +153,9 @@ function belt_planner.layout(state)
 				belt_planner.build_elbow(create_entity, {
 					start_direction = WEST,
 					end_direction = accomodation_value >= 0 and SOUTH or NORTH,
-					x1 = belt.x1-1,
+					x1 = belt.x_start-1,
 					y1 = belt.y,
-					x2 = belt.x1-accomodation_shift,
+					x2 = belt.x_start-accomodation_shift,
 					y2 = target_y + math.sign(accomodation_value),
 					belt_choice = belt_choice,
 				})
@@ -163,7 +163,7 @@ function belt_planner.layout(state)
 					start_direction = WEST,
 					x1 = op_x,
 					y1 = target_y,
-					x2 = belt.x1 - accomodation_shift,
+					x2 = belt.x_start - accomodation_shift,
 					belt_choice = belt_choice,
 				})
 			else
@@ -171,7 +171,7 @@ function belt_planner.layout(state)
 					start_direction = WEST,
 					x1 = op_x,
 					y1 = target_y,
-					x2 = belt.x1 - 1,
+					x2 = belt.x_start - 1,
 					belt_choice = belt_choice,
 				})
 			end
@@ -194,7 +194,7 @@ function belt_planner.layout(state)
 				start_direction = WEST,
 				end_direction = op_direction,
 				type = "elbow",
-				x1 = belt.x1 - 1,
+				x1 = belt.x_start - 1,
 				y1 = belt.y,
 				x2 = op_x + (count - i) * x_direction,
 				y2 = op_y,
@@ -218,7 +218,7 @@ function belt_planner.layout(state)
 		local intermediate_y = op_direction == NORTH and op_y1 or op_y2
 		local direction_accomodation = op_direction == NORTH and -belt_specification.count or -1
 		
-		local actual_x = min(start_x, op_x+1)
+		local actual_x = min(start_x-1, op_x+1)
 		
 		local output_positions = plan_vertical(actual_x+direction_accomodation, intermediate_y, op_direction)
 		

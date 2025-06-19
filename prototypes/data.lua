@@ -57,6 +57,20 @@ data:extend{
 		item_to_spawn="mining-patch-planner",
 	},
 	{
+		type="custom-input",
+		name="mining-patch-planner-keybind-rotate",
+		key_sequence="R",
+		action="lua",
+		include_selected_prototype = true,
+	},
+	{
+		type="custom-input",
+		name="mining-patch-planner-keybind-rotate-reversed",
+		key_sequence="SHIFT + R",
+		action="lua",
+		include_selected_prototype = true,
+	},
+	{
 		type="shortcut",
 		name="mining-patch-planner-shortcut",
 		icon = graphics.."drill-icon-toolbar-white.png",
@@ -91,7 +105,7 @@ data:extend{
 	},
 }
 
-local mpp_blueprint = table.deepcopy(data.raw["blueprint"]["blueprint"])
+local mpp_blueprint = table.deepcopy(data.raw["blueprint"]["blueprint"]) --[[@as data.BlueprintItemPrototype]]
 
 mpp_blueprint.name = "mpp-blueprint-belt-planner"
 mpp_blueprint.flags = mpp_blueprint.flags or {}

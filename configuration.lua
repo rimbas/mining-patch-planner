@@ -26,7 +26,7 @@ local conf = {}
 ---@class PlayerChoices
 ---@field layout_choice string
 ---@field blueprint_choice LuaItemStack? Currently selected blueprint (flow)
----@field direction_choice string
+---@field direction_choice DirectionString
 ---@field miner_choice string
 ---@field miner_quality_choice string
 ---@field pole_choice string
@@ -67,6 +67,7 @@ local conf = {}
 ---@field quality_toggle LuaGuiElement
 ---@field advanced_settings LuaGuiElement
 ---@field filtering_settings LuaGuiElement
+---@field undo_button LuaGuiElement
 ---@field layout_dropdown LuaGuiElement
 ---@field blueprint_add_button LuaGuiElement
 ---@field blueprint_add_section LuaGuiElement
@@ -181,14 +182,14 @@ local quality_settings = {
 }
 
 ---@param player LuaPlayer
----@return string[]
+---@return List<string>
 function conf.get_locked_qualities(player)
 	local force = player.force
-	local locked_qualities = {}
+	local locked_qualities = List()
 	for name, quality in pairs(prototypes.quality) do
 		if quality.hidden then goto skip_quality end
 		if force.is_quality_unlocked(quality) then goto skip_quality end
-		locked_qualities[#locked_qualities+1] = name
+		locked_qualities:push(name)
 		::skip_quality::
 	end
 	return locked_qualities

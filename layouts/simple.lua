@@ -9,7 +9,7 @@ local coord_convert, coord_revert = mpp_util.coord_convert, mpp_util.coord_rever
 local internal_revert, internal_convert = mpp_util.internal_revert, mpp_util.internal_convert
 local miner_direction, opposite = mpp_util.miner_direction, mpp_util.opposite
 
-local table_insert = table.insert
+local table_insert, table_sort = table.insert, table.sort
 local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
 local EAST, NORTH, SOUTH, WEST = mpp_util.directions()
@@ -279,7 +279,7 @@ function layout:process_grid(state)
 	local resource_tiles = state.resource_tiles
 
 	local price, price2 = m.area, m.area_sq
-	local budget, cost = 8192 * state.performace_scaling, 0
+	local budget, cost = 8192 * state.performance_scaling, 0
 
 	local filtering_choice = state.ore_filtering_choice
 	
@@ -394,7 +394,7 @@ function layout:process_grid_convolution(state)
 	local extent_positive, extent_negative = m.extent_positive, m.extent_negative
 	
 	local price = m.area
-	local budget, cost = 8192 * state.performace_scaling, 0
+	local budget, cost = 8192 * state.performance_scaling, 0
 	
 	local i = state.resource_iter or 1
 	while i <= num_resources and cost < budget do
@@ -441,10 +441,10 @@ end
 ---@field sx number x shift
 ---@field sy number y shift
 ---@field heuristics HeuristicsBlock
+---@field final_heuristics? HeuristicsBlock
 ---@field miners MinerPlacement[]
 ---@field postponed MinerPlacement[]
 ---@field heuristic_score number
----@field unconsumed number
 ---@field lane_layout LaneInfo[]
 ---@field bx number Lower right mining drill bound
 ---@field by number Lower right mining drill bound
@@ -531,7 +531,6 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 		lane_layout = lane_layout,
 		heuristics = heuristic_values,
 		heuristic_score = -(0/0),
-		unconsumed = 0,
 		price = 0,
 	}
 
@@ -611,20 +610,23 @@ function layout:layout_attempts(state)
 	local M = state.miner
 	local attempt_count = #state.attempts
 	local attempts_done = 0
-	local budget, cost = 12345 * state.performace_scaling, 0
+	local budget, cost = 12345 * state.performance_scaling, 0
 	
+	local saved_attempts = state.saved_attempts or List()
+	state.saved_attempts = saved_attempts
 	if state.attempt_index == 1 then
 		local attempt_state = state.attempts[state.attempt_index]
 		local current_attempt = self:_placement_attempt(state, attempt_state[1], attempt_state[2])
 		local current_attempt_score = self:_get_layout_heuristic(state)(current_attempt.heuristics, M)
+		current_attempt.heuristic_score = current_attempt_score
 		current_attempt.index = state.attempt_index
-		state.best_attempt = current_attempt
-		state.best_attempt_score = current_attempt_score
-		state.best_attempt.heuristic_score = state.best_attempt_score
+		-- state.best_attempt = current_attempt
+		-- state.best_attempt_score = current_attempt_score
+		-- state.best_attempt.heuristic_score = state.best_attempt_score
 		
+		
+		saved_attempts[#saved_attempts+1] = current_attempt
 		if state.debug_dump then
-			state.saved_attempts = {}
-			state.saved_attempts[#state.saved_attempts+1] = current_attempt
 			local heuristics = table.deepcopy(current_attempt.heuristics) --[[@as HeuristicsBlock]]
 			common.process_postponed(state, current_attempt, current_attempt.miners, current_attempt.postponed)
 			current_attempt.heuristics = heuristics
@@ -635,7 +637,7 @@ function layout:layout_attempts(state)
 		cost = cost + current_attempt.price
 	end
 	
-	while cost < budget and state.attempt_index <= attempt_count do
+	while state.attempt_index <= attempt_count do
 		local attempt_state = state.attempts[state.attempt_index]
 		local current_attempt = self:_placement_attempt(state, attempt_state[1], attempt_state[2])
 		local current_attempt_score = self:_get_layout_heuristic(state)(current_attempt.heuristics, M)
@@ -646,17 +648,14 @@ function layout:layout_attempts(state)
 		cost = cost + price
 		attempts_done = attempts_done + 1
 		
-		if state.debug_dump and current_attempt.heuristics.drill_count > 0 then
-			state.saved_attempts[#state.saved_attempts+1] = current_attempt
+		if current_attempt.heuristics.drill_count > 0 then
+			saved_attempts[#saved_attempts+1] = current_attempt
 			local heuristics = table.deepcopy(current_attempt.heuristics) --[[@as HeuristicsBlock]]
-			common.process_postponed(state, current_attempt, current_attempt.miners, current_attempt.postponed)
-			current_attempt.heuristics = heuristics
-		end
-		
-		if current_attempt.heuristics.drill_count > 0 and (current_attempt_score < state.best_attempt_score or current_attempt.unconsumed < state.best_attempt.unconsumed) then
-			state.best_attempt_index = state.attempt_index
-			state.best_attempt = current_attempt
-			state.best_attempt_score = current_attempt_score
+			if state.debug_dump == true then
+				common.process_postponed(state, current_attempt, current_attempt.miners, current_attempt.postponed)
+				current_attempt.final_heuristics = current_attempt.heuristics
+				current_attempt.heuristics = heuristics
+			end
 		end
 		
 		local remainder = budget - cost
@@ -667,14 +666,74 @@ function layout:layout_attempts(state)
 	end
 	
 	if state.attempt_index > #state.attempts then
-		local attempt = state.best_attempt
-		if state.debug_dump == nil then
+		table_sort(saved_attempts, function(a, b) return a.heuristic_score < b.heuristic_score end)
+		
+		local attempt = saved_attempts[1]
+				
+		if state.debug_dump ~= true then
 			common.process_postponed(state, attempt, attempt.miners, attempt.postponed)
+		end
+		
+		if attempt.heuristics.unconsumed > 0 then
+			state.attempt_index = 2
+			state.player.print("Unconsumed found. Going to fallback")
+			return "layout_attempts_fallback"
+		end
+		
+		state.best_attempt_index = attempt.index
+		state.best_attempt = attempt
+		state.best_attempt_score = attempt.heuristic_score
+		
+		if __DebugAdapter ~= nil then
+			state.saved_attempts = nil
 		end
 		
 		return "prepare_miner_layout"
 	end
 
+	return true
+end
+
+---@param self SimpleLayout
+---@param state SimpleState
+---@return CallbackState
+function layout:layout_attempts_fallback(state)
+	local attempt_index = state.attempt_index or 2
+	local attempt_count = #state.saved_attempts
+	local attempt = state.saved_attempts[attempt_index]
+	local attempts_done = 0
+	
+	
+	local budget, cost = 12345 * state.performance_scaling, 0
+	while cost < budget and attempt_index <= attempt_count do
+		local price
+		if state.debug_dump ~= true then
+			price = common.process_postponed(state, attempt, attempt.miners, attempt.postponed)
+		end
+		cost = cost + price
+		
+		attempt_index = attempt_index + 1
+		
+		attempts_done = attempts_done + 1
+		local remainder = budget - cost
+		local avg = cost / attempts_done
+		if avg * 0.65 > remainder then
+			break
+		end
+	end
+	
+	if state.attempt_index > #state.attempts then
+		if __DebugAdapter ~= nil then
+			state.saved_attempts = nil
+		end
+		attempt = state.saved_attempts[1]
+		state.best_attempt_index = 1
+		state.best_attempt = attempt
+		state.best_attempt_score = attempt.heuristic_score
+		
+		return "prepare_miner_layout"
+	end
+	
 	return true
 end
 
@@ -1000,11 +1059,18 @@ function layout:prepare_belt_layout(state)
 	local miner_max_column = state.miner_max_column
 
 	---@param lane MinerPlacement[]
-	local function get_lane_length(lane, out_x) if lane and lane[#lane] then return lane[#lane].x+out_x end return 0 end
+	---@return number?
+	local function get_lane_length(lane, out_x) if lane and lane[#lane] then return lane[#lane].x+out_x end end
+	---@param lane MinerPlacement[]
+	---@return number?
+	local function get_lane_start(lane, out_x) if lane and lane[1] then return lane[1].x + out_x end end
+	---@param lane MinerPlacement[]
+	---@return number?
+	local function get_lane_end(lane, size) if lane and lane[#lane] then return lane[#lane].x + size end end
 
 	local pipe_adjust = state.place_pipes and -1 or 0
 
-	local belts = {}
+	local belts = List() --[[@as List<BaseBeltSpecification>]]
 	state.belts = belts
 	state.belt_count = 0
 	local longest_belt = 0
@@ -1015,16 +1081,42 @@ function layout:prepare_belt_layout(state)
 
 		local y = ceil(attempt.sy + m.size + (m.size + pole_gap) * (i-1))
 
-		local belt = {x1=attempt.sx + pipe_adjust, x2=attempt.sx, y=y, built=false, lane1=lane1, lane2=lane2}
-		belts[#belts+1] = belt
+		if not lane1 and not lane2 then
+			belts:push{
+				x1=attempt.sx + pipe_adjust,
+				x2=attempt.sx,
+				x_start=attempt.sx + pipe_adjust,
+				x_end=attempt.sx,
+				y=y,
+				has_drills=false,
+				is_output=false,
+				lane1=lane1,
+				lane2=lane2,
+			}
+			goto continue
+		end
 		
-		if not lane1 and not lane2 then goto continue end
-
 		state.belt_count = state.belt_count + 1
-		local x1 = belt.x1
-		local x2 = max(get_lane_length(lane1, m.output_rotated[SOUTH].x), get_lane_length(lane2,m.output_rotated[NORTH].x))
+		local x1_1, x1_2 = get_lane_start(lane1, m.output_rotated[SOUTH].x), get_lane_start(lane2, m.output_rotated[NORTH].x)
+		local x1 = x1_1 and x1_2 and min(x1_1, x1_2) or x1_1 or x1_2 --[[@as number]]
+		local x2_1, x2_2 = get_lane_length(lane1, m.output_rotated[SOUTH].x), get_lane_length(lane2, m.output_rotated[NORTH].x)
+		local x2 = x2_1 and x2_2 and max(x2_1, x2_2) or x2_1 or x2_2 --[[@as number]]
+		local x_end1, x_end2 = get_lane_end(lane1, m.size-1), get_lane_end(lane2, m.size-1)
+		local x_end = x_end1 and x_end2 and max(x_end1, x_end2) or x_end1 or x_end2 --[[@as number]]
+		
 		longest_belt = max(longest_belt, x2 - x1 + 1)
-		belt.x2, belt.built = x2, true
+		
+		belts:push({
+			x1=x1,
+			x2=x2,
+			y=y,
+			lane1=lane1,
+			lane2=lane2,
+			has_drills = true,
+			is_output = true,
+			x_start = attempt.sx + pipe_adjust,
+			x_end = x_end,
+		})
 
 		::continue::
 	end
@@ -1033,10 +1125,9 @@ function layout:prepare_belt_layout(state)
 	local builder_belts = {}
 	state.builder_belts = builder_belts
 
-	for _, belt in ipairs(belts) do
-		if not belt.built then goto continue end
-		local x1, x2, y = belt.x1, belt.x2, belt.y
-		for x = x1, x2 do
+	local function normal_output_belt(belt)
+		local y = belt.y
+		for x = belt.x_start, belt.x2 do
 			builder_belts[#builder_belts+1] = {
 				name=state.belt_choice,
 				quality=state.belt_quality_choice,
@@ -1046,8 +1137,34 @@ function layout:prepare_belt_layout(state)
 				direction=WEST,
 			}
 		end
-
-		::continue::
+	end
+	
+	if state.belt_merge_choice then
+		for _, belt in ipairs(belts) do
+			if not belt.has_drills then goto continue end
+			local y = belt.y
+			if belt.is_output then
+				normal_output_belt(belt)
+			else
+				for x = belt.x1, belt.x_end do
+					builder_belts[#builder_belts+1] = {
+						name=state.belt_choice,
+						quality=state.belt_quality_choice,
+						thing="belt",
+						grid_x=x,
+						grid_y=y,
+						direction=EAST,
+					}
+				end
+			end
+			::continue::
+		end
+	else
+		for _, belt in ipairs(belts) do
+			if belt.has_drills then
+				normal_output_belt(belt)
+			end
+		end
 	end
 
 	return "prepare_pole_layout"
@@ -1505,11 +1622,11 @@ function layout:_give_belt_blueprint(state)
 	local belts = state.belts
 	
 	---@type BeltPlannerSpecification
-	local belt_planner_spec = {count = 0}
+	local belt_planner_spec = {count = 0, ungrouped = true}
 	
 	local count = 0
 	for _, belt in pairs(belts) do
-		if belt.built == true then
+		if belt.is_output == true then
 			count = count + 1
 			belt_planner_spec[count] = table.deepcopy(belt)
 		end
@@ -1522,7 +1639,7 @@ function layout:_give_belt_blueprint(state)
 	for i, belt in ipairs(belt_planner_spec) do
 		local index = count - i + 1
 		belt.index = index
-		local gx, gy = converter(belt.x1-1, belt.y)
+		local gx, gy = converter(belt.x_start-1, belt.y)
 		belt.world_x = gx
 		belt.world_y = gy
 		
@@ -1582,8 +1699,9 @@ end
 function layout:finish(state)
 	if state.print_placement_info_choice and state.player.valid then
 		state.player.print({"mpp.msg_print_info_miner_placement", #state.best_attempt.miners, state.belt_count, #state.resources})
-		if state.best_attempt.unconsumed > 0 then
-			state.player.print({"mpp.msg_print_missed_resource", state.best_attempt.unconsumed})
+		
+		if state.best_attempt.heuristics.unconsumed > 0 then
+			state.player.print({"", "[color=#EE1100]", {"mpp.msg_print_missed_resource", state.best_attempt.heuristics.unconsumed}, "[/color]"})
 		end
 	end
 

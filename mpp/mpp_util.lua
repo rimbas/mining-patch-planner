@@ -520,6 +520,7 @@ end
 ---@field name string
 ---@field related_underground_belt string?
 ---@field underground_reach number?
+---@field speed number
 
 ---@type table<string, BeltStruct>
 local belt_struct_cache = {}
@@ -555,6 +556,7 @@ function mpp_util.belt_struct(belt_name)
 			::continue::
 		end
 	end
+	belt.speed = belt_proto.belt_speed
 
 	belt_struct_cache[belt_name] = belt
 	return belt
@@ -1018,7 +1020,7 @@ do
 	end
 end
 
-if script.feature_flags.quality then
+if script.feature_flags.quality and #prototypes.quality > 2 then
 	---@param name LocalisedString
 	---@param quality_name string
 	---@return LocalisedString

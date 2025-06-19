@@ -1,6 +1,7 @@
 local table_insert = table.insert
 
----@class List
+---@class List<T> : {[integer]:T, (push:fun(self:List<T>,v:T):List<T>),(unshift:fun(self:List<T>,value:T):List<T>),(append:fun(self:List<T>,...:T):List<T>),(conditional_append:fun(self:List<T>,check:boolean,...:T):List<T>) }
+
 local list_mt = {}
 list_mt.__index = list_mt
 
@@ -23,7 +24,7 @@ function list_mt:append(...)
 	return self
 end
 
-function list_mt:contitional_append(check, ...)
+function list_mt:conditional_append(check, ...)
 	if not check then return self end
 	for _, value in pairs({...}) do
 		table_insert(self, value)
@@ -31,6 +32,9 @@ function list_mt:contitional_append(check, ...)
 	return self
 end
 
+---@generic T
+---@param t? T[]
+---@return List<T>
 return function(t)
 	return setmetatable(t or {}, list_mt)
 end

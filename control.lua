@@ -5,6 +5,7 @@ local compatibility = require("mpp.compatibility")
 require("migration")
 algorithm = require("algorithm")
 local gui = require("gui.gui")
+local grid_meta = require("mpp.grid_mt")
 local bp_meta = require("mpp.blueprintmeta")
 local render_util = require("mpp.render_util")
 local mpp_util = require("mpp.mpp_util")
@@ -115,8 +116,6 @@ script.on_event(defines.events.on_player_selected_area, function(event)
 				-- local state, error = algorithm.on_player_selected_area(event)
 				local state, error = algorithm.on_player_selected_area(copy)
 
-				state._do_profiling = true
-				
 				--rendering.clear("mining-patch-planner")
 
 				if state then
@@ -202,6 +201,11 @@ script.on_load(function()
 					setmetatable(bp, bp_meta)
 				end
 			end
+			if ply.last_state then
+				if ply.last_state.grid then
+					setmetatable(ply.last_state.grid, grid_meta)
+				end
+			end
 		end
 	end
 
@@ -259,11 +263,11 @@ script.on_event(defines.events.on_player_changed_surface, cursor_stack_check)
 script.on_event(defines.events.on_research_finished, function(event)
 	---@cast event EventData.on_research_finished
 	local effects = event.research.prototype.effects
-	local qualities_to_unhide = {}
+	local qualities_to_unhide = List()
 	for _, effect in pairs(effects) do
 		---@cast effect TechnologyModifier
 		if effect.type == "unlock-quality" then
-			qualities_to_unhide[#qualities_to_unhide+1] = effect.quality --[[@as string]]
+			qualities_to_unhide:push(effect.quality --[[@as string]])
 		end
 	end
 	
@@ -333,6 +337,46 @@ script.on_event(defines.events.on_built_entity, function(event)
 	
 end, {{filter = "ghost_type", type = "transport-belt"}})
 
--- script.on_event(defines.events.on_player_main_inventory_changed, function(e)
--- 	--change_handler(e)
--- end)
+---@param player_data PlayerData
+---@param direction DirectionString
+function rotate_direction(player_data, direction)
+	
+	player_data.choices.direction_choice = direction
+	gui.update_direction_section(player_data)
+end
+
+script.on_event("mining-patch-planner-keybind-rotate", function(e)
+	---@cast e EventData.CustomInputEvent
+	if not e.selected_prototype or e.selected_prototype.name ~= "mining-patch-planner" then return end
+	
+	local ply = storage.players[e.player_index] --[[@as PlayerData]]
+	local current_direction = ply.choices.direction_choice
+	
+	if current_direction == "east" then
+		rotate_direction(ply, "south")
+	elseif current_direction == "south" then
+		rotate_direction(ply, "west")
+	elseif current_direction == "west" then
+		rotate_direction(ply, "north")
+	else
+		rotate_direction(ply, "east")
+	end
+end)
+
+script.on_event("mining-patch-planner-keybind-rotate-reversed", function(e)
+	---@cast e EventData.CustomInputEvent
+	if not e.selected_prototype or e.selected_prototype.name ~= "mining-patch-planner" then return end
+	
+	local ply = storage.players[e.player_index] --[[@as PlayerData]]
+	local current_direction = ply.choices.direction_choice
+	
+	if current_direction == "east" then
+		rotate_direction(ply, "north")
+	elseif current_direction == "south" then
+		rotate_direction(ply, "east")
+	elseif current_direction == "west" then
+		rotate_direction(ply, "south")
+	else
+		rotate_direction(ply, "west")
+	end
+end)

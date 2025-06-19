@@ -56,7 +56,7 @@ require_layout("blueprints")
 ---@field resource_counts {name: string, count: number}[] Highest count resource first
 ---@field requires_fluid boolean
 ---@field mod_version string
----@field performace_scaling number
+---@field performance_scaling number
 ---
 ---@field layout_choice string
 ---@field direction_choice string
@@ -88,6 +88,7 @@ require_layout("blueprints")
 ---@field ore_filtering_choice boolean
 ---@field ore_filtering_selected string?
 ---@field belt_planner_choice boolean
+---@field belt_merge_choice boolean
 ---@field balancer_choice boolean
 ---
 ---@field grid Grid
@@ -121,7 +122,7 @@ local function create_state(event)
 	state._collected_ghosts = {}
 	state._render_objects = {}
 	state._lane_info_rendering = {}
-	state.performace_scaling = settings.global["mpp-performance-scaling"].value
+	state.performance_scaling = settings.global["mpp-performance-scaling"].value
 
 	---@type PlayerData
 	local player_data = storage.players[event.player_index]
@@ -173,7 +174,7 @@ end
 ---@return table<string, string> @key:resource name; value:resource category
 ---@return {name: string, count: number}[] @resource counts table
 local function process_entities(entities, available_resource_categories)
-	local filtered, found_resources, counts = {}, {}, {}
+	local filtered, found_resources, counts = List(), {}, {}
 	local x1, y1 = math.huge, math.huge
 	local x2, y2 = -math.huge, -math.huge
 	local _, cached_resource_categories = enums.get_available_miners()
@@ -184,7 +185,7 @@ local function process_entities(entities, available_resource_categories)
 		found_resources[name] = category
 		if cached_resource_categories[category] and available_resource_categories[category] then
 			counts[name] = 1 + (counts[name] or 0)
-			filtered[#filtered+1] = entity
+			filtered:push(entity)
 			local position = entity.position
 			local x, y = position.x, position.y
 			if x < x1 then x1 = x end

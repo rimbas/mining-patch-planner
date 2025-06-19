@@ -81,11 +81,14 @@
 ---@field height number
 
 ---@class BaseBeltSpecification
----@field x1 number Start
----@field x2 number End for mining drill outout
+---@field x1 number Output x of first mining drill in either lane
+---@field x2 number Output y of last mining drill in either lane
+---@field x_start number Start of belt bounds
 ---@field x_end number End for mining drill bounds
 ---@field y number
----@field built boolean? Do miners exist on this belt
+---@field has_drills boolean? Do miners exist on this belt
+---@field is_output boolean? Does belt output normally
+---@field backmerge_direction "north" | "south" | nil Merge direction
 ---@field lane1 MinerPlacement[]
 ---@field lane2 MinerPlacement[]
 

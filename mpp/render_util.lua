@@ -54,7 +54,7 @@ function render_util.renderer(event)
 			surface = event.surface,
 			players = {event.player_index},
 			filled = false,
-			radius = t.r or 1,
+			radius = t.r or 0.5,
 			color = t.c or t.color or {1, 1, 1},
 			left_top = left_top,
 			right_bottom = right_bottom,
@@ -676,8 +676,13 @@ function render_util.draw_centricity(player_data, event)
 	
 	renderer.draw_text{
 		x = C.gx,
-		y = C.gy,
-		text = 1 + (attempt.heuristics.centricity / state.miner.size * 0.5),
+		y = C.gy - 4,
+		text = "Centricity: ".. attempt.heuristics.centricity,
+	}
+	renderer.draw_text{
+		x = C.gx,
+		y = C.gy - 3.5,
+		text = "Heuristic: " ..(1 + (attempt.heuristics.centricity / state.miner.size * 0.5)),
 	}
 	
 	renderer.draw_circle{
@@ -696,7 +701,7 @@ function render_util.draw_centricity(player_data, event)
 		width = 3,
 	}
 	
-	renderer.draw_circle{
+	renderer.draw_circle{ -- orange
 		x = C.ix1 + attempt.sx + (attempt.bx - attempt.sx - 1) / 2,
 		y = C.iy1 + attempt.sy + (attempt.by - attempt.sy - 1) / 2,
 		c = {1, 0.5, 0},
@@ -704,7 +709,7 @@ function render_util.draw_centricity(player_data, event)
 		width = 3,
 	}
 	
-	renderer.draw_circle{
+	renderer.draw_circle{ -- yellow
 		x = C.ix1 + attempt.sx + (attempt.bx - attempt.sx - 1),
 		y = C.iy1 + attempt.sy + (attempt.by - attempt.sy - 1),
 		c = {1, 1, 0},
@@ -1130,5 +1135,163 @@ function render_util.draw_cliff_collisions(player_data, event)
 	
 end
 
+---@param player_data PlayerData
+---@param event EventData.on_player_reverse_selected_area
+function render_util.draw_consumed_resources(player_data, event)
+	rendering.clear("mining-patch-planner")
+
+	local renderer = render_util.renderer(event)
+
+	local state = player_data.last_state --[[@as SimpleState]]
+
+	if not state then return end
+
+	local C = state.coords
+	local G = state.grid
+	local A = state.best_attempt
+	local M = state.miner
+	local area, size = M.area, M.size
+	
+	local consume_cache = {}
+	local miners = A.miners
+	for _, miner in ipairs(miners) do
+		-- grid:consume(miner.x+ext_negative, miner.y+ext_negative, area)
+		G:consume_separable_horizontal(miner.x+M.extent_negative, miner.y+M.extent_negative, area, consume_cache)
+		renderer.draw_rectangle{
+			x = C.ix1 + miner.x - 1, y = C.iy1 + miner.y - 1,
+			w = size,
+			filled=true,
+			color=miner.postponed and {0.4, 0.2, .4} or {0.2, 0.4, .8},
+		}
+	end
+	
+	for tile, _ in pairs(consume_cache) do
+		G:consume_separable_vertical(tile.x, tile.y, area)
+	end
+	
+	for _, postponed in ipairs(A.postponed) do
+		renderer.draw_rectangle{
+			x = C.ix1 + postponed.x - 1 + .125, y = C.iy1 + postponed.y - 1 + .125,
+			w = size - .25,
+			width = 7,
+			color={0.8, 0.6, .2},
+		}
+	end
+
+	for _, row in pairs(G) do
+		for _, tile in pairs(row) do
+			---@cast tile GridTile
+			local consumed = tile.consumed
+			if tile.amount > 0 then
+				-- renderer.draw_circle{
+				-- 	x = C.gx + tile.x, y = C.gy + tile.y,
+				-- 	w = 1,
+				-- 	color = {0, 0.5, 0, 0.1},
+				-- 	r = 0.5,
+				-- }
+				renderer.draw_rectangle{
+					x = C.ix1 + tile.x -.9, y = C.iy1 + tile.y -.9,
+					w = .8,
+					color = consumed and {0, 0.8, 0, 1} or {1, 0, 0},
+				}
+				-- renderer.draw_text{
+				-- 	x = C.gx + tile.x, y = C.gy + tile.y - .3,
+				-- 	alignment = "center",
+				-- 	vertical_alignment = "top",
+				-- 	--vertical_alignment = tile.x % 2 == 1 and "top" or "bottom",
+				-- 	text = consumed,
+				-- 	scale = 0.6,
+				-- }
+			end
+		end
+	end
+
+	G:clear_consumed(state.resource_tiles)
+	
+	renderer.draw_text{
+		x = C.gx - 2,
+		y = C.gy - 4,
+		text = "Index: "..A.index,
+	}
+	renderer.draw_text{
+		x = C.gx - 2,
+		y = C.gy - 3,
+		text = ""..A.sx..";"..A.sy,
+	}
+	renderer.draw_text{
+		x = C.gx - 2,
+		y = C.gy - 2,
+		text = "Unconsumed: "..A.heuristics.unconsumed,
+	}
+end
+
+
+---@param player_data PlayerData
+---@param event EventData.on_player_reverse_selected_area
+function render_util.draw_belt_specification(player_data, event)
+	rendering.clear("mining-patch-planner")
+
+	local renderer = render_util.renderer(event)
+
+	local state = player_data.last_state --[[@as SimpleState]]
+
+	if not state then return end
+
+	local C = state.coords
+	local G = state.grid
+	local A = state.best_attempt
+	local M = state.miner
+	local area, size = M.area, M.size
+	
+	local belts = state.belts
+	
+	for _, belt in pairs(belts) do
+		renderer.draw_circle{
+			x = C.gx + belt.x1, y = C.gy + belt.y,
+		}
+		renderer.draw_text{
+			x = C.gx + belt.x1, y = C.gy + belt.y + .15,
+			text = "x1",
+			alignment = "center",
+			vertical_alignment = "middle",
+			scale = 0.75,
+		}
+		renderer.draw_circle{
+			x = C.gx + belt.x2, y = C.gy + belt.y,
+		}
+		renderer.draw_text{
+			x = C.gx + belt.x2, y = C.gy + belt.y + .15,
+			text = "x2",
+			alignment = "center",
+			vertical_alignment = "middle",
+			scale = 0.75,
+		}
+		
+		renderer.draw_circle{
+			x = C.gx + belt.x_start, y = C.gy + belt.y,
+			r = 0.4
+		}
+		renderer.draw_text{
+			x = C.gx + belt.x_start, y = C.gy + belt.y - .15,
+			text = "start",
+			alignment = "center",
+			vertical_alignment = "middle",
+			scale = 0.75,
+		}
+		renderer.draw_circle{
+			x = C.gx + belt.x_end, y = C.gy + belt.y,
+			r = 0.4,
+		}
+		renderer.draw_text{
+			x = C.gx + belt.x_end, y = C.gy + belt.y - .15,
+			text = "end",
+			alignment = "center",
+			vertical_alignment = "middle",
+			scale = 0.75,
+		}
+	end
+	
+	local breakpoint = true
+end
 
 return render_util

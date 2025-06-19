@@ -74,7 +74,7 @@ script.on_configuration_changed(function(config_changed_data)
 		end
 		
 		for _, task in pairs(storage.tasks) do
-			task.performace_scaling = settings.global["mpp-performance-scaling"].value --[[@as number]]
+			task.performance_scaling = settings.global["mpp-performance-scaling"].value --[[@as number]]
 		end
 	end
 	

@@ -59,6 +59,7 @@ local entity_sections = {
 ---@field icon SpritePath
 ---@field icon_enabled SpritePath?
 ---@field order string?
+---@field sort number[]?
 ---@field default number? For "drop-down" element
 ---@field refresh boolean? Update selections when clicked?
 ---@field filterable boolean? Can entity be hidden
@@ -423,13 +424,13 @@ function gui.create_interface(player)
 	do -- layout selection
 		local table_root, section = create_setting_section(player_data, frame, "layout", {column_count=2})
 
-		local choices = {}
+		local choices = List()
 		local index = 0
 		for i, layout in ipairs(layouts) do
 			if player_data.choices.layout_choice == layout.name then
 				index = i
 			end
-			choices[#choices+1] = layout.translation
+			choices:push(layout.translation)
 		end
 
 		local flow = table_root.add{type="flow", direction="horizontal"}
@@ -456,9 +457,9 @@ function gui.create_interface(player)
 		local table_root = create_setting_section(player_data, frame, "direction")
 		create_setting_selector(player_data, table_root, "mpp_action", "direction", {
 			{value="north", icon="mpp_direction_north"},
+			{value="east", icon="mpp_direction_east"},
 			{value="south", icon="mpp_direction_south"},
 			{value="west", icon="mpp_direction_west"},
-			{value="east", icon="mpp_direction_east"},
 		})
 	end
 
@@ -532,6 +533,19 @@ function gui.create_interface(player)
 end
 
 ---@param player_data PlayerData
+local function update_direction_section(player_data)
+	local breakpoint = true
+	local section = player_data.gui.selections.direction
+	local choice = player_data.choices.direction_choice
+	
+	for key, element in pairs(section) do
+		element.style = style_helper_selection(key == choice)
+	end
+end
+
+gui.update_direction_section = update_direction_section
+
+---@param player_data PlayerData
 local function update_miner_selection(player_data)
 	local player_choices = player_data.choices
 	local layout = layouts[player_choices.layout_choice]
@@ -542,8 +556,7 @@ local function update_miner_selection(player_data)
 
 	local near_radius_min, near_radius_max = restrictions.miner_size[1], restrictions.miner_size[2]
 	local far_radius_min, far_radius_max = restrictions.miner_radius[1], restrictions.miner_radius[2]
-	---@type SettingValueEntry[]
-	local values = {}
+	local values = List() --[[@as List<SettingValueEntry>]]
 	local existing_choice_is_valid = false
 	local cached_miners, cached_resources = enums.get_available_miners()
 	
@@ -555,25 +568,28 @@ local function update_miner_selection(player_data)
 		local is_restricted = common.is_miner_restricted(miner, restrictions) or not layout:restriction_miner(miner)
 		if not player_data.entity_filtering_mode and is_restricted then goto skip_miner end
 
+		---@type List<LocalisedString>
 		local tooltip = List{
 			"", mpp_util.entity_name_with_quality(miner_proto.localised_name, player_choices.miner_quality_choice), "\n",
 			"[img=mpp_tooltip_category_size] ", {"description.tile-size"}, (": %ix%i\n"):format(miner.size, miner.size),
 			"[img=mpp_tooltip_category_mining_area] ", {"description.mining-area"}, (": %ix%i"):format(miner.area, miner.area),
 		}
 		tooltip
-			:contitional_append(miner.power_source_tooltip,"\n", miner.power_source_tooltip)
-			:contitional_append(miner.area <= miner.size, "\n[color=yellow]", {"mpp.label_insufficient_area"}, "[/color]")
-			:contitional_append(not miner.supports_fluids, "\n[color=yellow]", {"mpp.label_no_fluid_mining"}, "[/color]")
-			:contitional_append(miner.oversized, "\n[color=yellow]", {"mpp.label_oversized_drill"}, "[/color]")
+			:conditional_append(miner.power_source_tooltip ~= nil, "\n", miner.power_source_tooltip)
+			:conditional_append(miner.area <= miner.size, "\n[color=yellow]", {"mpp.label_insufficient_area"}, "[/color]")
+			:conditional_append(not miner.supports_fluids, "\n[color=yellow]", {"mpp.label_no_fluid_mining"}, "[/color]")
+			:conditional_append(miner.oversized, "\n[color=yellow]", {"mpp.label_oversized_drill"}, "[/color]")
 
-		values[#values+1] = {
+		values:push{
 			value=miner.name,
 			tooltip=tooltip,
 			icon=("entity/"..miner.name),
 			order=miner_proto.order,
 			filterable=true,
 			disabled=is_restricted,
+			sort={miner.size, miner.area},
 		}
+		
 		if miner.name == player_choices.miner_choice then existing_choice_is_valid = true end
 
 		::skip_miner::
@@ -588,13 +604,19 @@ local function update_miner_selection(player_data)
 		existing_choice_is_valid = true
 	elseif #values == 0 then
 		player_choices.miner_choice = "none"
-		values[#values+1] = {
+		values:push{
 			value="none",
 			tooltip={"mpp.msg_miner_err_3"},
 			icon="mpp_no_entity",
 			order="",
+			sort={1, 1}
 		}
 	end
+	
+	table.sort(values, function(a, b)
+		local a1, a2, a3, b1, b2, b3 = a.sort[1], a.sort[2], a.order, b.sort[1], b.sort[2], b.order
+		return (a1 == b1 and (a2 == b2 and a2 < b2 or a3 < b3)) or a1 < b1
+	end)
 
 	local table_root = player_data.gui.tables["miner"]
 	create_setting_selector(
@@ -627,7 +649,7 @@ local function update_belt_selection(player)
 	player_data.gui.section["belt"].visible = restrictions.belt_available and not is_space
 	if not restrictions.belt_available or is_space then return end
 
-	local values = {}
+	local values = List() --[[@as List<SettingValueEntry>]]
 	local existing_choice_is_valid = false
 
 	local belts = prototypes.get_entity_filtered{{filter="type", type="transport-belt"}}
@@ -652,13 +674,14 @@ local function update_belt_selection(player)
 			table.insert(tooltip, {"", "\n[color=yellow]", {"mpp.label_belt_find_underground"}, "[/color]"})
 		end
 
-		values[#values+1] = {
+		values:push{
 			value=belt.name,
 			tooltip=tooltip,
 			icon=("entity/"..belt.name),
 			order=belt.order,
 			filterable=true,
 			disabled=is_restricted,
+			sort={belt_struct.speed},
 		}
 		if belt.name == choices.belt_choice then existing_choice_is_valid = true end
 
@@ -674,13 +697,19 @@ local function update_belt_selection(player)
 		existing_choice_is_valid = true
 	elseif #values == 0 then
 		player_data.choices.belt_choice = "none"
-		values[#values+1] = {
+		values:push{
 			value="none",
 			tooltip={"mpp.choice_none"},
 			icon="mpp_no_entity",
 			order="",
+			sort={1},
 		}
 	end
+	
+	table.sort(values, function(a, b)
+		local a1, a2, b1, b2 = a.sort[1], a.order, b.sort[1], b.order
+		return (a1 == b1 and a2 < b2) or a1 < b1
+	end)
 
 	local table_root = player_data.gui.tables["belt"]
 	create_setting_selector(player_data, table_root, "mpp_action", "belt", values,
@@ -708,7 +737,7 @@ local function update_space_belt_selection(player)
 	player_data.gui.section["space_belt"].visible = restrictions.belt_available and is_space
 	if not restrictions.belt_available or not is_space then return end
 
-	local values = {}
+	local values = List() --[[@as List<SettingValueEntry>]]
 	local existing_choice_is_valid = false
 
 	local belts = prototypes.get_entity_filtered{{filter="type", type="transport-belt"}}
@@ -731,7 +760,7 @@ local function update_space_belt_selection(player)
 			{"description.belt-items"}, "/s",
 		}
 
-		values[#values+1] = {
+		values:push{
 			value=belt.name,
 			tooltip=tooltip,
 			icon=("entity/"..belt.name),
@@ -752,7 +781,7 @@ local function update_space_belt_selection(player)
 		end
 	elseif #values == 0 then
 		player_data.choices.belt_choice = "none"
-		values[#values+1] = {
+		values:push{
 			value="none",
 			tooltip={"mpp.choice_none"},
 			icon="mpp_no_entity",
@@ -781,7 +810,7 @@ local function update_logistics_selection(player_data)
 	local choices = player_data.choices
 	local layout = layouts[choices.layout_choice]
 	local restrictions = layout.restrictions
-	local values = {}
+	local values = List() --[[@as List<SettingValueEntry>]]
 
 	player_data.gui.section["logistics"].visible = restrictions.logistics_available
 	if not restrictions.logistics_available then return end
@@ -802,7 +831,7 @@ local function update_logistics_selection(player_data)
 		if size > 1 then goto skip_chest end
 		if not filter[chest.logistic_mode] then goto skip_chest end
 
-		values[#values+1] = {
+		values:push{
 			value=chest.name,
 			tooltip=chest.localised_name,
 			icon=("entity/"..chest.name),
@@ -822,7 +851,7 @@ local function update_logistics_selection(player_data)
 		end
 	elseif #values == 0 then
 		player_data.choices.belt_choice = "none"
-		values[#values+1] = {
+		values:push{
 			value="none",
 			tooltip={"mpp.choice_none"},
 			icon="mpp_no_entity",
@@ -854,10 +883,10 @@ local function update_pole_selection(player_data)
 	player_data.gui.section["pole"].visible = restrictions.pole_available
 	if not restrictions.pole_available then return end
 
-	local values = {}
+	local values = List() --[[@as List<SettingValueEntry>]]
 
 	if layout.restrictions.pole_zero_gap then
-		values[#values+1] = {
+		values:push{
 			value="zero_gap",
 			tooltip={"mpp.choice_none_zero"},
 			icon="mpp_no_entity_zero",
@@ -866,7 +895,7 @@ local function update_pole_selection(player_data)
 		}
 	end
 
-	values[#values+1] = {
+	values:push{
 		value="none",
 		tooltip={"mpp.choice_none"},
 		icon="mpp_no_entity",
@@ -894,7 +923,7 @@ local function update_pole_selection(player_data)
 			" [img=tooltip-category-electricity] ", {"description.wire-reach"}, specifier:format(pole.wire),
 		}
 
-		values[#values+1] = {
+		values:push{
 			value=pole_proto.name,
 			tooltip=tooltip,
 			icon=("entity/"..pole_proto.name),
@@ -931,38 +960,37 @@ local function update_misc_selection(player)
 	local player_data = storage.players[player.index]
 	local choices = player_data.choices
 	local layout = layouts[choices.layout_choice]
-	---@type SettingValueEntry[]
-	local values = {}
+	local values = List() --[[@as List<SettingValueEntry>]]
 
-	values[#values+1] = {
+	values:push{
 		value="ore_filtering",
 		tooltip={"mpp.choice_ore_filtering"},
 		icon=("mpp_ore_filtering_disabled"),
 		icon_enabled=("mpp_ore_filtering_enabled"),
 	}
 
-	values[#values+1] = {
+	values:push{
 		value="avoid_water",
 		tooltip={"mpp.choice_avoid_water"},
 		icon=("fluid/water"),
 		icon_enabled=("fluid/water")
 	}
 
-	values[#values+1] = {
+	values:push{
 		value="avoid_cliffs",
 		tooltip={"mpp.choice_avoid_cliffs"},
 		icon=("entity/cliff"),
 		icon_enabled=("entity/cliff")
 	}
 
-	values[#values+1] = {
+	values:push{
 		value="belt_planner",
 		tooltip={"mpp.belt_planner"},
 		icon=("mpp_belt_planner"),
 		icon_enabled=("mpp_belt_planner")
 	}
 	
-	values[#values+1] = {
+	values:push{
 		value="belt_merge",
 		icon_enabled=("mpp_merge_belt_enabled"),
 		icon=("mpp_merge_belt_disabled"),
@@ -989,7 +1017,7 @@ local function update_misc_selection(player)
 			}
 		end
 		
-		values[#values+1] = {
+		values:push{
 			action="mpp_prototype",
 			value="module",
 			tooltip={"gui.module"},
@@ -1002,7 +1030,7 @@ local function update_misc_selection(player)
 	end
 	
 	if layout.restrictions.lamp_available then
-		values[#values+1] = {
+		values:push{
 			value="lamp",
 			tooltip={"mpp.choice_lamp"},
 			icon=("mpp_no_lamp"),
@@ -1031,7 +1059,7 @@ local function update_misc_selection(player)
 			}
 		end
 
-		values[#values+1] = {
+		values:push{
 			action="mpp_prototype",
 			value="pipe",
 			tooltip={"entity-name.pipe"},
@@ -1044,7 +1072,7 @@ local function update_misc_selection(player)
 	end
 
 	if layout.restrictions.deconstruction_omit_available then
-		values[#values+1] = {
+		values:push{
 			value="deconstruction",
 			tooltip={"mpp.choice_deconstruction"},
 			icon=("mpp_deconstruct"),
@@ -1059,7 +1087,7 @@ local function update_misc_selection(player)
 			choices.space_landfill_choice = existing_choice
 		end
 
-		values[#values+1] = {
+		values:push{
 			action="mpp_prototype",
 			value="space_landfill",
 			icon=("item/"..existing_choice),
@@ -1075,7 +1103,7 @@ local function update_misc_selection(player)
 	end
 
 	if layout.restrictions.landfill_omit_available then
-		values[#values+1] = {
+		values:push{
 			value="landfill",
 			tooltip={"mpp.choice_landfill"},
 			icon=("item/landfill"),
@@ -1084,7 +1112,7 @@ local function update_misc_selection(player)
 	end
 
 	if layout.restrictions.coverage_tuning then
-		values[#values+1] = {
+		values:push{
 			value="coverage",
 			tooltip={"mpp.choice_coverage"},
 			icon=("mpp_miner_coverage_disabled"),
@@ -1093,7 +1121,7 @@ local function update_misc_selection(player)
 	end
 
 	if layout.restrictions.start_alignment_tuning then
-		values[#values+1] = {
+		values:push{
 			value="start",
 			tooltip={"mpp.choice_start"},
 			icon=("mpp_align_start"),
@@ -1101,7 +1129,7 @@ local function update_misc_selection(player)
 	end
 
 	if layout.restrictions.placement_info_available then
-		values[#values+1] = {
+		values:push{
 			value="print_placement_info",
 			tooltip={"mpp.print_placement_info"},
 			icon=("mpp_print_placement_info_disabled"),
@@ -1110,7 +1138,7 @@ local function update_misc_selection(player)
 	end
 
 	if layout.restrictions.lane_filling_info_available then
-		values[#values+1] = {
+		values:push{
 			value="display_lane_filling",
 			tooltip={"mpp.display_lane_filling"},
 			icon=("mpp_display_lane_filling_disabled"),
@@ -1119,7 +1147,7 @@ local function update_misc_selection(player)
 	end
 
 	if player_data.advanced and layout.restrictions.pipe_available then
-		values[#values+1] = {
+		values:push{
 			value="force_pipe_placement",
 			tooltip={"mpp.force_pipe_placement"},
 			icon=("mpp_force_pipe_disabled"),
@@ -1128,7 +1156,7 @@ local function update_misc_selection(player)
 	end
 
 	if player_data.advanced and false then
-		values[#values+1] = {
+		values:push{
 			value="dumb_power_connectivity",
 			tooltip={"mpp.dumb_power_connectivity"},
 			icon=("entity/medium-power-pole"),
@@ -1230,6 +1258,16 @@ local function update_debugging_selection(player_data)
 			tooltip="Draw cliff collisions (area select)",
 			icon=("entity/cliff"),
 		},
+		{
+			value="draw_consumed_resources",
+			tooltip="Draw consumed resource tiles",
+			icon=("entity/copper-ore"),
+		},
+		{
+			value="draw_belt_specification",
+			tooltip="Draw belt specification",
+			icon=("item/transport-belt"),
+		}
 	}
 
 	local debugging_section = player_data.gui.section["debugging"]
