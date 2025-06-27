@@ -94,7 +94,7 @@ local function create_setting_section(player_data, root, name, opts)
 	opts = opts or {}
 	local section = root.add{type="flow", direction="vertical", style="mpp_section"}
 	player_data.gui.section[name] = section
-	section.add{type="label", style="subheader_caption_label", caption={"mpp.settings_"..name.."_label"}}
+	section.add{type="label", name="section_label", style="subheader_caption_label", caption={"mpp.settings_"..name.."_label"}}
 	local table_root = section.add{
 		type="table",
 		direction=opts.direction or "horizontal",
@@ -454,7 +454,9 @@ function gui.create_interface(player)
 	end
 
 	do -- Direction selection
-		local table_root = create_setting_section(player_data, frame, "direction")
+		local table_root, section = create_setting_section(player_data, frame, "direction")
+		section.section_label.caption = {"", section.section_label.caption, " [img=info]"}
+		section.section_label.tooltip = mpp_util.wrap_tooltip{"mpp.label_rotate_keybind_tip"}
 		create_setting_selector(player_data, table_root, "mpp_action", "direction", {
 			{value="north", icon="mpp_direction_north"},
 			{value="east", icon="mpp_direction_east"},
@@ -661,7 +663,7 @@ local function update_belt_selection(player)
 		local is_restricted = common.is_belt_restricted(belt_struct, restrictions)
 		if not player_data.entity_filtering_mode and is_restricted then goto skip_belt end
 
-		local belt_speed = belt.belt_speed * 60 * 8
+		local belt_speed = belt_struct.speed * 2
 		local specifier = belt_speed % 1 == 0 and ": %.0f " or ": %.1f "
 
 		local tooltip = {

@@ -1246,49 +1246,50 @@ function render_util.draw_belt_specification(player_data, event)
 	local belts = state.belts
 	
 	for _, belt in pairs(belts) do
-		renderer.draw_circle{
-			x = C.gx + belt.x1, y = C.gy + belt.y,
-		}
-		renderer.draw_text{
-			x = C.gx + belt.x1, y = C.gy + belt.y + .15,
-			text = "x1",
-			alignment = "center",
-			vertical_alignment = "middle",
-			scale = 0.75,
-		}
-		renderer.draw_circle{
-			x = C.gx + belt.x2, y = C.gy + belt.y,
-		}
-		renderer.draw_text{
-			x = C.gx + belt.x2, y = C.gy + belt.y + .15,
-			text = "x2",
-			alignment = "center",
-			vertical_alignment = "middle",
-			scale = 0.75,
-		}
+		do -- Draws belt endpoints
+			-- Draws x1
+			renderer.draw_circle{x = C.gx + belt.x1, y = C.gy + belt.y}
+			renderer.draw_text{
+				x = C.gx + belt.x1, y = C.gy + belt.y + .15,
+				alignment = "center", vertical_alignment = "middle",
+				text = "x1", scale = 0.75,
+			}
+			-- Draws x2
+			renderer.draw_circle{x = C.gx + belt.x2, y = C.gy + belt.y}
+			renderer.draw_text{
+				x = C.gx + belt.x2, y = C.gy + belt.y + .15,
+				alignment = "center", vertical_alignment = "middle",
+				text = "x2", scale = 0.75,
+			}
+			-- Draws x start
+			renderer.draw_circle{x = C.gx + belt.x_start, y = C.gy + belt.y, r = 0.4}
+			renderer.draw_text{
+				x = C.gx + belt.x_start, y = C.gy + belt.y - .15,
+				alignment = "center", vertical_alignment = "middle",
+				text = "start", scale = 0.75,
+			}
+			-- Draw x end
+			renderer.draw_circle{x = C.gx + belt.x_end, y = C.gy + belt.y, r = 0.4}
+			renderer.draw_text{
+				x = C.gx + belt.x_end, y = C.gy + belt.y - .15,
+				alignment = "center", vertical_alignment = "middle",
+				text = "end",  scale = 0.75,
+			}
+		end
 		
-		renderer.draw_circle{
-			x = C.gx + belt.x_start, y = C.gy + belt.y,
-			r = 0.4
-		}
-		renderer.draw_text{
-			x = C.gx + belt.x_start, y = C.gy + belt.y - .15,
-			text = "start",
-			alignment = "center",
-			vertical_alignment = "middle",
-			scale = 0.75,
-		}
-		renderer.draw_circle{
-			x = C.gx + belt.x_end, y = C.gy + belt.y,
-			r = 0.4,
-		}
-		renderer.draw_text{
-			x = C.gx + belt.x_end, y = C.gy + belt.y - .15,
-			text = "end",
-			alignment = "center",
-			vertical_alignment = "middle",
-			scale = 0.75,
-		}
+		do -- Draws throughput and merge strategies
+			local x, y = C.gx + belt.x_start - 5, C.gy + belt.y
+			renderer.draw_text{
+				x = x, y = y-.25,
+				alignment = "center", vertical_alignment = "middle",
+				text = ("t1 %.02f"):format(belt.throughput1),
+			}
+			renderer.draw_text{
+				x = x, y = y+.25,
+				alignment = "center", vertical_alignment = "middle",
+				text = ("t2 %.02f"):format(belt.throughput2),
+			}
+		end
 	end
 	
 	local breakpoint = true

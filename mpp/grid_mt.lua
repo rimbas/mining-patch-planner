@@ -30,6 +30,8 @@ grid_mt.__index = grid_mt
 ---@field extent_y1 number Internal grid dimensions
 ---@field extent_x2 number Internal grid dimensions
 ---@field extent_y2 number Internal grid dimensions
+---@field is_vertical boolean Is layout pointing north or south
+---@field is_horizontal boolean Is layout pointing east or west
 
 ---@alias GridBuilding
 ---| nil

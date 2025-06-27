@@ -80,6 +80,10 @@
 ---@field width number
 ---@field height number
 
+---@alias BeltMergeStrategy
+---| "side-merge" Routes belt into side of another belt
+---| "back-merge" Routes belt into back of another belt
+
 ---@class BaseBeltSpecification
 ---@field x1 number Output x of first mining drill in either lane
 ---@field x2 number Output y of last mining drill in either lane
@@ -88,13 +92,14 @@
 ---@field y number
 ---@field has_drills boolean? Do miners exist on this belt
 ---@field is_output boolean? Does belt output normally
----@field backmerge_direction "north" | "south" | nil Merge direction
----@field lane1 MinerPlacement[]
----@field lane2 MinerPlacement[]
+---@field merge_strategy BeltMergeStrategy?
+---@field merge_direction "north" | "south" | nil Merge direction
+---@field lane1 MinerPlacement[] Top lane of belt
+---@field lane2 MinerPlacement[] Bottom lane of belt
+---@field throughput1 number Throughput of top lane of belt
+---@field throughput2 number Throughput of bottom lane of belt
 
 ---@class BeltSpecification : BaseBeltSpecification
----@field throughput1 number
----@field throughput2 number
 ---@field index number Belt index for belt planner
 ---@field accomodation_shift number Belt extension to fit around other belts
 

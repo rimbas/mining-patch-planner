@@ -713,6 +713,7 @@ function layout:layout_attempts_fallback(state)
 		cost = cost + price
 		
 		attempt_index = attempt_index + 1
+		state.attempt_index = attempt_index
 		
 		attempts_done = attempts_done + 1
 		local remainder = budget - cost
@@ -723,10 +724,10 @@ function layout:layout_attempts_fallback(state)
 	end
 	
 	if state.attempt_index > #state.attempts then
+		attempt = state.saved_attempts[1]
 		if __DebugAdapter ~= nil then
 			state.saved_attempts = nil
 		end
-		attempt = state.saved_attempts[1]
 		state.best_attempt_index = 1
 		state.best_attempt = attempt
 		state.best_attempt_score = attempt.heuristic_score
@@ -1051,7 +1052,9 @@ end
 ---@return CallbackState
 function layout:prepare_belt_layout(state)
 	local m = state.miner
+	local multiplier = common.get_mining_drill_production(state)
 	local attempt = state.best_attempt
+	local belt_speed = state.belt.speed
 
 	---@type table<number, MinerPlacement[]>
 	local miner_lanes = state.miner_lanes
@@ -1092,6 +1095,8 @@ function layout:prepare_belt_layout(state)
 				is_output=false,
 				lane1=lane1,
 				lane2=lane2,
+				throughput1=0,
+				throughput2=0,
 			}
 			goto continue
 		end
@@ -1106,6 +1111,9 @@ function layout:prepare_belt_layout(state)
 		
 		longest_belt = max(longest_belt, x2 - x1 + 1)
 		
+		---@param lane MinerPlacement[]
+		local function lane_capacity(lane) if lane then return #lane * multiplier / belt_speed end return 0 end
+		
 		belts:push({
 			x1=x1,
 			x2=x2,
@@ -1116,6 +1124,8 @@ function layout:prepare_belt_layout(state)
 			is_output = true,
 			x_start = attempt.sx + pipe_adjust,
 			x_end = x_end,
+			throughput1 = lane_capacity(lane1),
+			throughput2 = lane_capacity(lane2),
 		})
 
 		::continue::
@@ -1383,7 +1393,7 @@ function layout:placement_miners(state)
 			direction = mpp_util.clamped_rotation(defines.direction[direction], M.rotation_bump),
 		}
 
-		if state.module_choice ~= "none" then
+		if state.module_choice ~= "none" and M.module_inventory_size > 0 then
 			local item_plan = {}
 			for j = 1, module_inv_size do
 				item_plan[j] = {
@@ -1560,40 +1570,25 @@ end
 ---@param state SimpleState
 function layout:_display_lane_filling(state)
 	if not state.display_lane_filling_choice or not state.belts then return end
-	
-	local drill_speed = prototypes.entity[state.miner_choice].mining_speed
-	local belt_speed = prototypes.entity[state.belt_choice].belt_speed * 60 * 4
-	local dominant_resource = state.resource_counts[1].name
-	local resource_hardness = prototypes.entity[dominant_resource].mineable_properties.mining_time or 1
-	local drill_productivity, module_speed = 1 + state.player.force.mining_drill_productivity_bonus, 1
-	local function quality_clamp(val, level) return floor((val + val * .3 * level) * 100)/100 end
-	if state.module_choice ~= "none" then
-		local mod = prototypes.item[state.module_choice]
-		local level = prototypes.quality[state.module_quality_choice].level
-		local speed = mod.module_effects.speed and mod.module_effects.speed or 0
-		local productivity = mod.module_effects.productivity and mod.module_effects.productivity or 0
-		if mod.category == "speed" then
-			speed = quality_clamp(speed, level)
-		elseif mod.category == "productivity" then
-			productivity = quality_clamp(productivity, level)
-		end
-		module_speed = module_speed + speed * state.miner.module_inventory_size
-		drill_productivity = drill_productivity + productivity * state.miner.module_inventory_size
-	end
-	local multiplier = drill_speed / resource_hardness * module_speed * drill_productivity
 
-	local throughput1, throughput2 = 0, 0
+	local belt_speed = state.belt.speed
+	local multiplier = common.get_mining_drill_production(state)
+
+	local throughput_capped1, throughput_capped2 = 0, 0
+	local throughput_total1, throughput_total2 = 0, 0
 	--local ore_hardness = prototypes.entity[state.found_resources
 	for i, belt in pairs(state.belts) do
 		---@cast belt BeltSpecification
-		local function lane_capacity(lane) if lane then return #lane * multiplier end return 0 end
+		local function lane_capacity(lane) if lane then return #lane * multiplier / belt_speed end return 0 end
 
 		if not belt.lane1 and not belt.lane2 then goto continue end
 
 		local speed1, speed2 = lane_capacity(belt.lane1), lane_capacity(belt.lane2)
 
-		throughput1 = throughput1 + math.min(1, speed1 / belt_speed)
-		throughput2 = throughput2 + math.min(1, speed2 / belt_speed)
+		throughput_capped1 = throughput_capped1 + math.min(1, speed1)
+		throughput_capped2 = throughput_capped2 + math.min(1, speed2)
+		throughput_total1 = throughput_total1 + speed1
+		throughput_total2 = throughput_total2 + speed2
 
 		common.draw_belt_lane(state, belt)
 
@@ -1602,14 +1597,18 @@ function layout:_display_lane_filling(state)
 	end
 
 	if #state.belts > 1 then
-		local x = state.best_attempt.sx - 2 --min(state.belts[1].x1, state.belts[2].x1)
-		--local y = (state.belts[1].y + state.belts[table_size(state.belts)].y) / 2
-		local y = 0
-		for _, belt in pairs(state.belts) do
-			y = y + (belt.y or 0)
+		local x = state.best_attempt.sx + 2
+		local y = state.belts[1].y
+		if state.coords.is_vertical then
+			y = y + (state.belts[state.belt_count].y - y) / 2 + 3
+			x = x - 4
 		end
 
-		common.draw_belt_total(state, x, y/#state.belts, throughput1, throughput2)
+		common.draw_belt_total(
+			state, x, y - 3, belt_speed,
+			throughput_capped1, throughput_capped2,
+			throughput_total1, throughput_total2
+		)
 	end
 
 	--local lanes = math.ceil(math.max(throughput1, throughput2))

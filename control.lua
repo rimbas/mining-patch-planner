@@ -348,8 +348,8 @@ end
 script.on_event("mining-patch-planner-keybind-rotate", function(e)
 	---@cast e EventData.CustomInputEvent
 	if not e.selected_prototype or e.selected_prototype.name ~= "mining-patch-planner" then return end
-	
-	local ply = storage.players[e.player_index] --[[@as PlayerData]]
+	local player_index = e.player_index
+	local ply = storage.players[player_index] --[[@as PlayerData]]
 	local current_direction = ply.choices.direction_choice
 	
 	if current_direction == "east" then
@@ -361,13 +361,15 @@ script.on_event("mining-patch-planner-keybind-rotate", function(e)
 	else
 		rotate_direction(ply, "east")
 	end
+	game.get_player(player_index).play_sound{path="utility/rotated_medium"}
 end)
 
 script.on_event("mining-patch-planner-keybind-rotate-reversed", function(e)
 	---@cast e EventData.CustomInputEvent
 	if not e.selected_prototype or e.selected_prototype.name ~= "mining-patch-planner" then return end
 	
-	local ply = storage.players[e.player_index] --[[@as PlayerData]]
+	local player_index = e.player_index
+	local ply = storage.players[player_index] --[[@as PlayerData]]
 	local current_direction = ply.choices.direction_choice
 	
 	if current_direction == "east" then
@@ -379,4 +381,5 @@ script.on_event("mining-patch-planner-keybind-rotate-reversed", function(e)
 	else
 		rotate_direction(ply, "west")
 	end
+	game.get_player(player_index).play_sound{path="utility/rotated_medium"}
 end)

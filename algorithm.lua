@@ -254,6 +254,7 @@ function algorithm.on_player_selected_area(event)
 		return nil, {"mpp.msg_miner_err_3"}
 	end
 
+	local direction = state.direction_choice
 	local collected_resources = player_data.selection_collection
 
 	local new = find_new_resources(event.entities, player_data.selection_cache)
@@ -266,6 +267,8 @@ function algorithm.on_player_selected_area(event)
 	local layout_categories = get_miner_categories(player_data)
 	local coords, filtered, found_resources, resource_counts = process_entities(collected_resources, layout_categories)
 	state.coords = coords
+	coords.is_horizontal = direction == "east" or direction == "west"
+	coords.is_vertical = not coords.is_horizontal
 	state.resources = filtered
 	state.found_resources = found_resources
 	state.requires_fluid = false

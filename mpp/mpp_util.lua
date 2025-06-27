@@ -186,7 +186,7 @@ end
 ---@field area number Full coverage span of the miner
 ---@field area_sq number Squared area
 ---@field outer_span number Lenght between physical size and end of radius
----@field module_inventory_size number
+---@field module_inventory_size number?
 ---@field middle number "Center" x position
 ---@field drop_pos MapPosition Raw drop position
 ---@field rotation_bump defines.direction How much to pre-rotate mining drill to have a north facing drill
@@ -201,6 +201,8 @@ end
 ---@field output_rotated table<defines.direction, MapPosition> Rotated output positions in reference to (0, 0) origin
 ---@field power_source_tooltip (string|table)?
 ---@field wrong_parity number Does miner have a wrong parity between size and area
+---@field mining_speed number
+---@field uses_force_mining_productivity_bonus boolean
 
 ---@type table<string, MinerStruct>
 local miner_struct_cache = {}
@@ -222,7 +224,9 @@ function mpp_util.miner_struct(mining_drill_name, for_blueprint)
 	local miner_proto = prototypes.entity[mining_drill_name]
 
 	local miner = table.deepcopy(mpp_util.entity_struct(mining_drill_name)) --[[@as MinerStruct]]
-
+	miner.mining_speed = miner_proto.mining_speed
+	miner.uses_force_mining_productivity_bonus = miner_proto.uses_force_mining_productivity_bonus
+	
 	if miner.w ~= miner.h then
 		-- we have a problem ?
 	end
@@ -240,7 +244,7 @@ function mpp_util.miner_struct(mining_drill_name, for_blueprint)
 	end
 	miner.resource_categories = miner_proto.resource_categories
 	miner.name = miner_proto.name
-	miner.module_inventory_size = miner_proto.module_inventory_size
+	miner.module_inventory_size = miner_proto.module_inventory_size or 0
 	miner.extent_negative = floor(miner.size * 0.5) - floor(miner_proto.mining_drill_radius) + miner.parity
 	miner.extent_positive = miner.extent_negative + miner.area - 1
 	miner.middle = floor(miner.size / 2) + miner.parity
@@ -556,7 +560,7 @@ function mpp_util.belt_struct(belt_name)
 			::continue::
 		end
 	end
-	belt.speed = belt_proto.belt_speed
+	belt.speed = belt_proto.belt_speed * 60 * 4
 
 	belt_struct_cache[belt_name] = belt
 	return belt

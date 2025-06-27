@@ -336,7 +336,7 @@ local bound_alignment = {
 function common.draw_belt_lane(state, belt)
 	local r = state._render_objects
 	local c, ttl, player = state.coords, 0, {state.player}
-	local x1, y1, x2, y2 = belt.x1, belt.y, math.max(belt.x1+2, belt.x2), belt.y
+	local x1, y1, x2, y2 = belt.x_start, belt.y, math.max(belt.x1+2, belt.x2), belt.y
 	local function l2w(x, y) -- local to world
 		return mpp_util.revert(c.gx, c.gy, state.direction_choice, x, y, c.tw, c.th)
 	end
@@ -384,42 +384,60 @@ end
 function common.draw_belt_stats(state, belt, belt_speed, speed1, speed2)
 	local r = state._render_objects
 	local c, ttl, player = state.coords, 0, {state.player}
-	local x1, y1, x2, y2 = belt.x1, belt.y, belt.x2, belt.y
+	local x1, y1, x2, y2 = belt.x_start, belt.y, belt.x2, belt.y
 	local function l2w(x, y) -- local to world
 		return mpp_util.revert(c.gx, c.gy, state.direction_choice, x, y, c.tw, c.th)
 	end
 	local c1, c2, c3, c4 = {.9, .9, .9}, {0, 0, 0}, {.9, 0, 0}, {.4, .4, .4}
 	
-	local ratio1 = speed1 / belt_speed
-	local ratio2 = speed2 / belt_speed
+	local ratio1 = speed1
+	local ratio2 = speed2
 	local function get_color(ratio)
 		return ratio > 1.01 and c3 or ratio == 0 and c4 or c1
 	end
-
+	local function cap_prod(speed)
+		return min(1, speed) * belt_speed, speed > 1 and  "+" or ""
+	end
+	
 	r[#r+1] = rendering.draw_text{
 		surface=state.surface, players=player, only_in_alt_mode=true,
 		color=get_color(ratio1), time_to_live=ttl or 1,
 		alignment=alignment[state.direction_choice][1], vertical_alignment="middle",
 		target=l2w(x1-2, y1-.6), scale=1.6,
-		text=string.format("%.2fx", ratio1),
+		text=string.format("%.2f%s /s", cap_prod(ratio1))
 	}
 	r[#r+1] = rendering.draw_text{
 		surface=state.surface, players=player, only_in_alt_mode=true,
 		color=get_color(ratio2), time_to_live=ttl or 1,
 		alignment=alignment[state.direction_choice][2], vertical_alignment="middle",
 		target=l2w(x1-2, y1+.6), scale=1.6,
-		text=string.format("%.2fx", ratio2),
+		text=string.format("%.2f%s /s", cap_prod(ratio2))
 	}
-
+	local total_ratio = min(1, ratio1) + min(1, ratio2)
+	local total_color = c1
+	if ratio1 > 1 or ratio2 > 1 then
+		total_color = c3
+	end
+	local accomodation = c.is_horizontal and -5.5 or -3.5
+	r[#r+1] = rendering.draw_text{
+		surface=state.surface, players=player, only_in_alt_mode=true,
+		color=total_color, time_to_live=ttl or 1,
+		alignment="center", vertical_alignment="middle",
+		target=l2w(x1+accomodation, y1), scale=2,
+		text=string.format("%.2f%s /s", min(2, total_ratio) * belt_speed, (ratio1>1 or ratio2>1) and  "+" or "")
+	}
 end
 
 ---Draws a belt lane overlay
 ---@param state State
 ---@param pos_x number
 ---@param pos_y number
----@param speed1 number
----@param speed2 number
-function common.draw_belt_total(state, pos_x, pos_y, speed1, speed2)
+---@param speed number Belt speed
+---@param capped1 number
+---@param capped2 number
+---@param uncapped1 number
+---@param uncapped2 number
+function common.draw_belt_total(state, pos_x, pos_y, speed, capped1, capped2, uncapped1, uncapped2)
 	local r = state._render_objects
 	local c, ttl, player = state.coords, 0, {state.player}
 	local function l2w(x, y, b) -- local to world
@@ -431,35 +449,44 @@ function common.draw_belt_total(state, pos_x, pos_y, speed1, speed2)
 	end
 	local c1 = {0.7, 0.7, 1.0}
 
-	local lower_bound = math.min(speed1, speed2)
-	local upper_bound = math.max(speed1, speed2)
+	local lower_bound = math.min(capped1, capped2)
+	local upper_bound = math.max(capped1, capped2)
+	local capped_total = capped1+capped2
+	local uncapped_total = uncapped1 + uncapped2
+	local unused_capacity = uncapped_total - capped_total
 
 	r[#r+1] = rendering.draw_text{
 		surface=state.surface, players=player, only_in_alt_mode=true,
 		color=c1, time_to_live=ttl or 1,
-		alignment=bound_alignment[state.direction_choice], vertical_alignment="middle",
+		alignment="center", vertical_alignment="middle",
 		target=l2w(pos_x-4, pos_y-.6, false), scale=2,
-		text={"mpp.msg_print_info_lane_saturation_belts", string.format("%.2fx", upper_bound), string.format("%.2fx", (lower_bound+upper_bound)/2)},
+		-- text={"mpp.msg_print_info_lane_saturation_belts", string.format("%.2fx", upper_bound), },
+		text = {"mpp.msg_print_info_lane_throuput_total", ("%.2f"):format(capped_total*speed), ceil(upper_bound)},
 	}
-	r[#r+1] = rendering.draw_text{
-		surface=state.surface, players=player, only_in_alt_mode=true,
-		color=c1, time_to_live=ttl or 1,
-		alignment=bound_alignment[state.direction_choice], vertical_alignment="middle",
-		target=l2w(pos_x-4, pos_y+.6, true), scale=2,
-		text={"mpp.msg_print_info_lane_saturation_bounds", string.format("%.2fx", lower_bound), string.format("%.2fx", upper_bound)},
-	}
-
+	if unused_capacity > 0 then
+		r[#r+1] = rendering.draw_text{
+			surface=state.surface, players=player, only_in_alt_mode=true,
+			color={.9, 0, 0}, time_to_live=ttl or 1,
+			alignment="center", vertical_alignment="middle",
+			target=l2w(pos_x-4, pos_y+.6, true), scale=2,
+			-- text={"mpp.msg_print_info_lane_saturation_bounds", string.format("%.2fx", lower_bound), string.format("%.2fx", upper_bound)},
+			text = {"mpp.msg_print_info_lane_throuput_unused", ("%.2f"):format(unused_capacity*speed)},
+		}
+	end
 end
 
 ---@param state SimpleState
----@return {multiplier: number, stack_size: number}
+---@return number
 function common.get_mining_drill_production(state)
 	
 	local drill_speed = prototypes.entity[state.miner_choice].mining_speed
 	local belt_speed = prototypes.entity[state.belt_choice].belt_speed * 60 * 4
 	local dominant_resource = state.resource_counts[1].name
 	local resource_hardness = prototypes.entity[dominant_resource].mineable_properties.mining_time or 1
-	local drill_productivity, module_speed = 1 + state.player.force.mining_drill_productivity_bonus, 1
+	local drill_productivity, module_speed = 1, 1
+	if state.miner.uses_force_mining_productivity_bonus then
+		drill_productivity = drill_productivity + state.player.force.mining_drill_productivity_bonus
+	end
 	local function quality_clamp(val, level) return floor((val + val * .3 * level) * 100)/100 end
 	if state.module_choice ~= "none" then
 		local mod = prototypes.item[state.module_choice]
@@ -475,7 +502,7 @@ function common.get_mining_drill_production(state)
 		drill_productivity = drill_productivity + productivity * state.miner.module_inventory_size
 	end
 	local multiplier = drill_speed / resource_hardness * module_speed * drill_productivity
-	return {multiplier=multiplier, stack_size=1}
+	return multiplier
 end
 
 ---@class BeltThroughput

@@ -1,10 +1,14 @@
 ---------------------------------------------------------------------------------------------------
 Version: 1.7.0
-Date: 2025-04-18
+Date: 2025-06-28
+  Features:
+    - Added layout rotation keybind. (R and Shift+R by default)
+    - Better belt lane throughput and usage overlay.
   Optimizations:
-    - Refactored to use better algorithms.
     - Optimized work done per tick.
     - Added performance scaling option.
+  Bugfixes:
+    - Fixed crash when trying to add modules on a mining drill witout module slots.
 ---------------------------------------------------------------------------------------------------
 Version: 1.6.35
 Date: 2025-04-08
