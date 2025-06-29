@@ -464,9 +464,10 @@ function common.draw_belt_total(state, pos_x, pos_y, speed, capped1, capped2, un
 		text = {"mpp.msg_print_info_lane_throuput_total", ("%.2f"):format(capped_total*speed), ceil(upper_bound)},
 	}
 	if unused_capacity > 0 then
+		local color = unused_capacity > capped_total * .1 and {.9, 0, 0} or {1, 1, 1}
 		r[#r+1] = rendering.draw_text{
 			surface=state.surface, players=player, only_in_alt_mode=true,
-			color={.9, 0, 0}, time_to_live=ttl or 1,
+			color=color, time_to_live=ttl or 1,
 			alignment="center", vertical_alignment="middle",
 			target=l2w(pos_x-4, pos_y+.6, true), scale=2,
 			-- text={"mpp.msg_print_info_lane_saturation_bounds", string.format("%.2fx", lower_bound), string.format("%.2fx", upper_bound)},
@@ -478,7 +479,6 @@ end
 ---@param state SimpleState
 ---@return number
 function common.get_mining_drill_production(state)
-	
 	local drill_speed = prototypes.entity[state.miner_choice].mining_speed
 	local belt_speed = prototypes.entity[state.belt_choice].belt_speed * 60 * 4
 	local dominant_resource = state.resource_counts[1].name

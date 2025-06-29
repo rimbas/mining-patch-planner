@@ -996,6 +996,7 @@ local function update_misc_selection(player)
 		value="belt_merge",
 		icon_enabled=("mpp_merge_belt_enabled"),
 		icon=("mpp_merge_belt_disabled"),
+		tooltip={"mpp.choice_merge_belts"},
 	}
 
 	if layout.restrictions.module_available then
@@ -1022,7 +1023,7 @@ local function update_misc_selection(player)
 		values:push{
 			action="mpp_prototype",
 			value="module",
-			tooltip={"gui.module"},
+			tooltip={"", {"gui.module"}, "\n", {"mpp.label_right_click_to_clear"}},
 			icon=("mpp_no_module"),
 			elem_type="item-with-quality",
 			elem_filters={{filter="type", type="module"}},
@@ -1064,7 +1065,7 @@ local function update_misc_selection(player)
 		values:push{
 			action="mpp_prototype",
 			value="pipe",
-			tooltip={"entity-name.pipe"},
+			tooltip={"", {"entity-name.pipe"}, "\n", {"mpp.label_right_click_to_clear"}},
 			icon=("mpp_no_pipe"),
 			elem_type="entity-with-quality",
 			elem_filters={{filter="type", type="pipe"}},

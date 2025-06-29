@@ -1268,6 +1268,13 @@ function render_util.draw_belt_specification(player_data, event)
 				alignment = "center", vertical_alignment = "middle",
 				text = "start", scale = 0.75,
 			}
+			-- Draws x entry
+			renderer.draw_circle{x = C.gx + belt.x_entry, y = C.gy + belt.y, r = 0.4}
+			renderer.draw_text{
+				x = C.gx + belt.x_entry, y = C.gy + belt.y + .15,
+				alignment = "center", vertical_alignment = "middle",
+				text = "entry", scale = 0.75,
+			}
 			-- Draw x end
 			renderer.draw_circle{x = C.gx + belt.x_end, y = C.gy + belt.y, r = 0.4}
 			renderer.draw_text{
@@ -1280,15 +1287,29 @@ function render_util.draw_belt_specification(player_data, event)
 		do -- Draws throughput and merge strategies
 			local x, y = C.gx + belt.x_start - 5, C.gy + belt.y
 			renderer.draw_text{
-				x = x, y = y-.25,
+				x = x - 3, y = y-.25,
 				alignment = "center", vertical_alignment = "middle",
-				text = ("t1 %.02f"):format(belt.throughput1),
+				text = ("t1 %.02f"):format(belt.merged_throughput1),
 			}
 			renderer.draw_text{
-				x = x, y = y+.25,
+				x = x - 3, y = y+.25,
 				alignment = "center", vertical_alignment = "middle",
-				text = ("t2 %.02f"):format(belt.throughput2),
+				text = ("t2 %.02f"):format(belt.merged_throughput2),
 			}
+			if belt.merge_direction then
+				renderer.draw_text{
+					x = x, y = y-.25,
+					alignment = "center", vertical_alignment = "middle",
+					text = belt.merge_direction,
+				}
+			end
+			if belt.merge_strategy then
+				renderer.draw_text{
+					x = x, y = y+.25,
+					alignment = "center", vertical_alignment = "middle",
+					text = belt.merge_strategy,
+				}
+			end
 		end
 	end
 	
