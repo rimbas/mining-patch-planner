@@ -108,6 +108,9 @@ data:extend{
 local mpp_blueprint = table.deepcopy(data.raw["blueprint"]["blueprint"]) --[[@as data.BlueprintItemPrototype]]
 
 mpp_blueprint.name = "mpp-blueprint-belt-planner"
+mpp_blueprint.hidden = true
+mpp_blueprint.hidden_in_factoriopedia = true
+mpp_blueprint.auto_recycle = false
 mpp_blueprint.flags = mpp_blueprint.flags or {}
 table.insert(mpp_blueprint.flags, "only-in-cursor")
 

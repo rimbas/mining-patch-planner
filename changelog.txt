@@ -1,8 +1,13 @@
 ---------------------------------------------------------------------------------------------------
 Version: 1.7.0
 Date: 2025-06-28
+  TODO:
+    - Undo system for belt routing
+    - Redo power pole placement (problems with determination of lanes)
+    - Quality dropdown when quality count > 10
   Features:
     - Added layout rotation keybind. (R and Shift+R by default)
+    - Belt merging option
     - Better belt lane throughput and usage overlay.
   Optimizations:
     - Optimized work done per tick.

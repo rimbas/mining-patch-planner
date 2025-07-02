@@ -37,7 +37,6 @@ end)
 
 ---@param event EventData
 function task_runner_handler(event)
-	
 	if #storage.immediate_tasks > 0 then
 		local tasks = storage.immediate_tasks
 		storage.immediate_tasks = {}
@@ -294,25 +293,28 @@ script.on_event(defines.events.on_built_entity, function(event)
 	local position = ent.position
 	local gx, gy = position.x, position.y
 	local world_direction = ent.direction
+	local player = game.get_player(event.player_index) --[[@as LuaPlayer]]
 	
 	ent.destroy()
 	if tags.mpp_belt_planner ~= "main" then return end
 	
-	local state = storage.players[event.player_index].last_state
+	local belt_planner_stack = storage.players[event.player_index].belt_planner_stack
 	
-	if state == nil then
+	if #belt_planner_stack == 0 then
 		game.get_player(event.player_index).print("Can't plan belt. No previous saved state found.")
 		return
 	end
 	
-	local coords = state.coords
-	local belts = state.belt_planner_belts
-	local count = belts.count
+	---@type BeltPlannerSpecification
+	local spec = belt_planner_stack[#belt_planner_stack]
 	
-	local conv = coord_convert[state.direction_choice]
+	local coords = spec.coords
+	local count = spec.count
+	
+	local conv = coord_convert[spec.direction_choice]
 	-- local rot = mpp_util.bp_direction[state.direction_choice][direction]
 	-- local bump = state.direction_choice == "north" or state.direction_choice EAST
-	local belt_direction = mpp_util.clamped_rotation(((-defines.direction[state.direction_choice]) % ROTATION)-EAST, world_direction)
+	local belt_direction = mpp_util.clamped_rotation(((-defines.direction[spec.direction_choice]) % ROTATION)-EAST, world_direction)
 	local x, y = gx - coords.gx - .5, gy - coords.gy - .5
 	local tx, ty = conv(x, y, coords.w, coords.h)
 	tx, ty = floor(tx + 1), floor(ty + 1)
@@ -320,16 +322,16 @@ script.on_event(defines.events.on_built_entity, function(event)
 	---@type BeltinatorState
 	local beltinator_state = {
 		type = "belt_planner",
-		surface = state.surface,
-		player = state.player,
-		coords = state.coords,
-		direction_choice = state.direction_choice,
+		surface = player.surface,
+		player = player,
+		coords = spec.coords,
+		direction_choice = spec.direction_choice,
 		belt_x = tx,
 		belt_y = ty,
-		belt_specification = state.belt_planner_belts,
-		belt_choice = state.belt_choice,
+		belt_specification = spec,
+		belt_choice = spec.belt_choice,
 		belt_direction = belt_direction,
-		start_x = belts[1].x1,
+		x_start = spec[1].x_start,
 	}
 	
 	table.insert(storage.immediate_tasks, beltinator_state)

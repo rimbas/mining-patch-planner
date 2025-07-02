@@ -5,6 +5,7 @@ local pole_grid_mt = require("mpp.pole_grid_mt")
 local mpp_util = require("mpp.mpp_util")
 local builder = require("mpp.builder")
 local cliffs = require("mpp.cliffs")
+local belt_planner = require("mpp.belt_planner")
 local coord_convert, coord_revert = mpp_util.coord_convert, mpp_util.coord_revert
 local internal_revert, internal_convert = mpp_util.internal_revert, mpp_util.internal_convert
 local miner_direction, opposite = mpp_util.miner_direction, mpp_util.opposite
@@ -480,7 +481,7 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 	local grid = state.grid
 	local M = state.miner
 	local size, area = M.size, M.area
-	local pole_gap = (1 + state.pole_gap) / 2
+	local pole_gap = state.pole_gap
 	local miners, postponed = {}, {}
 	local heuristic_values = common.init_heuristic_values()
 	local lane_layout = {}
@@ -489,10 +490,13 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 	local heuristic = self:_get_miner_placement_heuristic(state)
 
 	local row_index = 1
-	for float_y = shift_y, state.coords.th + size, size + pole_gap do
-		local y = ceil(float_y)
+	local y = shift_y
+	-- for y = shift_y, state.coords.th + size, size * 2 + pole_gap do
+	
+	while y < state.coords.th + size do
 		local column_index = 1
 		lane_layout[#lane_layout+1] = {y = y, row_index = row_index}
+		
 		for x = shift_x, state.coords.tw + size+1, size do
 			local tile = grid:get_tile(x, y) --[[@as GridTile]]
 			---@type MinerPlacementInit
@@ -510,11 +514,17 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 			elseif tile.neighbors_outer > 0 and heuristic(tile) then
 				miners[#miners+1] = miner
 				common.add_heuristic_values(heuristic_values, M, tile)
-				bx, by = max(bx, x + size - 1), max(by, y + size - 1)
+				bx, by = max(bx, x + size - 1), max(by, row_index + size - 1)
 			elseif tile.neighbors_outer > 0 then
 				postponed[#postponed+1] = miner
 			end
 			column_index = column_index + 1
+		end
+		
+		if row_index % 2 == 0 then
+			y = y + size + pole_gap
+		else
+			y = y + size + 1
 		end
 		row_index = row_index + 1
 	end
@@ -918,6 +928,7 @@ end
 ---@param state SimpleState
 ---@return CallbackState
 function layout:prepare_pipe_layout(state)
+	local G = state.grid
 	local builder_pipes = {}
 	state.builder_pipes = builder_pipes
 
@@ -933,7 +944,10 @@ function layout:prepare_pipe_layout(state)
 
 	state.pipe_layout_specification = self:_get_pipe_layout_specification(state)
 
-	local function que_entity(t) builder_pipes[#builder_pipes+1] = t end
+	local function que_entity(t)
+		builder_pipes[#builder_pipes+1] = t
+		G:build_thing_simple(t.grid_x, t.grid_y, "pipe")
+	end
 	local pipe = state.pipe_choice
 	local pipe_quality = state.pipe_quality_choice
 
@@ -1127,11 +1141,11 @@ function layout:prepare_pole_layout(state)
 	end
 
 	local connectivity = power_grid:find_connectivity(state.pole)
+	state.power_connectivity = connectivity
 
 	local connected = power_grid:ensure_connectivity(connectivity)
 
 	for _, pole in pairs(connected) do
-		-- TODO: move this out after ensure_connectity call
 		builder_power_poles[#builder_power_poles+1] = {
 			name=state.pole_choice,
 			quality=state.pole_quality_choice,
@@ -1141,6 +1155,7 @@ function layout:prepare_pole_layout(state)
 			no_light = pole.no_light,
 			ix = pole.ix, iy = pole.iy,
 		}
+		G:build_thing_simple(pole.grid_x, pole.grid_y, "pipe")
 	end
 	
 	
@@ -1747,8 +1762,6 @@ function layout:_display_lane_filling(state)
 	if not state.display_lane_filling_choice or not state.belts then return end
 
 	local belt_speed = state.belt.speed
-	local multiplier = common.get_mining_drill_production(state)
-
 	local throughput_capped1, throughput_capped2 = 0, 0
 	local throughput_total1, throughput_total2 = 0, 0
 	--local ore_hardness = prototypes.entity[state.found_resources
@@ -1793,7 +1806,16 @@ function layout:_give_belt_blueprint(state)
 	local belts = state.belts
 	
 	---@type BeltPlannerSpecification
-	local belt_planner_spec = {count = 0, ungrouped = true}
+	local belt_planner_spec = {
+		surface = state.surface,
+		player = state.player,
+		coords = state.coords,
+		direction_choice = state.direction_choice,
+		belt_choice = state.belt_choice,
+		count = 0,
+		ungrouped = true,
+		_renderables = {},
+	}
 	
 	local count = 0
 	for _, belt in pairs(belts) do
@@ -1804,8 +1826,6 @@ function layout:_give_belt_blueprint(state)
 	end
 	
 	local converter = mpp_util.reverter_delegate(state.coords, state.direction_choice)
-	
-	rendering.clear("mining-patch-planner")
 	
 	for i, belt in ipairs(belt_planner_spec) do
 		local index = count - i + 1
@@ -1835,33 +1855,10 @@ function layout:_give_belt_blueprint(state)
 	belt_planner_spec.count = count
 	belt_planner_spec.ungrouped = true
 	
-	state.belt_planner_belts = belt_planner_spec
-	
-	local ply = state.player
-	local stack = ply.cursor_stack --[[@as LuaItemStack]]
-	stack.set_stack("mpp-blueprint-belt-planner")
-	
-	---@type BlueprintEntity[]
-	local ents = {}
-	
-	for i = 1, count do
-		local tags = {mpp_belt_planner = "delete"}
-		if i == 1 then
-			tags.mpp_belt_planner = "main"
-		end
-		ents[i] = {
-			name = state.belt_choice,
-			position = {i, 1},
-			direction = defines.direction.north,
-			entity_number = i,
-			tags = tags,
-		}
-	end
-	
-	stack.set_blueprint_entities(ents)
-	ply.cursor_stack_temporary = true
-	
-	local a = true
+	belt_planner.push_belt_planner_step(state.player.index, belt_planner_spec)
+
+	belt_planner.give_blueprint(state, belt_planner_spec)
+
 end
 
 ---@param self SimpleLayout
@@ -1883,6 +1880,7 @@ function layout:finish(state)
 	end
 	
 	if state.belt_planner_choice then
+		belt_planner.clear_belt_planner_stack(storage.players[state.player.index])
 		layout:_give_belt_blueprint(state)
 	end
 

@@ -110,9 +110,15 @@
 ---@field accomodation_shift number Belt extension to fit around other belts
 
 ---@class BeltPlannerSpecification
----@field [number] BeltSpecification 
+---@field [number] BeltSpecification
+---@field player LuaPlayer
+---@field surface LuaSurface
+---@field coords Coords
+---@field direction_choice DirectionString
+---@field belt_choice string
 ---@field count number Belt count
 ---@field ungrouped boolean Is first step when belts are spaced out?
+---@field _renderables LuaRenderObject[]
 
 ---@alias LuaRenderingFunction fun(RendererParams): uint64
 

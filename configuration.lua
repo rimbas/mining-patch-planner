@@ -16,12 +16,13 @@ local conf = {}
 ---@field choices PlayerChoices Preserve in migrations
 ---@field blueprints PlayerGuiBlueprints 
 ---@field last_state MinimumPreservedState? Preserve in migrations
----@field last_belt_task BeltinatorState?
 ---@field filtered_entities table<string, FilteredEntityStatus> string is of format "category:name"
 ---@field tick_expires integer When was gui closed, for undo button disabling
 ---@field selection_collection LuaEntity[] Selected resources
 ---@field selection_cache table<number, table<number, true>> Acceleration structure
 ---@field selection_render LuaRenderObject[] Selection overlay
+---@field belt_planner_blueprint LuaItemStack?
+---@field belt_planner_stack BeltPlannerSpecification[]
 
 ---@class PlayerChoices
 ---@field layout_choice string
@@ -99,6 +100,7 @@ conf.default_config = {
 	selection_collection = {},
 	selection_render = {},
 	selection_cache = {},
+	belt_planner_stack = {},
 
 	choices = {
 		layout_choice = "simple",
