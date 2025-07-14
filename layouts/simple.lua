@@ -66,6 +66,8 @@ layout.restrictions.module_available = true
 layout.restrictions.pipe_available = true
 layout.restrictions.placement_info_available = true
 layout.restrictions.lane_filling_info_available = true
+layout.restrictions.belt_merging_available = true
+layout.restrictions.belt_planner_available = true
 
 --[[-----------------------------------
 
@@ -529,9 +531,7 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 		row_index = row_index + 1
 	end
 
-	---@type PlacementAttempt
 	local result = {
-		index = 0,
 		sx = shift_x,
 		sy = shift_y,
 		bx = bx,
@@ -544,13 +544,8 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 		price = 0,
 	}
 
-	-- local price = common.process_postponed(state, result, miners, postponed)
-	local price = 0
-
 	common.finalize_heuristic_values(result, heuristic_values, state.coords)
 
-	result.price = price
-	
 	return result
 end
 
@@ -633,7 +628,6 @@ function layout:layout_attempts(state)
 		-- state.best_attempt = current_attempt
 		-- state.best_attempt_score = current_attempt_score
 		-- state.best_attempt.heuristic_score = state.best_attempt_score
-		
 		
 		saved_attempts[#saved_attempts+1] = current_attempt
 		if state.debug_dump then
@@ -803,6 +797,7 @@ function layout:prepare_miner_layout(state)
 		--local build_x, build_y = miner.x + M.x, miner.y + M.y
 
 		builder_miners[#builder_miners+1] = {
+			name=state.miner.name,
 			thing="miner",
 			grid_x = miner.origin_x,
 			grid_y = miner.origin_y,
@@ -1163,6 +1158,48 @@ function layout:prepare_pole_layout(state)
 	return next_step
 end
 
+-- Determine and set merge strategies
+---@param source BaseBeltSpecification
+---@param target BaseBeltSpecification
+---@param direction defines.direction.north | defines.direction.south
+local function apply_merge_strategy(source, target, direction)
+	local source_t1, source_t2 = source.throughput1, source.throughput2
+	local source_total = source_t1 + source_t2
+	local target_t1, target_t2 = target.merged_throughput1, target.merged_throughput2
+	local target_total = target_t1 + target_t2
+	
+	-- if source.merge_direction or target.merge_strategy == "target" then
+	if not source.has_drills or not target.has_drills then
+		return
+	elseif source.merge_direction or source.merge_strategy == "target" or target.merge_strategy == "target" then
+		return
+	elseif source_total > target_total then
+		return
+	elseif direction == SOUTH and source_total < 1 - target_t1 then
+		source.merge_target = target
+		source.merge_direction = direction
+		source.is_output = false
+		source.merge_strategy = "side-merge"
+		target.merge_strategy = "target"
+		target.merged_throughput1 = target.merged_throughput1 + source_total
+	elseif direction == NORTH and source_total < 1 - target_t2 then
+		source.merge_target = target
+		source.merge_direction = direction
+		source.is_output = false
+		source.merge_strategy = "side-merge"
+		target.merge_strategy = "target"
+		target.merged_throughput1 = target.merged_throughput1 + source_total
+	elseif (source_t1 + target_t2) < 1 and (source_t2 + target_t1) < 1 then
+		source.merge_target = target
+		source.merge_direction = direction
+		source.is_output = false
+		source.merge_strategy = "back-merge"
+		target.merge_strategy = "target"
+		target.merged_throughput2 = target.merged_throughput2 + source_t1
+		target.merged_throughput1 = target.merged_throughput1 + source_t2
+	end
+end
+
 
 ---@param self SimpleLayout
 ---@param state SimpleState
@@ -1258,48 +1295,6 @@ function layout:prepare_belt_layout(state)
 	state.belt_count = #belts
 	local belt_count = #belts
 
-	-- Determine and set merge strategies
-	---@param source BaseBeltSpecification
-	---@param target BaseBeltSpecification
-	---@param direction defines.direction.north | defines.direction.south
-	local function apply_merge_strategy(source, target, direction)
-		local source_t1, source_t2 = source.throughput1, source.throughput2
-		local source_total = source_t1 + source_t2
-		local target_t1, target_t2 = target.merged_throughput1, target.merged_throughput2
-		local target_total = target_t1 + target_t2
-		
-		-- if source.merge_direction or target.merge_strategy == "target" then
-		if not source.has_drills or not target.has_drills then
-			return
-		elseif source.merge_direction or source.merge_strategy == "target" or target.merge_strategy == "target" then
-			return
-		elseif source_total > target_total then
-			return
-		elseif direction == SOUTH and source_total < 1 - target_t1 then
-			source.merge_target = target
-			source.merge_direction = direction
-			source.is_output = false
-			source.merge_strategy = "side-merge"
-			target.merge_strategy = "target"
-			target.merged_throughput1 = target.merged_throughput1 + source_total
-		elseif direction == NORTH and source_total < 1 - target_t2 then
-			source.merge_target = target
-			source.merge_direction = direction
-			source.is_output = false
-			source.merge_strategy = "side-merge"
-			target.merge_strategy = "target"
-			target.merged_throughput1 = target.merged_throughput1 + source_total
-		elseif (source_t1 + target_t2) < 1 and (source_t2 + target_t1) < 1 then
-			source.merge_target = target
-			source.merge_direction = direction
-			source.is_output = false
-			source.merge_strategy = "back-merge"
-			target.merge_strategy = "target"
-			target.merged_throughput2 = target.merged_throughput2 + source_t1
-			target.merged_throughput1 = target.merged_throughput1 + source_t2
-		end
-	end
-	
 	if state.belt_merge_choice and belt_count > 1 then
 		for i = 1, belt_count - 1 do
 			local source_belt = belts[i]
@@ -1805,6 +1800,8 @@ end
 function layout:_give_belt_blueprint(state)
 	local belts = state.belts
 	
+	if belts == nil or  #belts == 0 then return end
+	
 	---@type BeltPlannerSpecification
 	local belt_planner_spec = {
 		surface = state.surface,
@@ -1857,8 +1854,7 @@ function layout:_give_belt_blueprint(state)
 	
 	belt_planner.push_belt_planner_step(state.player.index, belt_planner_spec)
 
-	belt_planner.give_blueprint(state, belt_planner_spec)
-
+	return belt_planner.give_blueprint(state, belt_planner_spec)
 end
 
 ---@param self SimpleLayout

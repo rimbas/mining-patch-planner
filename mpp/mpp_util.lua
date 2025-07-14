@@ -2,6 +2,7 @@ local enums = require("mpp.enums")
 local blacklist = require("mpp.blacklist")
 local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
+local abs = math.abs
 
 local EAST = defines.direction.east
 local NORTH = defines.direction.north
@@ -628,28 +629,38 @@ function mpp_util.calculate_pole_coverage(state, miner_count, lane_count)
 
 	-- Shift subtract
 	local covered_miners = ceil(p.supply_width / m.size)
-	local miner_step = covered_miners * m.size
+	local stride = covered_miners * m.size
 
-	-- Special handling to shift back small radius power poles so they don't poke out
 	local capable_span = false
-	if floor(p.wire) >= miner_step and m.size ~= p.supply_width then
+	if floor(p.wire) >= stride and m.size ~= p.supply_width then
 		capable_span = true
 	else
-		miner_step = floor(p.wire)
+		stride = floor(p.wire)
 	end
 	cov.capable_span = capable_span
 
-	local pole_start = m.middle
+	local pole_start = m.size-1
+	
 	if capable_span then
-		if covered_miners % 2 == 0 then
-			pole_start = m.size-1
-		elseif miner_count % covered_miners == 0 then
-			pole_start = pole_start + m.size
+		local initial_span = 1+ceil((p.radius-.5) / m.size)
+		local unused_span = ceil((p.radius - (m.size-.5)) / m.size)
+		local clipping = math.ceil(m.size / (p.radius-.5))
+		local divisor, remainder = math.divmod(max(0, miner_count-initial_span), covered_miners)
+		
+		if remainder > 0 and remainder <= unused_span then
+			pole_start = pole_start + m.size * min(abs(remainder), abs(unused_span))
+		-- elseif remainder > 0 then
+		-- 	pole_start = m.size * min(remainder, unused_span) - 1
+		-- elseif covered_miners % 2 == 0 then
+		-- 	pole_start = m.size * 2 - 1
 		end
+	else
+		local pattern = {}
+		
 	end
 
 	cov.pole_start = pole_start
-	cov.pole_step = miner_step
+	cov.pole_step = stride
 	cov.full_miner_width = miner_count * m.size
 
 	cov.lane_start = 0
@@ -661,10 +672,17 @@ function mpp_util.calculate_pole_coverage(state, miner_count, lane_count)
 		cov.lane_step = lane_coverage * (m.size * 2 + 2)
 	end
 
-	cov.lamp_alter = miner_step < 9 and true or false
+	cov.lamp_alter = stride < 9 and true or false
 
 	return cov
 end
+
+---@class PoleSpacingStruct
+---@field capable_span boolean
+---@field pole_start number
+---@field pole_step number
+---@field lane_start number
+---@field lane_step number
 
 ---Calculates the spacing for belt interleaved power poles
 ---@param state State
@@ -709,7 +727,6 @@ function mpp_util.calculate_pole_spacing(state, miner_count, lane_count, force_c
 
 	cov.pole_start = pole_start
 	cov.pole_step = miner_step
-	cov.full_miner_width = miner_count * m.size
 
 	cov.lane_start = 0
 	cov.lane_step = m.size * 2 + 2

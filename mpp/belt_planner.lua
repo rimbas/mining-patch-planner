@@ -123,6 +123,8 @@ function belt_planner.give_blueprint(state, spec)
 	stack.set_blueprint_entities(ents)
 	ply.cursor_stack_temporary = true
 	storage.players[state.player.index].belt_planner_blueprint = stack.item
+	
+	return stack
 end
 
 ---@param state BeltinatorState

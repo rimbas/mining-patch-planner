@@ -29,6 +29,8 @@ layout.restrictions.coverage_tuning = true
 layout.restrictions.lamp_available = true
 layout.restrictions.module_available = true
 layout.restrictions.pipe_available = true
+layout.restrictions.belt_merging_available = true
+layout.restrictions.belt_planner_available = true
 
 ---@param state CompactState
 ---@return PlacementAttempt
@@ -78,42 +80,37 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 		bx = bx,
 		by = by,
 		miners = miners,
+		postponed = postponed,
 		lane_layout = lane_layout,
 		heuristics = heuristic_values,
 		heuristic_score = -(0/0),
 		unconsumed = 0,
+		price = 0,
 	}
 
-	common.process_postponed(state, result, miners, postponed)
-
 	common.finalize_heuristic_values(result, heuristic_values, state.coords)
-
+	
 	return result
 end
 
 ---@param self CompactLayout
 ---@param state CompactState
-function layout:prepare_belt_layout(state)
-	local belts = {}
-	state.belts = belts
-	state.builder_belts = {}
-
+function layout:prepare_pole_layout(state)
 	local coverage = mpp_util.calculate_pole_spacing(state, state.miner_max_column, state.miner_lane_count, true)
-	state.builder_power_poles = {}
-
+	local power_grid = pole_grid_mt.new()
+	state.power_grid = power_grid
 	if coverage.capable_span then
-		self:_placement_capable(state)
+		self:_placement_capable(state, coverage)
 	else
-		self:_placement_incapable(state)
+		self:_placement_incapable(state, coverage)
 	end
-
-	return "prepare_belts"
+	return "prepare_belt_layout"
 end
 
 ---Placement of belts+poles when they tile nicely (enough reach/supply area)
 ---@param self CompactLayout
 ---@param state CompactState
-function layout:_placement_capable(state)
+function layout:_placement_capable_ex(state, coverage)
 	local M, C, P, G = state.miner, state.coords, state.pole, state.grid
 	local attempt = state.best_attempt
 	local miner_lane_count = state.miner_lane_count
@@ -180,6 +177,37 @@ function layout:_placement_capable(state)
 	state.power_connectivity = connectivity
 end
 
+---Placement of belts+poles when they tile nicely (enough reach/supply area)
+---@param self CompactLayout
+---@param state CompactState
+---@param coverage PoleSpacingStruct
+function layout:_placement_capable(state, coverage)
+	local power_grid = state.power_grid
+end
+
+---Placement of belts+poles when they don't tile nicely (not enough reach/supply area)
+---@param self CompactLayout
+---@param state CompactState
+---@param coverage PoleSpacingStruct
+function layout:_placement_incapable(state, coverage)
+
+end
+
+---@param self CompactLayout
+---@param state CompactState
+function layout:prepare_belt_layout(state)
+	local belts = {}
+	state.belts = belts
+	state.builder_belts = {}
+
+	local coverage = mpp_util.calculate_pole_spacing(state, state.miner_max_column, state.miner_lane_count, true)
+	state.builder_power_poles = {}
+
+	do return "expensive_deconstruct" end
+	
+	return "prepare_belts"
+end
+
 ---@param self CompactLayout
 ---@param state CompactState
 function layout:prepare_belts(state)
@@ -192,8 +220,6 @@ function layout:prepare_belts(state)
 	local builder_power_poles = state.builder_power_poles
 	local connectivity = state.power_connectivity
 	local power_grid = state.power_grid
-
-	--local debug_draw = drawing(state, false, false)
 
 	if power_grid and #power_grid == 0 then
 		return "expensive_deconstruct"
@@ -216,9 +242,8 @@ function layout:prepare_belts(state)
 	local builder_belts = state.builder_belts
 	local belt_name = state.belt.name
 	local underground_name = state.belt.related_underground_belt --[[@as string]]
-	local belts = {}
+	local belts = List() --[[@as List<BaseBeltSpecification>]]
 	state.belts = belts
-	state.belt_count = 0
 
 	local pipe_adjust = state.place_pipes and -1 or 0
 
@@ -235,15 +260,29 @@ function layout:prepare_belts(state)
 		local belt = {x1=x1, x2=attempt.sx, y=y, built=false, lane1=lane1, lane2=lane2}
 		belts[#belts+1] = belt
 
-		if not lane1 and not lane2 then goto continue_lane end
+		if not lane1 and not lane2 then
+			belts:push{
+				x1=attempt.sx + pipe_adjust,
+				x2=attempt.sx,
+				x_start=attempt.sx + pipe_adjust,
+				x_entry=attempt.sx+pipe_adjust,
+				x_end=attempt.sx,
+				y=y,
+				has_drills=false,
+				is_output=false,
+				lane1=lane1,
+				lane2=lane2,
+				throughput1=0,
+				throughput2=0,
+				merged_throughput1=0,
+				merged_throughput2=0,
+			}
+			goto continue_lane
+		end
 
 		local x2 = max(get_lane_length(lane1, M.output_rotated[SOUTH].x), get_lane_length(lane2, M.output_rotated[NORTH].x))
-		state.belt_count = state.belt_count + 1
 
 		belt.x2, belt.built = x2, true
-
-		-- debug_draw:draw_circle{x = x1, y = y, width = 7}
-		-- debug_draw:draw_circle{x = x2, y = y, width = 7}
 
 		if not power_grid then goto continue_lane end
 
@@ -304,19 +343,6 @@ function layout:prepare_belts(state)
 		::continue_lane::
 	end
 	
-	return "prepare_pole_layout"
-end
-
----Placement of belts+poles when they don't tile nicely (not enough reach/supply area)
----@param self CompactLayout
----@param state CompactState
-function layout:_placement_incapable(state)
-
-end
-
----@param self CompactLayout
----@param state CompactState
-function layout:prepare_pole_layout(state)
 	return "prepare_lamp_layout"
 end
 

@@ -73,6 +73,8 @@
 ---@field pipe_available boolean
 ---@field placement_info_available boolean
 ---@field lane_filling_info_available boolean
+---@field belt_merging_available boolean
+---@field belt_planner_available boolean
 
 ---@class DeconstructSpecification
 ---@field x number

@@ -992,12 +992,14 @@ local function update_misc_selection(player)
 		icon_enabled=("mpp_belt_planner")
 	}
 	
-	values:push{
-		value="belt_merge",
-		icon_enabled=("mpp_merge_belt_enabled"),
-		icon=("mpp_merge_belt_disabled"),
-		tooltip={"mpp.choice_merge_belts"},
-	}
+	if layout.restrictions.belt_merging_available then
+		values:push{
+			value="belt_merge",
+			icon_enabled=("mpp_merge_belt_enabled"),
+			icon=("mpp_merge_belt_disabled"),
+			tooltip={"mpp.choice_merge_belts"},
+		}
+	end
 
 	if layout.restrictions.module_available then
 		---@type string|nil

@@ -41,6 +41,8 @@ layout.restrictions.module_available = false
 layout.restrictions.pipe_available = false
 layout.restrictions.placement_info_available = false
 layout.restrictions.lane_filling_info_available = false
+layout.restrictions.belt_merging_available = false
+layout.restrictions.belt_planner_available = false
 
 --- Called from script.on_load
 --- ONLY FOR SETMETATABLE USE
