@@ -130,6 +130,13 @@ default_style.mpp_fake_blueprint_table = {
 	vertical_spacing=2,
 }
 
+default_style.mpp_quality_dropdown = {
+	type = "dropdown_style",
+	parent = "dropdown",
+	maximal_width = 240,
+	default_font_color = {1, 1, 1},
+}
+
 default_style.mpp_fake_blueprint_sprite = {
 	type="image_style",
 	size=16,

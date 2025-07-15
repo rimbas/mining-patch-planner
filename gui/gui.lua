@@ -254,6 +254,40 @@ local function create_setting_selector(player_data, root, action_type, action, v
 	end
 end
 
+---@param player_data PlayerData global player GUI reference object
+---@param root LuaGuiElement
+---@param action_type string Default action tag
+---@param action MppSettingSections
+---@param values (SettingValueEntry | SettingValueEntryPrototype)[]
+---@param opts? SettingSelectorOptions
+local function create_quality_selector(player_data, root, action_type, action, values, opts)
+	if #values > 10 then
+		root.clear()
+		local index = 0
+		local value = player_data.choices[action.."_choice"]
+		local choices = {}
+		for i, qual in pairs(values) do
+			---@diagnostic disable-next-line: param-type-mismatch
+			table.insert(choices, {"", "[quality="..qual.value.."] ", qual.tooltip})
+			if qual.value == value then
+				index = i
+			end
+		end
+		
+		-- player_gui.layout_dropdown = 
+		local dropdown = root.add{
+			type="drop-down",
+			style="mpp_quality_dropdown",
+			items=choices,
+			selected_index=index --[[@as uint]],
+			tags={mpp_drop_down=action, mpp_value_map="quality", default=0},
+		}
+		player_data.gui.selections[action.."_choice"] = dropdown
+	else
+		create_setting_selector(player_data, root, action_type, action, values, opts)
+	end
+end
+
 ---@param player_data PlayerData
 ---@param button LuaGuiElement
 local function set_player_blueprint(player_data, button)
@@ -438,8 +472,9 @@ function gui.create_interface(player)
 		player_gui.layout_dropdown = flow.add{
 			type="drop-down",
 			items=choices,
+			style="mpp_quality_dropdown",
 			selected_index=index --[[@as uint]],
-			tags={mpp_drop_down="layout", default=1},
+			tags={mpp_drop_down="layout", mpp_value_map="layout", default=1},
 		}
 
 		player_gui.blueprint_add_button = flow.add{
@@ -617,7 +652,7 @@ local function update_miner_selection(player_data)
 	
 	table.sort(values, function(a, b)
 		local a1, a2, a3, b1, b2, b3 = a.sort[1], a.sort[2], a.order, b.sort[1], b.sort[2], b.order
-		return (a1 == b1 and (a2 == b2 and a2 < b2 or a3 < b3)) or a1 < b1
+		return (a1 == b1 and (a2 == b2 and a3 < b3 or a2 < b2)) or a1 < b1
 	end)
 
 	local table_root = player_data.gui.tables["miner"]
@@ -630,7 +665,7 @@ local function update_miner_selection(player_data)
 		{shown_quality=player_data.choices.miner_quality_choice}
 	)
 	
-	create_setting_selector(
+	create_quality_selector(
 		player_data,
 		player_data.gui.tables["miner_quality"],
 		"mpp_action",
@@ -718,7 +753,7 @@ local function update_belt_selection(player)
 		{shown_quality=player_data.choices.belt_quality_choice}
 	)
 	
-	create_setting_selector(
+	create_quality_selector(
 		player_data,
 		player_data.gui.tables["belt_quality"],
 		"mpp_action",
@@ -796,7 +831,7 @@ local function update_space_belt_selection(player)
 		{shown_quality=player_data.choices.space_belt_quality_choice}
 	)
 	
-	create_setting_selector(
+	create_quality_selector(
 		player_data,
 		player_data.gui.tables["space_belt_quality"],
 		"mpp_action",
@@ -866,7 +901,7 @@ local function update_logistics_selection(player_data)
 		{shown_quality=player_data.choices.logistics_quality_choice}
 	)
 	
-	create_setting_selector(
+	create_quality_selector(
 		player_data,
 		player_data.gui.tables["logistics_quality"],
 		"mpp_action",
@@ -947,7 +982,7 @@ local function update_pole_selection(player_data)
 		{shown_quality=player_data.choices.pole_quality_choice}
 	)
 	
-	create_setting_selector(
+	create_quality_selector(
 		player_data,
 		player_data.gui.tables["pole_quality"],
 		"mpp_action",
@@ -1213,11 +1248,11 @@ local function update_debugging_selection(player_data)
 			tooltip="Draw power pole layout",
 			icon=("entity/medium-electric-pole"),
 		},
-		{
-			value="draw_pole_layout_compact",
-			tooltip="Draw power pole layout compact",
-			icon=("entity/medium-electric-pole"),
-		},
+		-- {
+		-- 	value="draw_pole_layout_compact",
+		-- 	tooltip="Draw power pole layout compact",
+		-- 	icon=("entity/medium-electric-pole"),
+		-- },
 		{
 			value="draw_built_things",
 			tooltip="Draw built tile values",
@@ -1302,19 +1337,19 @@ function gui.update_quality_sections(player_data)
 	end
 	
 	local opts = {style_func = style_helper_quality, alternate_visibility=true}
-	create_setting_selector(
+	create_quality_selector(
 		player_data, tables["miner_quality"], "mpp_action", "miner_quality", ql, opts
 	)
-	create_setting_selector(
+	create_quality_selector(
 		player_data, tables["belt_quality"], "mpp_action", "belt_quality", ql, opts
 	)
-	create_setting_selector(
+	create_quality_selector(
 		player_data, tables["space_belt_quality"], "mpp_action", "space_belt_quality", ql, opts
 	)
-	create_setting_selector(
+	create_quality_selector(
 		player_data, tables["logistics_quality"], "mpp_action", "logistics_quality", ql, opts
 	)
-	create_setting_selector(
+	create_quality_selector(
 		player_data, tables["pole_quality"], "mpp_action", "pole_quality", ql, opts
 	)
 	update_quality_sections(player_data)
@@ -1569,20 +1604,30 @@ script.on_event(defines.events.on_gui_click, on_gui_click)
 ---@param event EventDataGuiSelectionStateChanged
 local function on_gui_selection_state_changed(event)
 	local player = game.get_player(event.player_index) --[[@as LuaPlayer]]
-	if event.element.tags["mpp_drop_down"] then
-		abort_blueprint_mode(player)
-		---@type PlayerData
-		local player_data = storage.players[event.player_index]
+	local element = event.element
+	local evt_ele_tags = element.tags
+	if evt_ele_tags["mpp_drop_down"] == nil then return end
+	local action = evt_ele_tags["mpp_drop_down"]
+	local value_map = evt_ele_tags["mpp_value_map"]
+	
+	abort_blueprint_mode(player)
+	---@type PlayerData
+	local player_data = storage.players[event.player_index]
 
-		local action = event.element.tags["mpp_drop_down"]
-		local value = layouts[event.element.selected_index].name
-		player_data.choices[action.."_choice"] = value
-
-		if action == "layout" then
-			algorithm.clear_selection(player_data)
-		end
-		update_selections(player)
+	local value
+	if value_map == "layout" then
+		value = layouts[element.selected_index].name
+	elseif value_map == "quality" then
+		value = mpp_util.quality_list()[element.selected_index].value
+	else
+		return
 	end
+	player_data.choices[action.."_choice"] = value
+
+	if action == "layout_choice" then
+		algorithm.clear_selection(player_data)
+	end
+	update_selections(player)
 end
 script.on_event(defines.events.on_gui_selection_state_changed, on_gui_selection_state_changed)
 
