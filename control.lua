@@ -67,24 +67,34 @@ end
 script.on_event(defines.events.on_player_selected_area, function(event)
 	---@cast event EventData.on_player_selected_area
 	local player = game.get_player(event.player_index)
-	if not player then return end
-	local cursor_stack = player.cursor_stack
-	if not cursor_stack or not cursor_stack.valid or not cursor_stack.valid_for_read then return end
-	if cursor_stack.name ~= "mining-patch-planner" then return end
+	if not player or event.item ~= "mining-patch-planner" then return end
 
-	if #event.entities == 0 then return end
+	if #event.entities == 0 then
+		if __DebugAdapter then
+			---@type PlayerData?
+			local player_data = storage.players[event.player_index]
+			if player_data == nil or player_data.last_state == nil then return end
+			local last_state = player_data.last_state --[[@as MinimumPreservedState]]
+			local coords = last_state.coords
+			event = {
+				surface = last_state.surface,
+				entities = last_state.surface.find_entities_filtered{
+					area = {{coords.ix1, coords.iy1}, {coords.ix2, coords.iy2}},
+					type  = "resource",
+				},
+				player_index = event.player_index,
+			}
+		else
+			return
+		end
+	end
 
 	for _, task in ipairs(storage.tasks) do
 		if task.player == player then
 			return
 		end
 	end
-	
-	local ents = event.entities
-	table.sort(ents, function(a, b) return a.position.y == b.position.y and a.position.x < b.position.x or a.position.y < b.position.y end)
-	local push = table.insert
-	local copy = table.deepcopy(event)
-	
+
 	if true then
 		local state, error = algorithm.on_player_selected_area(event)
 
@@ -99,6 +109,11 @@ script.on_event(defines.events.on_player_selected_area, function(event)
 			player.print(error)
 		end
 	else
+		local push = table.insert
+		local copy = table.deepcopy(event)
+		local ents = event.entities
+		table.sort(ents, function(a, b) return a.position.y == b.position.y and a.position.x < b.position.x or a.position.y < b.position.y end)
+		
 		local w = 2 ^ 6
 		for mult = 0, 6 do
 			local new = {}

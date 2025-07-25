@@ -28,7 +28,6 @@ local layout = table.deepcopy(base)
 ---@field best_attempt_score number Heuristic value
 ---@field best_attempt_index number
 ---@field resource_iter number
----@field longest_belt number For pole alignment information
 ---@field pole_gap number Vertical gap size in the power pole lane
 ---@field pole_step number
 ---@field miner_lane_count number Miner lane count
@@ -137,6 +136,7 @@ function layout:start(state)
 	return "deconstruct_previous_ghosts"
 end
 
+---Initializes virtual grid
 ---@param self SimpleLayout
 ---@param state SimpleState
 function layout:initialize_grid(state)
@@ -1075,7 +1075,7 @@ function layout:prepare_pole_layout(state)
 
 	if state.pole_gap == 0 then return next_step end
 
-	local coverage = mpp_util.calculate_pole_coverage(state, state.miner_max_column, state.miner_lane_count)
+	local coverage = mpp_util.calculate_pole_coverage_simple(state, state.miner_max_column, state.miner_lane_count)
 
 	local power_grid = pole_grid_mt.new()
 	-- state.power_grid = power_grid
@@ -1150,61 +1150,15 @@ function layout:prepare_pole_layout(state)
 			no_light = pole.no_light,
 			ix = pole.ix, iy = pole.iy,
 		}
-		G:build_thing_simple(pole.grid_x, pole.grid_y, "pipe")
+		G:build_thing_simple(pole.grid_x, pole.grid_y, "pole")
 	end
-	
-	
 
 	return next_step
 end
 
--- Determine and set merge strategies
----@param source BaseBeltSpecification
----@param target BaseBeltSpecification
----@param direction defines.direction.north | defines.direction.south
-local function apply_merge_strategy(source, target, direction)
-	local source_t1, source_t2 = source.throughput1, source.throughput2
-	local source_total = source_t1 + source_t2
-	local target_t1, target_t2 = target.merged_throughput1, target.merged_throughput2
-	local target_total = target_t1 + target_t2
-	
-	-- if source.merge_direction or target.merge_strategy == "target" then
-	if not source.has_drills or not target.has_drills then
-		return
-	elseif source.merge_direction or source.merge_strategy == "target" or target.merge_strategy == "target" then
-		return
-	elseif source_total > target_total then
-		return
-	elseif direction == SOUTH and source_total < 1 - target_t1 then
-		source.merge_target = target
-		source.merge_direction = direction
-		source.is_output = false
-		source.merge_strategy = "side-merge"
-		target.merge_strategy = "target"
-		target.merged_throughput1 = target.merged_throughput1 + source_total
-	elseif direction == NORTH and source_total < 1 - target_t2 then
-		source.merge_target = target
-		source.merge_direction = direction
-		source.is_output = false
-		source.merge_strategy = "side-merge"
-		target.merge_strategy = "target"
-		target.merged_throughput1 = target.merged_throughput1 + source_total
-	elseif (source_t1 + target_t2) < 1 and (source_t2 + target_t1) < 1 then
-		source.merge_target = target
-		source.merge_direction = direction
-		source.is_output = false
-		source.merge_strategy = "back-merge"
-		target.merge_strategy = "target"
-		target.merged_throughput2 = target.merged_throughput2 + source_t1
-		target.merged_throughput1 = target.merged_throughput1 + source_t2
-	end
-end
-
-
----@param self SimpleLayout
 ---@param state SimpleState
----@return CallbackState
-function layout:prepare_belt_layout(state)
+---@return List<BaseBeltSpecification>
+function layout:_process_mining_drill_lanes(state)
 	local G = state.grid
 	local m = state.miner
 	local multiplier = common.get_mining_drill_production(state)
@@ -1214,7 +1168,6 @@ function layout:prepare_belt_layout(state)
 	---@type table<number, MinerPlacement[]>
 	local miner_lanes = state.miner_lanes
 	local miner_lane_count = state.miner_lane_count -- highest index of a lane, because using # won't do the job if a lane is missing
-	local miner_max_column = state.miner_max_column
 
 	---@param lane MinerPlacement[]
 	---@return number?
@@ -1227,10 +1180,7 @@ function layout:prepare_belt_layout(state)
 	local function get_lane_end(lane, size) if lane and lane[#lane] then return lane[#lane].x + size end end
 
 	local pipe_adjust = state.place_pipes and -1 or 0
-
 	local belts = List() --[[@as List<BaseBeltSpecification>]]
-	state.belts = belts
-	local longest_belt = 0
 	local pole_gap = (1 + state.pole_gap) / 2
 	for i = 1, miner_lane_count, 2 do
 		local lane1 = miner_lanes[i]
@@ -1267,8 +1217,6 @@ function layout:prepare_belt_layout(state)
 		local x_entry1, x_entry2 = get_lane_start(lane1, 0), get_lane_start(lane2, 0)
 		local x_entry = x_entry1 and x_entry2 and min(x_entry1, x_entry2) or x_entry1 or x_entry2 --[[@as number]]
 		
-		longest_belt = max(longest_belt, x2 - x1 + 1)
-		
 		---@param lane MinerPlacement[]
 		local function lane_capacity(lane) if lane then return #lane * multiplier / belt_speed end return 0 end
 		
@@ -1291,7 +1239,61 @@ function layout:prepare_belt_layout(state)
 
 		::continue::
 	end
-	state.longest_belt = longest_belt
+	
+	return belts
+end
+
+---Determine and set merge strategies
+---@param source BaseBeltSpecification
+---@param target BaseBeltSpecification
+---@param direction defines.direction.north | defines.direction.south
+function layout._apply_belt_merge_strategy(source, target, direction)
+	local source_t1, source_t2 = source.throughput1, source.throughput2
+	local source_total = source_t1 + source_t2
+	local target_t1, target_t2 = target.merged_throughput1, target.merged_throughput2
+	local target_total = target_t1 + target_t2
+	
+	-- if source.merge_direction or target.merge_strategy == "target" then
+	if not source.has_drills or not target.has_drills then
+		return
+	elseif source.merge_direction or source.merge_strategy == "target" or target.merge_strategy == "target" then
+		return
+	elseif source_total > target_total then
+		return
+	elseif source_total < target_total and (source_t1 + target_t2) <= 1 and (source_t2 + target_t1) <= 1 then
+		source.merge_target = target
+		source.merge_direction = direction
+		source.is_output = false
+		source.merge_strategy = "back-merge"
+		target.merge_strategy = "target"
+		target.merged_throughput2 = target_t2 + source_t1
+		target.merged_throughput1 = target_t1 + source_t2
+	elseif direction == SOUTH and source_total <= 1 - target_t1 then
+		source.merge_target = target
+		source.merge_direction = direction
+		source.is_output = false
+		source.merge_strategy = "side-merge"
+		target.merge_strategy = "target"
+		target.merged_throughput1 = target_t1 + source_total
+	elseif direction == NORTH and source_total <= 1 - target_t2 then
+		source.merge_target = target
+		source.merge_direction = direction
+		source.is_output = false
+		source.merge_strategy = "side-merge"
+		target.merge_strategy = "target"
+		target.merged_throughput2 = target_t2 + source_total
+	end
+end
+
+---@param self SimpleLayout
+---@param state SimpleState
+---@return CallbackState
+function layout:prepare_belt_layout(state)
+	local G = state.grid
+	local m = state.miner
+
+	local belts = self:_process_mining_drill_lanes(state)
+	state.belts = belts
 	state.belt_count = #belts
 	local belt_count = #belts
 
@@ -1299,156 +1301,30 @@ function layout:prepare_belt_layout(state)
 		for i = 1, belt_count - 1 do
 			local source_belt = belts[i]
 			local target_belt = belts[i+1]
-			apply_merge_strategy(source_belt, target_belt, SOUTH)
+			self._apply_belt_merge_strategy(source_belt, target_belt, SOUTH)
 		end
 		
 		for i = belt_count, 2, -1 do
 			local source_belt = belts[i]
 			local target_belt = belts[i-1]
-			apply_merge_strategy(source_belt, target_belt, NORTH)
+			self._apply_belt_merge_strategy(source_belt, target_belt, NORTH)
 		end
 	end
 	
-	local builder_belts = {}
-	state.builder_belts = builder_belts
-
-	---@param x number
-	---@param y number
-	---@param direction defines.direction
-	local function build(x, y, direction)
-		local belt_choice, belt_quality = state.belt_choice, state.belt_quality_choice
-		table_insert(builder_belts, {
-			name = belt_choice, quality = belt_quality,
-			thing = "belt", grid_x = x, grid_y = y,
-			direction = direction
-		})
-	end
-	
-	---@param x1 number
-	---@param x2 number
-	---@param y1 number
-	---@param y2 number
-	---@param direction defines.direction
-	local function place_belt(x1, x2, y1, y2, direction)
-		if x1 == x2 then
-			for y = min(y1, y2), max(y1, y2) do
-				build(x1, y, direction)
-			end
-		elseif y1 == y2 then
-			for x = min(x1, x2), max(x1, x2) do
-				build(x, y1, direction)
-			end
-		end
-	end
-	
-	local function output_belt(belt, endpoint)
-		if endpoint == nil then endpoint = belt.x2 end
-		local y = belt.y
-		place_belt(belt.x_start, endpoint, y, y, WEST)
-	end
-	
-	---@param x number
-	---@param y1 number
-	---@param y2 number
-	---@param direction? defines.direction.north | defines.direction.south
-	local function gap_exists(x, y1, y2, direction)
-		y1, y2 = min(y1, y2), max(y1, y2)
-		local s1, s2 = 0, 0
-		if direction == NORTH then
-			s1, s2 = 1, 0
-		elseif direction == SOUTH then
-			s1, s2 = 0, -1
-		end
-		for y = y1+s1, y2+s2 do
-			local tile = G[y][x]
-			if tile.built_on then
-				return false, 0, 0
-			end
-		end
-		return true, y1+s1, y2+s2
-	end
-	
-	local function side_merge_belt(belt, direction)
-		---@type defines.direction.east | defines.direction.west
-		local belt_direction = EAST -- merge output to left of right of belt
-		local vertical_dir = belt.merge_direction
-		local target = belt.merge_target --[[@as BaseBeltSpecification]]
-		local s_entry, t_entry = belt.x_entry, target.x_entry
-		local y = belt.y
-		
-		local merge_x = nil
-		local exists, y1, y2, accomodation = false, 0, 0, 0
-		if target.x_start < t_entry and t_entry <= s_entry then
-			local entry = min(s_entry, t_entry)
-			for x = entry, target.x_start, -1 do
-				exists, y1, y2 = gap_exists(x, belt.y, target.y, vertical_dir)
-				if exists then
-					merge_x, accomodation = x, 1
-					break
-				end
-			end
-		end
-		if merge_x == nil then
-			belt_direction = WEST
-			local entry = max(belt.x_end, target.x_end)
-			for x = entry, target.x_end+m.outer_span do
-				exists, y1, y2 = gap_exists(x, belt.y, target.y, vertical_dir)
-				if exists then
-					merge_x, accomodation = x, -1
-				end
-			end
-		end
-		
-		if merge_x and belt_direction == EAST then
-			-- found spot to merge at the front
-			place_belt(merge_x+accomodation, belt.x2, y, y, WEST) -- main belt
-			place_belt(merge_x, merge_x, y1, y2, vertical_dir) -- vertical segment
-		elseif merge_x and belt_direction == WEST then
-			-- found spot to merge at the back
-			place_belt(belt.x1, merge_x+accomodation, y, y, EAST) -- main belt
-			place_belt(merge_x, merge_x, y1, y2, vertical_dir) -- vertical segment
-			place_belt(target.x2+1, merge_x, target.y, target.y, WEST) -- target merge accomodation
-		else
-			-- fallback
-			place_belt(belt.x_start, belt.x2, y, y, WEST)
-		end
-	end
-	
-	local function back_merge_belt(belt)
-		local vertical_dir = belt.merge_direction
-		local target = belt.merge_target --[[@as BaseBeltSpecification]]
-		local y = belt.y
-		
-		local merge_x = nil
-		local entry = max(belt.x_end, target.x2+1)
-		for x = entry, target.x_end do
-			exists, y1, y2 = gap_exists(x, belt.y, target.y, vertical_dir)
-			if exists then
-				merge_x, accomodation = x, -1
-			end
-		end
-		
-		if merge_x then
-			place_belt(belt.x1, merge_x+accomodation, y, y, EAST) -- main belt
-			place_belt(merge_x, merge_x, y1, y2, vertical_dir) -- vertical segment
-			place_belt(target.x2+1, merge_x, target.y, target.y, WEST) -- target merge accomodation
-		else
-			place_belt(belt.x_start, belt.x2, y, y, WEST)
-		end
-	end
+	local belt_env, builder_belts, deconstruct_spec = common.create_belt_building_environment(state)
 	
 	if state.belt_merge_choice then
 		for _, belt in ipairs(belts) do
 			if not belt.has_drills then goto continue end
 			local y = belt.y
 			if belt.is_output then
-				output_belt(belt)
+				belt_env.make_output_belt(belt)
 			elseif belt.merge_strategy == "side-merge" then
-				side_merge_belt(belt)
+				belt_env.make_side_merge_belt(belt)
 			elseif belt.merge_strategy == "back-merge" then
-				back_merge_belt(belt)
+				belt_env.make_back_merge_belt(belt)
 			else
-				place_belt(belt.x1, belt.x2, y, y, EAST)
+				belt_env.place_horizontal_belt(belt.x1, belt.x2, y, EAST)
 			end
 			belt.merge_target = nil
 			
@@ -1457,10 +1333,12 @@ function layout:prepare_belt_layout(state)
 	else
 		for _, belt in ipairs(belts) do
 			if belt.has_drills then
-				output_belt(belt)
+				belt_env.make_output_belt(belt)
 			end
 		end
 	end
+	
+	state.builder_belts = builder_belts
 
 	return "prepare_lamp_layout"
 end

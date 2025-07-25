@@ -273,7 +273,6 @@ function layout:prepare_belt_layout(state)
 
 	local belt_lanes = {}
 	state.belts = belt_lanes
-	local longest_belt = 0
 	local pipe_adjust = state.place_pipes and -1 or 0
 	for i = 1, miner_lane_count, 2 do
 		local lane1 = miner_lanes[i]
@@ -296,8 +295,7 @@ function layout:prepare_belt_layout(state)
 			else
 				x2 = get_lane_length(lane2)+ out_x2 + 1
 			end
-				
-			longest_belt = max(longest_belt, x2 - x1 + 1)
+
 			belt.x1, belt.x2, belt.built = x1, x2, true
 
 			for x = x1, x2 do

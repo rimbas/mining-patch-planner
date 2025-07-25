@@ -1,6 +1,7 @@
 local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
 
+local base = require("layouts.base")
 local common = require("layouts.common")
 local simple = require("layouts.simple")
 local mpp_util = require("mpp.mpp_util")
@@ -31,6 +32,13 @@ layout.restrictions.module_available = true
 layout.restrictions.pipe_available = true
 layout.restrictions.belt_merging_available = true
 layout.restrictions.belt_planner_available = true
+
+---@param self CompactLayout
+---@param state CompactState
+function layout:initialize(state)
+	base.initialize(self, state)
+	state.pole_gap = 0
+end
 
 ---@param state CompactState
 ---@return PlacementAttempt
@@ -96,116 +104,210 @@ end
 ---@param self CompactLayout
 ---@param state CompactState
 function layout:prepare_pole_layout(state)
-	local coverage = mpp_util.calculate_pole_spacing(state, state.miner_max_column, state.miner_lane_count, true)
+	local M, C, P, G = state.miner, state.coords, state.pole, state.grid
+	local coverage = mpp_util.calculate_pole_coverage_interleaved(state, state.miner_max_column, state.miner_lane_count)
 	local power_grid = pole_grid_mt.new()
 	state.power_grid = power_grid
+	
+	local belts = self:_process_mining_drill_lanes(state)
+	state.belts = belts
+	state.belt_count = #belts
+	
+	---@type List<PowerPoleGhostSpecification>
+	local builder_power_poles = List()
+	state.builder_power_poles = builder_power_poles
+	local lamps = List()
+	state.builder_lamps = lamps
+	
 	if coverage.capable_span then
-		self:_placement_capable(state, coverage)
+		self:_placement_capable(state, coverage, power_grid)
 	else
-		self:_placement_incapable(state, coverage)
+		self:_placement_incapable(state, coverage, power_grid)
 	end
+	
+	local connectivity = power_grid:find_connectivity(state.pole)
+	state.power_connectivity = connectivity
+	
+	local connected = power_grid:ensure_connectivity(connectivity)
+	local drill_output_positions = coverage.drill_output_positions
+	local sx = state.best_attempt.sx - 1
+	
+	for _, pole in pairs(connected) do
+		builder_power_poles:push{
+			name=state.pole_choice,
+			quality=state.pole_quality_choice,
+			thing="pole",
+			grid_x = pole.grid_x,
+			grid_y = pole.grid_y,
+			no_light = pole.no_light,
+			ix = pole.ix, iy = pole.iy,
+		}
+		G:build_thing_simple(pole.grid_x, pole.grid_y, "pole")
+		
+		if pole.no_light ~= true and not drill_output_positions[sx+pole.grid_x+1] then
+			lamps:push{
+				name="small-lamp",
+				thing="lamp",
+				grid_x=pole.grid_x+1,
+				grid_y=pole.grid_y,
+			}
+			G:build_thing_simple(pole.grid_x+1, pole.grid_y, "lamp")
+		elseif pole.no_light ~= true and not drill_output_positions[sx+pole.grid_x-1] then
+			lamps:push{
+				name="small-lamp",
+				thing="lamp",
+				grid_x=pole.grid_x-1,
+				grid_y=pole.grid_y,
+			}
+			G:build_thing_simple(pole.grid_x-1, pole.grid_y, "lamp")
+		end
+	end
+	
 	return "prepare_belt_layout"
 end
 
 ---Placement of belts+poles when they tile nicely (enough reach/supply area)
 ---@param self CompactLayout
 ---@param state CompactState
-function layout:_placement_capable_ex(state, coverage)
+---@param coverage PoleSpacingStruct
+---@param power_grid PowerPoleGrid
+function layout:_placement_capable(state, coverage, power_grid)
 	local M, C, P, G = state.miner, state.coords, state.pole, state.grid
-	local attempt = state.best_attempt
-	local miner_lane_count = state.miner_lane_count
-	local coverage = mpp_util.calculate_pole_spacing(state, state.miner_max_column, state.miner_lane_count, true)
-
-	local steps = {}
-	for i = coverage.pole_start, coverage.full_miner_width, coverage.pole_step do
-		table.insert(steps, i)
-	end
-
-	local power_grid = pole_grid_mt.new()
-	state.power_grid = power_grid
 	
-	--local transport_layout = {}
-	--state.transport_layout = transport_layout
-
-	local iy = 1
-	for i = 1, miner_lane_count, 2 do
-		y = attempt.sy + floor((M.size + 0.5) * i)
-
-		--local transport_layout_lane = {}
-		--transport_layout[ceil(i / 2)] = transport_layout_lane
-		local backtrack_build = false
-		for step_i = #steps, 1, -1 do
-			local x = attempt.sx + steps[step_i]
-
+	local pole_lanes = {}
+	
+	local sx = state.best_attempt.sx
+	for iy, lane in pairs(state.belts) do
+		local ix, y = 1, lane.y
+		local pole_lane = {}
+		pole_lanes[#pole_lanes+1] = pole_lane
+		for x_step = coverage.pole_start, coverage.full_miner_width, coverage.pole_step do
+			local x = x_step + sx
+			local no_light = coverage.lamp_alter and ix % 2 == 0 or nil
 			local has_consumers = G:needs_power(x, y, P)
-			if backtrack_build or step_i == 1 or has_consumers then
-
-				backtrack_build = true
-
-				power_grid:add_pole{
-					grid_x = x, grid_y = y,
-					ix = step_i, iy = iy,
-					backtracked = backtrack_build,
-					has_consumers = has_consumers,
-					built = has_consumers,
-					connections = {},
-				}
-				--transport_layout_lane[step_i] = {x=x, y=y, built=true}
-				-- table_insert(builder_power_poles, {
-				-- 	name=P.name,
-				-- 	thing="pole",
-				-- 	grid_x=x,
-				-- 	grid_y=y,
-				-- 	ix = step_i,
-				-- 	iy = iy,
-				-- })
+			
+			---@type GridPole
+			local pole = {
+				grid_x = x, grid_y = y,
+				ix = ix, iy = iy,
+				has_consumers = has_consumers,
+				backtracked = false,
+				built = has_consumers,
+				connections = {},
+				no_light = no_light,
+			}
+			
+			power_grid:add_pole(pole)
+			
+			ix = ix + 1
+		end
+		
+		local backtrack_built = false
+		for pole_i = #pole_lane, 1, -1 do
+			---@type GridPole
+			local backtrack_pole = pole_lane[pole_i]
+			if backtrack_pole.has_consumers then
+				backtrack_built = true
+				backtrack_pole.backtracked = backtrack_built
+				backtrack_pole.has_consumers = true
 			else
-				power_grid:add_pole{
-					grid_x = x, grid_y = y,
-					ix = step_i, iy = iy,
-					backtracked = false,
-					has_consumers = has_consumers,
-					built = false,
-					connections = {},
-				}
+				backtrack_pole.backtracked = backtrack_built
 			end
 		end
-		iy = iy + 1
 	end
-
-	local connectivity = power_grid:find_connectivity(state.pole)
-	state.power_connectivity = connectivity
-end
-
----Placement of belts+poles when they tile nicely (enough reach/supply area)
----@param self CompactLayout
----@param state CompactState
----@param coverage PoleSpacingStruct
-function layout:_placement_capable(state, coverage)
-	local power_grid = state.power_grid
 end
 
 ---Placement of belts+poles when they don't tile nicely (not enough reach/supply area)
 ---@param self CompactLayout
 ---@param state CompactState
 ---@param coverage PoleSpacingStruct
-function layout:_placement_incapable(state, coverage)
-
+---@param power_grid PowerPoleGrid
+function layout:_placement_incapable(state, coverage, power_grid)
+	local M, C, P, G = state.miner, state.coords, state.pole, state.grid
+	
+	local pole_lanes = {}
+	
+	local sx = state.best_attempt.sx
+	for iy, lane in pairs(state.belts) do
+		local ix, y = 1, lane.y
+		local pole_lane = {}
+		pole_lanes[#pole_lanes+1] = pole_lane
+		for _, px in ipairs(coverage.pattern) do
+			local x = sx + px
+			local no_light = coverage.lamp_alter and ix % 2 == 0 or nil
+			local has_consumers = G:needs_power(x, y, P)
+			
+			---@type GridPole
+			local pole = {
+				grid_x = x, grid_y = y,
+				ix = ix, iy = iy,
+				has_consumers = has_consumers,
+				backtracked = false,
+				built = has_consumers,
+				connections = {},
+				no_light = no_light,
+			}
+			
+			power_grid:add_pole(pole)
+			
+			--[[ debug rendering - coverage power pole positions
+			rendering.draw_circle{
+				surface = state.surface, players = {state.player},
+				color = {1, 1, 1},
+				target = {C.gx + x, C.gy + y},
+				radius = 0.47,
+				width = 3,
+			} --]]
+			
+			ix = ix + 1
+		end
+		
+		--[[ debug rendering - bad power pole (and lamp) positions
+		for pos_x, _ in pairs(coverage.drill_output_positions) do
+			rendering.draw_circle{
+				surface = state.surface, players = {state.player},
+				color = {1, 0, 0},
+				target = {C.gx + sx + pos_x, C.gy + y},
+				radius = 0.47,
+				width = 3,
+			}
+		end --]]
+		
+		local backtrack_built = false
+		for pole_i = #pole_lane, 1, -1 do
+			---@type GridPole
+			local backtrack_pole = pole_lane[pole_i]
+			if backtrack_pole.has_consumers then
+				backtrack_built = true
+				backtrack_pole.backtracked = backtrack_built
+				backtrack_pole.has_consumers = true
+			else
+				backtrack_pole.backtracked = backtrack_built
+			end
+		end
+	end
+	
 end
 
 ---@param self CompactLayout
 ---@param state CompactState
 function layout:prepare_belt_layout(state)
-	local belts = {}
-	state.belts = belts
-	state.builder_belts = {}
+	local M, C, P, G = state.miner, state.coords, state.pole, state.grid
+	
+	local belts = state.belts
+	local belt_env, builder_belts, deconstruct_spec = common.create_belt_building_environment(state)
+	
+	if state.belt_merge_choice and false then
+		
+	else
+		for index, belt in ipairs(belts) do
+			belt_env.make_interleaved_output_belt(belt)
+		end
+	end
 
-	local coverage = mpp_util.calculate_pole_spacing(state, state.miner_max_column, state.miner_lane_count, true)
-	state.builder_power_poles = {}
+	state.builder_belts = builder_belts
 
 	do return "expensive_deconstruct" end
-	
-	return "prepare_belts"
 end
 
 ---@param self CompactLayout
@@ -223,20 +325,6 @@ function layout:prepare_belts(state)
 
 	if power_grid and #power_grid == 0 then
 		return "expensive_deconstruct"
-	elseif power_grid then
-		local connected = power_grid:ensure_connectivity(connectivity)
-
-		for _, pole in pairs(connected) do
-			table_insert(builder_power_poles, {
-				name = P.name,
-				quality = state.pole_quality_choice,
-				thing = "pole",
-				grid_x = pole.grid_x,
-				grid_y = pole.grid_y,
-				ix = pole.ix,
-				iy = pole.iy,
-			})
-		end
 	end
 
 	local builder_belts = state.builder_belts
@@ -346,38 +434,5 @@ function layout:prepare_belts(state)
 	return "prepare_lamp_layout"
 end
 
----@param self CompactLayout
----@param state CompactState
-function layout:prepare_lamp_layout(state)
-	local next_step = "expensive_deconstruct"
-
-	if state.lamp_choice ~= true then return next_step end
-
-	local lamps = {}
-	state.builder_lamps = lamps
-
-	local grid = state.grid
-
-	local sx, sy = state.pole.size, 0
-	local lamp_spacing = true
-	if state.pole.wire > 7 then lamp_spacing = false end
-
-	for _, pole in ipairs(state.builder_power_poles) do
-		local x, y = pole.grid_x + sx, pole.grid_y + sy
-		local ix, iy = pole.ix, pole.iy
-		local tile = grid:get_tile(x, y)
-		local skippable_lamp = iy % 2 == 1 and ix % 2 == 1
-		if tile and (not lamp_spacing or skippable_lamp) then
-			lamps[#lamps+1] = {
-				name="small-lamp",
-				thing="lamp",
-				grid_x = x,
-				grid_y = y,
-			}
-		end
-	end
-
-	return next_step
-end
 
 return layout

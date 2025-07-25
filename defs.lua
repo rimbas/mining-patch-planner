@@ -106,10 +106,10 @@
 ---@field throughput2 number Throughput of bottom lane of belt
 ---@field merged_throughput1 number Throughput of top lane of belt
 ---@field merged_throughput2 number Throughput of bottom lane of belt
+---@field has_obstacles? true Is belt underground interleaved
 
 ---@class BeltSpecification : BaseBeltSpecification
 ---@field index number Belt index for belt planner
----@field accomodation_shift number Belt extension to fit around other belts
 
 ---@class BeltPlannerSpecification
 ---@field [number] BeltSpecification

@@ -335,7 +335,81 @@ end
 ---Preview the pole coverage
 ---@param player_data PlayerData
 ---@param event EventData.on_player_reverse_selected_area
-function render_util.draw_pole_layout(player_data, event)
+function render_util.draw_pole_layout_simple(player_data, event)
+
+	
+	rendering.clear("mining-patch-planner")
+
+	local renderer = render_util.renderer(event)
+
+	local fx1, fy1 = event.area.left_top.x, event.area.left_top.y
+	fx1, fy1 = floor(fx1), floor(fy1)
+
+	--renderer.draw_cross{x=fx1, y=fy1, w=fx2-fx1, h=fy2-fy1}
+	--renderer.draw_cross{x=fx1, y=fy1, w=2}
+
+	local drill = mpp_util.miner_struct(player_data.choices.miner_choice)
+	local pole = mpp_util.pole_struct(player_data.choices.pole_choice, player_data.choices.pole_quality_choice)
+
+	local function draw_lane(x, y, count)
+		for i = 0, count-1 do
+			renderer.draw_rectangle{
+				x = x + drill.size * i + 0.15 , y = y+.15,
+				w = drill.size-.3, h=1-.3,
+				color = i % 2 == 0 and {143/255, 86/255, 59/255} or {223/255, 113/255, 38/255},
+				width=2,
+			}
+		end
+
+		---@diagnostic disable-next-line: param-type-mismatch
+		local coverage = mpp_util.calculate_pole_coverage_simple(player_data.choices, count, 1)
+
+		renderer.draw_circle{
+			x=x+.5, y=y-0.5, radius = .25, color={0.7, 0.7, 0.7},
+		}
+		for i = coverage.pole_start, coverage.full_miner_width, coverage.pole_step do
+			renderer.draw_circle{
+				x = x + i + .5,
+				y = y - .5,
+				radius = 0.3, width=2,
+				color = {0, 1, 1},
+			}
+			renderer.draw_line{
+				x = x + i +.5 - pole.supply_width / 2+.2,
+				y = y - .2,
+				h = 0,
+				w = pole.supply_width-.4,
+				color = {0, 1, 1},
+				width = 2,
+			}
+			renderer.draw_line{
+				x = x + i +.5 - pole.supply_width / 2 + .2,
+				y = y - .7,
+				h = .5,
+				w = 0,
+				color = {0, 1, 1},
+				width = 2,
+			}
+			renderer.draw_line{
+				x = x + i +.5 + pole.supply_width / 2 - .2,
+				y = y - .7,
+				h = .5,
+				w = 0,
+				color = {0, 1, 1},
+				width = 2,
+			}
+		end
+	end
+
+	for i = 1, 10 do
+		draw_lane(fx1, fy1+(i-1)*3, i)
+	end
+end
+
+---Preview the pole coverage
+---@param player_data PlayerData
+---@param event EventData.on_player_reverse_selected_area
+function render_util.draw_pole_layout_interleaved(player_data, event)
 	rendering.clear("mining-patch-planner")
 
 	local renderer = render_util.renderer(event)
@@ -409,7 +483,7 @@ function render_util.draw_pole_layout(player_data, event)
 		end
 
 		---@diagnostic disable-next-line: param-type-mismatch
-		local coverage = mpp_util.calculate_pole_coverage(player_data.choices, count, 1)
+		local coverage = mpp_util.calculate_pole_coverage_interleaved(player_data.choices, count, 1)
 		
 		renderer.draw_circle{
 			x=x+.5, y=y-0.5, radius = .25, color={0.7, 0.7, 0.7},
@@ -434,25 +508,7 @@ function render_util.draw_pole_layout(player_data, event)
 				radius = 0.3, width = 2,
 			}
 			
-			local current_x = coverage.pole_start
-			if count > 1 then
-				current_x = current_x + 1
-			end
-			local xx = current_x
-			local max_step = min(floor(pole.radius * 2) + drill.size - 1, floor(pole.wire))
-			local bad_positions = {}
-			for i = 1, count do
-				local pos1 = (i-1)*drill.size+output_north[1]
-				local pos2 = (i-1)*drill.size+output_south[1]
-				bad_positions[pos1] = true
-				bad_positions[pos2] = true
-				if pos1 + 2 == pos2 then
-					bad_positions[pos1+1] = true
-				elseif pos2 + 2 == pos1 then
-					bad_positions[pos2+1] = true
-				end
-			end
-			for pos, _ in pairs(bad_positions) do
+			for pos, _ in pairs(coverage.drill_output_positions) do
 				renderer.draw_circle{
 					x = x + pos + .5,
 					y = y + .5,
@@ -460,28 +516,10 @@ function render_util.draw_pole_layout(player_data, event)
 					radius = 0.3,
 				}
 			end
-			local total_span = count * drill.size
-			local previous_x = current_x
-			while current_x < total_span do
-				previous_x = current_x
-				local found_position = false
-				for ix = min(total_span, current_x + max_step), min(current_x + 1, total_span), -1 do
-					if bad_positions[ix] == nil and ix < count* drill.size then
-						found_position, current_x = true, ix
-						break
-					end
-				end
-				if not found_position or current_x - pole.radius < previous_x + pole.radius then
-					break
-				else
-					draw_pole(x + current_x, y)
-				end
-				if current_x + pole.radius * 2 >= total_span then
-					break
-				end
-			end
 			
-			draw_pole(x + xx, y)
+			for _, px in ipairs(coverage.pattern) do
+				draw_pole(x+px, y)
+			end
 		end
 
 	end
@@ -489,80 +527,6 @@ function render_util.draw_pole_layout(player_data, event)
 	for i = 1, 20 do
 		draw_lane(fx1, fy1+(i-1)*3, i)
 	end
-
-end
-
----Preview the pole coverage
----@param player_data PlayerData
----@param event EventData.on_player_reverse_selected_area
-function render_util.draw_pole_layout_compact(player_data, event)
-	rendering.clear("mining-patch-planner")
-
-	local renderer = render_util.renderer(event)
-
-	local fx1, fy1 = event.area.left_top.x, event.area.left_top.y
-	fx1, fy1 = floor(fx1), floor(fy1)
-
-	--renderer.draw_cross{x=fx1, y=fy1, w=fx2-fx1, h=fy2-fy1}
-	--renderer.draw_cross{x=fx1, y=fy1, w=2}
-
-	local drill = mpp_util.miner_struct(player_data.choices.miner_choice)
-	local pole = mpp_util.pole_struct(player_data.choices.pole_choice, player_data.choices.pole_quality_choice)
-
-	local function draw_lane(x, y, count)
-		for i = 0, count-1 do
-			renderer.draw_rectangle{
-				x = x + drill.size * i + 0.15 , y = y+.15,
-				w = drill.size-.3, h=1-.3,
-				color = i % 2 == 0 and {143/255, 86/255, 59/255} or {223/255, 113/255, 38/255},
-				width=2,
-			}
-		end
-
-		---@diagnostic disable-next-line: param-type-mismatch
-		local coverage = mpp_util.calculate_pole_spacing(player_data.choices, count, 1)
-
-		renderer.draw_circle{
-			x=x+.5, y=y-0.5, radius = .25, color={0.7, 0.7, 0.7},
-		}
-		for i = coverage.pole_start, coverage.full_miner_width, coverage.pole_step do
-			renderer.draw_circle{
-				x = x + i + .5,
-				y = y - .5,
-				radius = 0.3, width=2,
-				color = {0, 1, 1},
-			}
-			renderer.draw_line{
-				x = x + i +.5 - pole.supply_width / 2+.2,
-				y = y - .2,
-				h = 0,
-				w = pole.supply_width-.4,
-				color = {0, 1, 1},
-				width = 2,
-			}
-			renderer.draw_line{
-				x = x + i +.5 - pole.supply_width / 2 + .2,
-				y = y - .7,
-				h = .5,
-				w = 0,
-				color = {0, 1, 1},
-				width = 2,
-			}
-			renderer.draw_line{
-				x = x + i +.5 + pole.supply_width / 2 - .2,
-				y = y - .7,
-				h = .5,
-				w = 0,
-				color = {0, 1, 1},
-				width = 2,
-			}
-		end
-	end
-
-	for i = 1, 10 do
-		draw_lane(fx1, fy1+(i-1)*3, i)
-	end
-
 end
 
 ---Displays the labels of built things on the grid
@@ -573,8 +537,7 @@ function render_util.draw_built_things(player_data, event)
 
 	local renderer = render_util.renderer(event)
 
-	local state = player_data.last_state
-
+	local state = player_data.last_state --[[@as SimpleState?]]
 	if not state then return end
 
 	local C = state.coords
@@ -636,7 +599,7 @@ function render_util.draw_drill_convolution(player_data, event)
 	local fx1, fy1 = event.area.left_top.x, event.area.left_top.y
 	fx1, fy1 = floor(fx1), floor(fy1)
 
-	local state = player_data.last_state
+	local state = player_data.last_state --[[@as SimpleState?]]
 	if not state then return end
 
 	local C = state.coords

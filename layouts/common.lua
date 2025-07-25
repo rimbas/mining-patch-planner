@@ -5,6 +5,7 @@ local common = {}
 local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
 local sqrt, log = math.sqrt, math.log
+local EAST, NORTH, SOUTH, WEST = mpp_util.directions()
 
 ---@alias HeuristicMinerPlacement fun(tile: GridTile): boolean
 
@@ -510,11 +511,234 @@ end
 ---@field lane2 number
 ---@field direction defines.direction
 
+---Belt creation environment
 ---@param state SimpleState
----@param belt BeltSpecification
----@return BeltThroughput
-function common.get_belt_throughput(state, belt)
+---@return BeltEnvironment
+---@return GhostSpecification[]
+---@return DeconstructSpecification[]
+function common.create_belt_building_environment(state)
+	local G, M, B = state.grid, state.miner, state.belt
+	local table_insert = table.insert
+
+	local belts = state.belts
+	local belt_count = #belts
+	local belt_choice = state.belt_choice
+	local underground_choice = B.related_underground_belt
+	local quality_choice = state.belt_quality_choice
+
+	-- Function verb explanation
+	-- create - add specific entity to the builder list (like LuaSurface.create_entity)
+	-- place  - utility function to place specific belt structures like lines
+	-- make   - utility function that makes belt structures defined in belt specification
+
+	-- Indexing the virtual grid for built things should be mostly inside the bounds of the resource patch
 	
+	---@type GhostSpecification[]
+	local builder_belts = {}
+	local deconstruct_spec = List()
+	---@class BeltEnvironment
+	local environment = {
+		builder_belts = builder_belts,
+		deconstruct_specification = deconstruct_spec
+	}
+
+	---Base utility function to create belt tiles
+	---@param x any
+	---@param y any
+	---@param direction any
+	local function create_belt(x, y, direction)
+		table_insert(builder_belts, {
+			name = belt_choice, quality = quality_choice,
+			thing = "belt", grid_x = x, grid_y = y,
+			direction = direction,
+		})
+	end
+	environment.create_belt = create_belt
+
+	---Base utility function to create belt tiles
+	---@param x any
+	---@param y any
+	---@param direction any
+	---@param belt_type "input" | "output"
+	local function create_underground(x, y, direction, belt_type)
+		table_insert(builder_belts, {
+			name = underground_choice, quality = quality_choice,
+			thing = "belt", grid_x = x, grid_y = y,
+			direction = direction, type = belt_type or "input",
+		})
+	end
+	environment.create_underground = create_underground
+
+	---Utility function to create underground belt tiles
+	---@param x number
+	---@param y1 number
+	---@param y2 number
+	---@param direction defines.direction
+	local function place_vertical_belt(x, y1, y2, direction)
+		for y = min(y1, y2), max(y1, y2) do
+			create_belt(x, y, direction)
+		end
+	end
+	environment.place_vertical_belt = place_vertical_belt
+
+	---@param x1 number
+	---@param x2 number
+	---@param y number
+	---@param direction defines.direction
+	local function place_horizontal_belt(x1, x2, y, direction)
+		for x = min(x1, x2), max(x1, x2) do
+			create_belt(x, y, direction)
+		end
+	end
+	environment.place_horizontal_belt = place_horizontal_belt
+
+	---@param belt BaseBeltSpecification
+	local function make_output_belt(belt, endpoint)
+		if endpoint == nil then endpoint = belt.x2 end
+		place_horizontal_belt(belt.x_start, endpoint, belt.y, WEST)
+	end
+	environment.make_output_belt = make_output_belt
+
+	---@param x number
+	---@param y1 number
+	---@param y2 number
+	---@param direction? defines.direction.north | defines.direction.south
+	local function gap_exists(x, y1, y2, direction)
+		y1, y2 = min(y1, y2), max(y1, y2)
+		local s1, s2 = 0, 0
+		if direction == NORTH then
+			s1, s2 = 1, 0
+		elseif direction == SOUTH then
+			s1, s2 = 0, -1
+		end
+		for y = y1+s1, y2+s2 do
+			local tile = G[y][x]
+			if tile.built_on then
+				return false, 0, 0
+			end
+		end
+		return true, y1+s1, y2+s2
+	end
+	environment.gap_exists = gap_exists
+	
+	---@param belt BaseBeltSpecification
+	local function make_side_merge_belt(belt)
+		---@type defines.direction.east | defines.direction.west
+		local belt_direction = EAST -- merge output to left of right of belt
+		local vertical_dir = belt.merge_direction
+		local target = belt.merge_target --[[@as BaseBeltSpecification]]
+		local s_entry, t_entry = belt.x_entry, target.x_entry
+		local y = belt.y
+		
+		local merge_x = nil
+		local exists, y1, y2, accomodation = false, 0, 0, 0
+		if target.x_start < t_entry and t_entry <= s_entry then
+			local entry = min(s_entry, t_entry)
+			for x = entry, target.x_start, -1 do
+				exists, y1, y2 = gap_exists(x, belt.y, target.y, vertical_dir)
+				if exists then
+					merge_x, accomodation = x, 1
+					break
+				end
+			end
+		end
+		if merge_x == nil then
+			belt_direction = WEST
+			local entry = belt.x_end
+			for x = entry, target.x_end+M.outer_span do
+				exists, y1, y2 = gap_exists(x, belt.y, target.y, vertical_dir)
+				if exists then
+					merge_x, accomodation = x, -1
+					break
+				end
+			end
+		end
+		
+		if merge_x and belt_direction == EAST then
+			-- found spot to merge at the front
+			place_horizontal_belt(merge_x+accomodation, belt.x2, y, WEST) -- main belt
+			place_vertical_belt(merge_x, y1, y2, vertical_dir) -- vertical segment
+		elseif merge_x and belt_direction == WEST then
+			-- found spot to merge at the back
+			place_horizontal_belt(belt.x1, merge_x+accomodation, y, EAST) -- main belt
+			place_vertical_belt(merge_x, y1, y2, vertical_dir) -- vertical segment
+			if merge_x >= target.x2 + 1 then
+				place_vertical_belt(target.x2+1, merge_x+1, target.y, WEST) -- target merge accomodation
+			end
+		else
+			-- fallback
+			belt.is_output = true
+			make_output_belt(belt)
+		end
+	end
+	environment.make_side_merge_belt = make_side_merge_belt
+	
+	---@param belt BaseBeltSpecification
+	local function make_back_merge_belt(belt)
+		local vertical_dir = belt.merge_direction
+		local target = belt.merge_target --[[@as BaseBeltSpecification]]
+		local y = belt.y
+		
+		local merge_x = nil
+		local entry = max(belt.x_end, target.x2+1)
+		for x = entry, target.x_end do
+			exists, y1, y2 = gap_exists(x, belt.y, target.y, vertical_dir)
+			if exists then
+				merge_x, accomodation = x, -1
+			end
+		end
+		
+		if merge_x then
+			place_horizontal_belt(belt.x1, merge_x+accomodation, y, EAST) -- main belt
+			place_vertical_belt(merge_x, y1, y2, vertical_dir) -- vertical segment
+			place_horizontal_belt(target.x2+1, merge_x, target.y, WEST) -- target merge accomodation
+		else
+			place_horizontal_belt(belt.x_start, belt.x2, y, WEST)
+		end
+	end
+	environment.make_back_merge_belt = make_back_merge_belt
+	
+	---@param x1 number
+	---@param x2 number
+	---@param y number
+	---@param direction defines.direction
+	---@param simple_capstone boolean
+	local function place_interleaved_belt_west(x1, x2, y, direction, simple_capstone)
+		local row = G[y]
+		local tile_before, tile, tile_ahead = nil, row[x1-1], row[x1]
+		
+		for x = x1, x2-1 do
+			tile_before, tile, tile_ahead = tile, tile_ahead, row[x+1]
+			local free = tile.built_on
+			if free ~= nil then
+				-- no op
+			elseif tile_before.built_on ~= nil then
+				create_underground(x, y, direction, "input")
+			elseif tile_ahead.built_on ~= nil then
+				create_underground(x, y, direction, "output")
+			else
+				create_belt(x, y, direction)
+			end
+		end
+		
+		tile_before, tile, tile_ahead = tile, tile_ahead, row[x2+1]
+		if simple_capstone ~= true and tile_ahead.built_on ~= nil then
+			create_underground(x2, y, direction, "output")
+		elseif tile_before.built_on ~= nil then
+			create_underground(x2, y, direction, "input")
+		else
+			create_belt(x2, y, direction)
+		end
+	end
+	environment.place_interleaved_belt_west = place_interleaved_belt_west
+	
+	---@param belt BaseBeltSpecification
+	local function make_interleaved_output_belt(belt, simple_capstone)
+		place_interleaved_belt_west(belt.x_start, belt.x2, belt.y, WEST, simple_capstone or true)
+	end
+	environment.make_interleaved_output_belt = make_interleaved_output_belt
+	
+	return environment, builder_belts, deconstruct_spec
 end
 
 return common

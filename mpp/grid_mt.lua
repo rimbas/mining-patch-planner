@@ -38,6 +38,7 @@ grid_mt.__index = grid_mt
 ---| "miner"
 ---| "pole"
 ---| "beacon"
+---| "pipe"
 ---| "belt"
 ---| "inserter"
 ---| "container"
@@ -343,6 +344,10 @@ function grid_mt:build_thing(cx, cy, thing, size_w, size_h)
 	end
 end
 
+---Builder function
+---@param cx number x coord
+---@param cy number y coord
+---@param thing GridBuilding Type of building
 function grid_mt:build_thing_simple(cx, cy, thing)
 	local row = self[cy]
 	if row then

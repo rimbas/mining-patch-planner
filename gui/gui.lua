@@ -1244,15 +1244,15 @@ local function update_debugging_selection(player_data)
 			icon=("entity/electric-mining-drill"),
 		},
 		{
-			value="draw_pole_layout",
+			value="draw_pole_layout_simple",
 			tooltip="Draw power pole layout",
 			icon=("entity/medium-electric-pole"),
 		},
-		-- {
-		-- 	value="draw_pole_layout_compact",
-		-- 	tooltip="Draw power pole layout compact",
-		-- 	icon=("entity/medium-electric-pole"),
-		-- },
+		{
+			value="draw_pole_layout_interleaved",
+			tooltip="Draw power pole layout compact",
+			icon=("entity/medium-electric-pole"),
+		},
 		{
 			value="draw_built_things",
 			tooltip="Draw built tile values",

@@ -620,12 +620,38 @@ function mpp_util.inserter_hand_locations(ent)
 	return pickup, drop
 end
 
+---@class PoleSpacingStruct
+---@field capable_span boolean
+---@field pole_start number
+---@field pole_step number
+---@field lane_start number
+---@field lane_step number
+---@field lamp_alter boolean
+---@field full_miner_width number Drill count times drill width
+---@field pattern List<number> Stepping when layout is incapable
+---@field drill_output_positions table<number, true>
+
 ---Calculates needed power pole count
 ---@param state SimpleState
-function mpp_util.calculate_pole_coverage(state, miner_count, lane_count)
-	local cov = {}
+---@param miner_count number
+---@param lane_count number
+---@return PoleSpacingStruct
+function mpp_util.calculate_pole_coverage_interleaved(state, miner_count, lane_count)
 	local m = mpp_util.miner_struct(state.miner_choice)
 	local p = mpp_util.pole_struct(state.pole_choice, state.pole_quality_choice)
+	
+	---@type PoleSpacingStruct
+	local cov = {
+		capable_span = false,
+		lane_start = 1,
+		lane_step = 1,
+		pole_start = 1,
+		pole_step = 1,
+		lamp_alter = false,
+		full_miner_width = miner_count * m.size,
+		pattern = {},
+		drill_output_positions = {},
+	}
 
 	-- Shift subtract
 	local covered_miners = ceil(p.supply_width / m.size)
@@ -655,8 +681,53 @@ function mpp_util.calculate_pole_coverage(state, miner_count, lane_count)
 		-- 	pole_start = m.size * 2 - 1
 		end
 	else
-		local pattern = {}
+		local pattern = List()
 		
+		local output_north = m.output_rotated[NORTH]
+		local output_south = m.output_rotated[SOUTH]
+		
+		local current_x = pole_start
+		if miner_count > 1 then
+			current_x = current_x + 1
+		end
+		local start_x = current_x
+		local max_step = min(floor(p.radius * 2) + m.size - 1, floor(p.wire))
+		local drill_output_positions = {}
+		for i = 1, miner_count do
+			local pos1 = (i-1) * m.size+output_north[1]
+			local pos2 = (i-1) * m.size+output_south[1]
+			drill_output_positions[pos1] = true
+			drill_output_positions[pos2] = true
+			if pos1 + 2 == pos2 then
+				drill_output_positions[pos1+1] = true
+			elseif pos2 + 2 == pos1 then
+				drill_output_positions[pos2+1] = true
+			end
+		end
+		
+		local total_span = miner_count * m.size
+		local previous_x = current_x
+		pattern:push(current_x)
+		while current_x < total_span do
+			previous_x = current_x
+			local found_position = false
+			for ix = min(total_span, current_x + max_step), min(current_x + 1, total_span), -1 do
+				if drill_output_positions[ix] == nil and ix < miner_count* m.size then
+					found_position, current_x = true, ix
+					break
+				end
+			end
+			if not found_position or current_x - p.radius < previous_x + p.radius then
+				break
+			else
+				pattern:push(current_x)
+			end
+			if current_x + p.radius * 2 >= total_span then
+				break
+			end
+		end
+		cov.pattern = pattern
+		cov.drill_output_positions = drill_output_positions
 	end
 
 	cov.pole_start = pole_start
@@ -677,46 +748,43 @@ function mpp_util.calculate_pole_coverage(state, miner_count, lane_count)
 	return cov
 end
 
----@class PoleSpacingStruct
----@field capable_span boolean
----@field pole_start number
----@field pole_step number
----@field lane_start number
----@field lane_step number
-
 ---Calculates the spacing for belt interleaved power poles
 ---@param state State
 ---@param miner_count number
 ---@param lane_count number
----@param force_capable (number|true)?
-function mpp_util.calculate_pole_spacing(state, miner_count, lane_count, force_capable)
-	local cov = {}
+---@return PoleSpacingStruct
+function mpp_util.calculate_pole_coverage_simple(state, miner_count, lane_count)
 	local m = mpp_util.miner_struct(state.miner_choice)
 	local p = mpp_util.pole_struct(state.pole_choice, state.pole_quality_choice)
+	
+	---@type PoleSpacingStruct
+	local cov = {
+		capable_span = false,
+		lane_start = 1,
+		lane_step = 1,
+		pole_start = 1,
+		pole_step = 1,
+		lamp_alter = false,
+		full_miner_width = miner_count * m.size,
+		pattern = {},
+		bad_positions = {},
+	}
 
 	-- Shift subtract
 	local covered_miners = ceil(p.supply_width / m.size)
 	local miner_step = covered_miners * m.size
-	if force_capable and force_capable ~= 0 then
-		miner_step = force_capable == true and miner_step or force_capable --[[@as number]]
-		force_capable = miner_step
-	end
 
 	-- Special handling to shift back small radius power poles so they don't poke out
 	local capable_span = false
 
 	if floor(p.wire) >= miner_step then
 		capable_span = true
-	elseif force_capable and force_capable > 0 then
-		return mpp_util.calculate_pole_spacing(
-			state, miner_count, lane_count, miner_step - m.size
-		)
 	else
 		miner_step = floor(p.wire)
 	end
 	cov.capable_span = capable_span
 
-	local pole_start = m.size-1
+	local pole_start = m.middle
 	if capable_span then
 		if covered_miners % 2 == 0 then
 			pole_start = m.size-1
