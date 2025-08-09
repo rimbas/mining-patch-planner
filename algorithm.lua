@@ -45,7 +45,7 @@ require_layout("blueprints")
 ---@field _collected_ghosts LuaEntity[]
 ---@field _preview_rectangle? LuaRenderObject LuaRendering.draw_rectangle
 ---@field _lane_info_rendering LuaRenderObject[]
----@field _render_objects LuaRenderObject[] LuaRendering objects
+---@field _render_objects List<LuaRenderObject> LuaRendering objects
 
 ---@class State : MinimumPreservedState
 ---@field _callback string -- callback to be used in the tick
@@ -120,7 +120,7 @@ local function create_state(event)
 	state.mod_version = script.active_mods["mining-patch-planner"]
 	state._preview_rectangle = nil
 	state._collected_ghosts = {}
-	state._render_objects = {}
+	state._render_objects = List()
 	state._lane_info_rendering = {}
 	state.performance_scaling = settings.global["mpp-performance-scaling"].value
 
@@ -467,7 +467,7 @@ function algorithm.cleanup_last_state(player_data)
 			-- 	rendering.destroy(id)
 			-- end
 		end
-		state._render_objects = {}
+		state._render_objects = List()
 	end
 
 	-- TODO: fix rendering

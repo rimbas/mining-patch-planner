@@ -7,6 +7,7 @@ local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
 local EAST, NORTH, SOUTH, WEST, ROTATION = mpp_util.directions()
 
+local base = require("layouts.base")
 local simple = require("layouts.simple")
 
 ---@class SparseLayout : SimpleLayout
@@ -26,6 +27,14 @@ layout.restrictions.lamp_available = true
 layout.restrictions.module_available = true
 layout.restrictions.pipe_available = true
 layout.restrictions.coverage_tuning = false
+
+---@param self CompactLayout
+---@param state CompactState
+function layout:initialize(state)
+	base.initialize(self, state)
+	local M = state.miner
+	state.pole_gap = M.area - M.size + 1
+end
 
 ---@param state SimpleState
 ---@return PlacementAttempt
@@ -250,9 +259,197 @@ function layout:_get_pipe_layout_specification(state)
 end
 
 
----@param self SimpleLayout
+---@param self SparseLayout
 ---@param state SimpleState
+function layout:prepare_pole_layout(state)
+	local c = state.coords
+	local m = state.miner
+	local G = state.grid
+	local P = state.pole
+	local attempt = state.best_attempt
+
+	local pole_struct = mpp_util.pole_struct(state.pole_choice, state.pole_quality_choice)
+	local supply_area = pole_struct.supply_width
+	local wire_distance = pole_struct.wire
+
+	local builder_power_poles = {}
+	state.builder_power_poles = builder_power_poles
+
+	local pole_step = min(floor(wire_distance), supply_area + 2)
+	state.pole_step = pole_step
+
+	local miner_lane_width = (state.miner_max_column-1) * m.area + state.miner_max_column
+	local pole_start = m.outer_span
+
+	local function place_pole_lane(y, iy, skip_light)
+		local pole_lane = {}
+		local ix = 1
+		for x = attempt.sx + pole_start, c.tw+m.size, pole_step do
+			local built = false
+			if G:needs_power(x, y, P) then
+				built = true
+				G:build_thing_simple(x, y, "pole")
+			end
+			local pole = {x=x, y=y, ix=ix, iy=iy, built=built}
+			pole_lane[ix] = pole
+			ix = ix + 1
+		end
+		
+		local backtrack_built = false
+		for pole_i = #pole_lane, 1, -1 do
+			local no_light = (P.wire < 9) and (pole_i % 2 == 0) or nil
+			---@type GridPole
+			local backtrack_pole = pole_lane[pole_i]
+			if backtrack_built or backtrack_pole.built then
+				backtrack_built = true
+				backtrack_pole.built = true
+
+				builder_power_poles[#builder_power_poles+1] = {
+					name=state.pole_choice,
+					quality=state.pole_quality_choice,
+					thing="pole",
+					grid_x = backtrack_pole.x,
+					grid_y = backtrack_pole.y,
+					no_light = skip_light or no_light,
+				}
+				G:build_thing_simple(backtrack_pole.grid_x, backtrack_pole.grid_y, "pole")
+			end
+		end
+
+		return pole_lane
+	end
+
+	local initial_y = attempt.sy + m.outer_span - 1
+	local iy, between_lane = 1, 0
+	local y_max, y_step = initial_y + c.th + m.area + 1, m.area * 2
+	for y = initial_y, y_max, y_step do
+
+		if y + y_step > y_max then -- last pole lane
+			local backstep = m.outer_span * 2 - 1
+			if state.miner_lanes[between_lane+1] then
+				backstep = floor(m.size/2)
+			end
+			place_pole_lane(y - backstep)
+		elseif (m.outer_span * 2 + 2) > supply_area then -- single pole can't supply two lanes
+			place_pole_lane(y, iy)
+			if y ~= initial_y then
+				iy = iy + 1
+				place_pole_lane(y - m.outer_span * 2 + 1, iy, true)
+			end
+		else
+			local backstep = y == initial_y and 0 or floor(m.size/2)
+			place_pole_lane(y - backstep)
+		end
+		iy = iy + 1
+		between_lane = between_lane + 2
+	end
+
+	return "prepare_belt_layout"
+end
+
+---Determine and set merge strategies
+---@param self SparseLayout
+---@param source BaseBeltSpecification
+---@param target BaseBeltSpecification
+---@param direction defines.direction.north | defines.direction.south
+function layout:_apply_belt_merge_strategy(state, source, target, direction)
+	local source_t1, source_t2 = source.throughput1, source.throughput2
+	local source_total = source_t1 + source_t2
+	local target_t1, target_t2 = target.merged_throughput1, target.merged_throughput2
+	local target_total = target_t1 + target_t2
+	
+	-- if source.merge_direction or target.merge_strategy == "target" then
+	if (
+		source.has_drills ~= true
+		or target.has_drills ~= true
+		or source.merge_direction
+		or source.merge_strategy == "target"
+		or target.merge_strategy == "target"
+		or source_total > target_total
+	) then
+		return
+	elseif source_total <= target_total and (source_t1 + target_t2) <= 1 and (source_t2 + target_t1) <= 1 then
+		source.merge_target = target
+		source.merge_direction = direction
+		source.is_output = false
+		source.merge_strategy = "back-merge"
+		target.merge_strategy = "target"
+		target.merged_throughput2 = target_t2 + source_t1
+		target.merged_throughput1 = target_t1 + source_t2
+	-- elseif direction == SOUTH and source_total <= 1 - target_t1 then
+	-- 	source.merge_target = target
+	-- 	source.merge_direction = direction
+	-- 	source.is_output = false
+	-- 	source.merge_strategy = "side-merge"
+	-- 	target.merge_strategy = "target"
+	-- 	target.merged_throughput1 = target_t1 + source_total
+	-- elseif direction == NORTH and source_total <= 1 - target_t2 then
+	-- 	source.merge_target = target
+	-- 	source.merge_direction = direction
+	-- 	source.is_output = false
+	-- 	source.merge_strategy = "side-merge"
+	-- 	target.merge_strategy = "target"
+	-- 	target.merged_throughput2 = target_t2 + source_total
+	end
+end
+
+---@param self SparseLayout
+---@param state SimpleState
+---@return CallbackState
 function layout:prepare_belt_layout(state)
+	local G = state.grid
+	local m = state.miner
+
+	local belts = self:_process_mining_drill_lanes(state)
+	for _, belt in ipairs(belts) do
+		belt.y = belt.y + 1
+	end
+	state.belts = belts
+	state.belt_count = #belts
+	local belt_count = #belts
+
+	local belt_env, builder_belts, deconstruct_spec = common.create_belt_building_environment(state)
+	
+	if state.belt_merge_choice and belt_count > 1 then
+		for i = 1, belt_count - 1 do
+			self:_apply_belt_merge_strategy(state, belts[i],  belts[i+1], SOUTH)
+		end
+		
+		for i = belt_count, 2, -1 do
+			self:_apply_belt_merge_strategy(state, belts[i], belts[i-1], NORTH)
+		end
+		
+		for _, belt in ipairs(belts) do
+			if belt.has_drills ~= true then goto continue end
+			if belt.is_output then
+				belt_env.make_sparse_output_belt(belt, belt.x_start)
+			-- elseif belt.merge_strategy == "side-merge" then
+			-- 	belt_env.make_side_merge_belt(belt)
+			elseif belt.merge_strategy == "back-merge" then
+				belt_env.make_back_merge_belt(belt)
+			else
+				belt_env.make_sparse_output_belt(belt, belt.x_start)
+			end
+			belt.merge_target = nil
+			
+			::continue::
+		end
+	else
+		for _, belt in ipairs(belts) do
+			if belt.has_drills then
+				belt_env.make_sparse_output_belt(belt, belt.x_start)
+			end
+		end
+	end
+	
+	state.builder_belts = builder_belts
+
+	return "prepare_lamp_layout"
+end
+
+---@param self SparseLayout
+---@param state SimpleState
+function layout:prepare_belt_layout_ex(state)
 	local m = state.miner
 	local g = state.grid
 	local attempt = state.best_attempt
@@ -293,7 +490,7 @@ function layout:prepare_belt_layout(state)
 			elseif lane1 then
 				x2 = get_lane_length(lane1) + out_x1
 			else
-				x2 = get_lane_length(lane2)+ out_x2 + 1
+				x2 = get_lane_length(lane2) + out_x2 + 1
 			end
 
 			belt.x1, belt.x2, belt.built = x1, x2, true
@@ -331,93 +528,6 @@ function layout:prepare_belt_layout(state)
 
 	state.belt_count = #belt_lanes
 	
-	return "prepare_pole_layout"
-end
-
----@param self SimpleLayout
----@param state SimpleState
-function layout:prepare_pole_layout(state)
-	local c = state.coords
-	local m = state.miner
-	local G = state.grid
-	local P = state.pole
-	local attempt = state.best_attempt
-
-	local pole_struct = mpp_util.pole_struct(state.pole_choice, state.pole_quality_choice)
-	local supply_area = pole_struct.supply_width
-	local wire_distance = pole_struct.wire
-
-	local builder_power_poles = {}
-	state.builder_power_poles = builder_power_poles
-
-	local pole_step = min(floor(wire_distance), supply_area + 2)
-	state.pole_step = pole_step
-
-	local miner_lane_width = (state.miner_max_column-1) * m.area + state.miner_max_column
-	local pole_start = m.outer_span
-
-	local function place_pole_lane(y, iy, skip_light)
-		local pole_lane = {}
-		local ix = 1
-		for x = attempt.sx + pole_start, c.tw+m.size, pole_step do
-			local built = false
-			if G:needs_power(x, y, P) then
-				built = true
-			end
-			local pole = {x=x, y=y, ix=ix, iy=iy, built=built}
-			pole_lane[ix] = pole
-			ix = ix + 1
-		end
-		
-		local backtrack_built = false
-		for pole_i = #pole_lane, 1, -1 do
-			local no_light = (P.wire < 9) and (pole_i % 2 == 0) or nil
-			---@type GridPole
-			local backtrack_pole = pole_lane[pole_i]
-			if backtrack_built or backtrack_pole.built then
-				backtrack_built = true
-				backtrack_pole.built = true
-
-				builder_power_poles[#builder_power_poles+1] = {
-					name=state.pole_choice,
-					quality=state.pole_quality_choice,
-					thing="pole",
-					grid_x = backtrack_pole.x,
-					grid_y = backtrack_pole.y,
-					no_light = skip_light or no_light,
-				}
-
-			end
-		end
-
-		return pole_lane
-	end
-
-	local initial_y = attempt.sy + m.outer_span - 1
-	local iy, between_lane = 1, 0
-	local y_max, y_step = initial_y + c.th + m.area + 1, m.area * 2
-	for y = initial_y, y_max, y_step do
-
-		if y + y_step > y_max then -- last pole lane
-			local backstep = m.outer_span * 2 - 1
-			if state.miner_lanes[between_lane+1] then
-				backstep = floor(m.size/2)
-			end
-			place_pole_lane(y - backstep)
-		elseif (m.outer_span * 2 + 2) > supply_area then -- single pole can't supply two lanes
-			place_pole_lane(y, iy)
-			if y ~= initial_y then
-				iy = iy + 1
-				place_pole_lane(y - m.outer_span * 2 + 1, iy, true)
-			end
-		else
-			local backstep = y == initial_y and 0 or floor(m.size/2)
-			place_pole_lane(y - backstep)
-		end
-		iy = iy + 1
-		between_lane = between_lane + 2
-	end
-
 	return "prepare_lamp_layout"
 end
 

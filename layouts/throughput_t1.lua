@@ -160,7 +160,7 @@ function layout:prepare_belt_layout(state)
 	local function place_belts(start_x, end_x, y, poles)
 		local belt_start, belt_end = M.out_x + shift_x + start_x, end_x
 		local pre_miner = G:get_tile(shift_x + size, y)
-		local built_miner = pre_miner and pre_miner.built_on == "miner" or false
+		local built_miner = pre_miner and pre_miner.built_thing == "miner" or false
 
 		rendering.draw_circle{
 			surface = state.surface,
@@ -208,7 +208,7 @@ function layout:prepare_belt_layout(state)
 		for x = belt_start, end_x, size * 2 do
 			local miner1 = G:get_tile(x, y-1) --[[@as GridTile]]
 			local miner2 = G:get_tile(x, y+1) --[[@as GridTile]]
-			local built = (miner1 and miner1.built_on == "miner") or (miner2 and miner2.built_on == "miner")
+			local built = (miner1 and miner1.built_thing == "miner") or (miner2 and miner2.built_thing == "miner")
 			local last = x + size * 2 > end_x
 
 			if last then

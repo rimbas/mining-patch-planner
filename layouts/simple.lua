@@ -37,6 +37,7 @@ local layout = table.deepcopy(base)
 ---@field power_connectivity PoleConnectivity
 ---@field belts BeltSpecification[]
 ---@field belt_count number For info printout
+---@field belt_start_adjust? number Adjusts belt start x for power pole accomodation
 ---@field miner_lanes table<number, MinerPlacement[]>
 ---@field place_pipes boolean
 ---@field pipe_layout_specification PlacementSpecification[]
@@ -630,7 +631,7 @@ function layout:layout_attempts(state)
 		-- state.best_attempt.heuristic_score = state.best_attempt_score
 		
 		saved_attempts[#saved_attempts+1] = current_attempt
-		if state.debug_dump then
+		if state.debug_dump == true then
 			local heuristics = table.deepcopy(current_attempt.heuristics) --[[@as HeuristicsBlock]]
 			common.process_postponed(state, current_attempt, current_attempt.miners, current_attempt.postponed)
 			current_attempt.heuristics = heuristics
@@ -679,8 +680,8 @@ function layout:layout_attempts(state)
 		end
 		
 		if attempt.heuristics.unconsumed > 0 then
+			-- Found unconsumed resources, falling back to test subsequent attempts
 			state.attempt_index = 2
-			state.player.print("Unconsumed found. Going to fallback")
 			return "layout_attempts_fallback"
 		end
 		
@@ -707,7 +708,6 @@ function layout:layout_attempts_fallback(state)
 	local attempt = state.saved_attempts[attempt_index]
 	local attempts_done = 0
 	
-	
 	local budget, cost = 12345 * state.performance_scaling, 0
 	while cost < budget and attempt_index <= attempt_count do
 		local price
@@ -716,8 +716,14 @@ function layout:layout_attempts_fallback(state)
 		end
 		cost = cost + price
 		
+		if attempt.heuristics.unconsumed == 0 then
+			state.best_attempt = attempt
+			return "prepare_miner_layout"
+		end
+		
 		attempt_index = attempt_index + 1
 		state.attempt_index = attempt_index
+		attempt = state.saved_attempts[attempt_index]
 		
 		attempts_done = attempts_done + 1
 		local remainder = budget - cost
@@ -817,7 +823,7 @@ function layout:prepare_miner_layout(state)
 		for _, tile in pairs(row) do
 			--local c1, c2 = tile.neighbor_counts[m_size], tile.neighbor_counts[m_area]
 			---@cast tile GridTile
-			local thing = tile.built_on
+			local thing = tile.built_thing
 			if thing == false then goto continue end
 
 			table_insert(render_objects, rendering.draw_circle{
@@ -1156,28 +1162,51 @@ function layout:prepare_pole_layout(state)
 	return next_step
 end
 
+---Sets proper throughput calculations on a belt
+---@param self SimpleLayout
+---@param state SimpleState
+---@param belt BaseBeltSpecification
+---@param direction defines.direction.west | defines.direction.east | nil
+function layout:_calculate_belt_throughput(state, belt, direction)
+	local belt_speed = state.belt.speed
+	local multiplier = common.get_mining_drill_production(state)
+	---@param lane MinerPlacement[]
+	local function lane_capacity(lane) if lane then return #lane * multiplier / belt_speed end return 0 end
+	local lane1, lane2 = belt.lane1, belt.lane2
+	
+	if direction == EAST then
+		belt.throughput1 = lane_capacity(lane2)
+		belt.throughput2 = lane_capacity(lane1)
+		belt.merged_throughput1 = belt.throughput1
+		belt.merged_throughput2 = belt.throughput2
+	else
+		belt.throughput1 = lane_capacity(lane1)
+		belt.throughput2 = lane_capacity(lane2)
+		belt.merged_throughput1 = belt.throughput1
+		belt.merged_throughput2 = belt.throughput2
+	end
+end
+
 ---@param state SimpleState
 ---@return List<BaseBeltSpecification>
 function layout:_process_mining_drill_lanes(state)
-	local G = state.grid
 	local m = state.miner
-	local multiplier = common.get_mining_drill_production(state)
+	local out_rot = m.output_rotated
 	local attempt = state.best_attempt
-	local belt_speed = state.belt.speed
 
 	---@type table<number, MinerPlacement[]>
 	local miner_lanes = state.miner_lanes
 	local miner_lane_count = state.miner_lane_count -- highest index of a lane, because using # won't do the job if a lane is missing
 
 	---@param lane MinerPlacement[]
-	---@return number?
-	local function get_lane_length(lane, out_x) if lane and lane[#lane] then return lane[#lane].x+out_x end end
+	---@return number
+	local function get_lane_length(lane, out_x) return lane and lane[#lane] and lane[#lane].x+out_x or 0/0 end
 	---@param lane MinerPlacement[]
-	---@return number?
-	local function get_lane_start(lane, out_x) if lane and lane[1] then return lane[1].x + out_x end end
+	---@return number
+	local function get_lane_start(lane, out_x) return lane and lane[1] and lane[1].x + out_x or 0/0 end
 	---@param lane MinerPlacement[]
-	---@return number?
-	local function get_lane_end(lane, size) if lane and lane[#lane] then return lane[#lane].x + size end end
+	---@return number
+	local function get_lane_end(lane, size) return lane and lane[#lane] and lane[#lane].x + size or 0/0 end
 
 	local pipe_adjust = state.place_pipes and -1 or 0
 	local belts = List() --[[@as List<BaseBeltSpecification>]]
@@ -1190,10 +1219,11 @@ function layout:_process_mining_drill_lanes(state)
 
 		if not lane1 and not lane2 then
 			belts:push{
+				index=ceil(i/2),
 				x1=attempt.sx + pipe_adjust,
 				x2=attempt.sx,
 				x_start=attempt.sx + pipe_adjust,
-				x_entry=attempt.sx+pipe_adjust,
+				x_entry=attempt.sx + pipe_adjust,
 				x_end=attempt.sx,
 				y=y,
 				has_drills=false,
@@ -1208,19 +1238,13 @@ function layout:_process_mining_drill_lanes(state)
 			goto continue
 		end
 		
-		local x1_1, x1_2 = get_lane_start(lane1, m.output_rotated[SOUTH].x), get_lane_start(lane2, m.output_rotated[NORTH].x)
-		local x1 = x1_1 and x1_2 and min(x1_1, x1_2) or x1_1 or x1_2 --[[@as number]]
-		local x2_1, x2_2 = get_lane_length(lane1, m.output_rotated[SOUTH].x), get_lane_length(lane2, m.output_rotated[NORTH].x)
-		local x2 = x2_1 and x2_2 and max(x2_1, x2_2) or x2_1 or x2_2 --[[@as number]]
-		local x_end1, x_end2 = get_lane_end(lane1, m.size-1), get_lane_end(lane2, m.size-1)
-		local x_end = x_end1 and x_end2 and max(x_end1, x_end2) or x_end1 or x_end2 --[[@as number]]
-		local x_entry1, x_entry2 = get_lane_start(lane1, 0), get_lane_start(lane2, 0)
-		local x_entry = x_entry1 and x_entry2 and min(x_entry1, x_entry2) or x_entry1 or x_entry2 --[[@as number]]
+		local x1 = min(get_lane_start(lane1, out_rot[SOUTH].x), get_lane_start(lane2, out_rot[NORTH].x))
+		local x2 = max(get_lane_length(lane1, out_rot[SOUTH].x), get_lane_length(lane2, out_rot[NORTH].x))
+		local x_end = max(get_lane_end(lane1, m.size-1), get_lane_end(lane2, m.size-1))
+		local x_entry = min(get_lane_start(lane1, 0), get_lane_start(lane2, 0))
 		
-		---@param lane MinerPlacement[]
-		local function lane_capacity(lane) if lane then return #lane * multiplier / belt_speed end return 0 end
-		
-		belts:push({
+		local belt = {
+			index=ceil(i/2),
 			x1=x1,
 			x2=x2,
 			y=y,
@@ -1231,11 +1255,15 @@ function layout:_process_mining_drill_lanes(state)
 			x_start = attempt.sx + pipe_adjust,
 			x_entry=x_entry,
 			x_end = x_end,
-			throughput1 = lane_capacity(lane1),
-			throughput2 = lane_capacity(lane2),
-			merged_throughput1 = lane_capacity(lane1),
-			merged_throughput2 = lane_capacity(lane2),
-		})
+			throughput1 = 0,
+			throughput2 = 0,
+			merged_throughput1 = 0,
+			merged_throughput2 = 0,
+		}
+		
+		self:_calculate_belt_throughput(state, belt, WEST)
+		
+		belts:push(belt)
 
 		::continue::
 	end
@@ -1244,27 +1272,32 @@ function layout:_process_mining_drill_lanes(state)
 end
 
 ---Determine and set merge strategies
+---@param self SimpleLayout
 ---@param source BaseBeltSpecification
 ---@param target BaseBeltSpecification
 ---@param direction defines.direction.north | defines.direction.south
-function layout._apply_belt_merge_strategy(source, target, direction)
+function layout:_apply_belt_merge_strategy(state, source, target, direction)
 	local source_t1, source_t2 = source.throughput1, source.throughput2
 	local source_total = source_t1 + source_t2
 	local target_t1, target_t2 = target.merged_throughput1, target.merged_throughput2
 	local target_total = target_t1 + target_t2
 	
-	-- if source.merge_direction or target.merge_strategy == "target" then
-	if not source.has_drills or not target.has_drills then
+	if (
+		source.has_drills ~= true
+		or target.has_drills ~= true
+		or source.merge_direction
+		or source.merge_strategy == "target"
+		or target.merge_strategy == "target"
+		or source_total > target_total
+	) then
 		return
-	elseif source.merge_direction or source.merge_strategy == "target" or target.merge_strategy == "target" then
-		return
-	elseif source_total > target_total then
-		return
-	elseif source_total < target_total and (source_t1 + target_t2) <= 1 and (source_t2 + target_t1) <= 1 then
+	elseif source_total <= target_total and (source_t1 + target_t2) <= 1 and (source_t2 + target_t1) <= 1 then
 		source.merge_target = target
 		source.merge_direction = direction
 		source.is_output = false
 		source.merge_strategy = "back-merge"
+		self:_calculate_belt_throughput(state, source, EAST)
+		source_t1, source_t2 = source.throughput1, source.throughput2
 		target.merge_strategy = "target"
 		target.merged_throughput2 = target_t2 + source_t1
 		target.merged_throughput1 = target_t1 + source_t2
@@ -1297,26 +1330,19 @@ function layout:prepare_belt_layout(state)
 	state.belt_count = #belts
 	local belt_count = #belts
 
+	local belt_env, builder_belts, deconstruct_spec = common.create_belt_building_environment(state)
+	
 	if state.belt_merge_choice and belt_count > 1 then
 		for i = 1, belt_count - 1 do
-			local source_belt = belts[i]
-			local target_belt = belts[i+1]
-			self._apply_belt_merge_strategy(source_belt, target_belt, SOUTH)
+			self:_apply_belt_merge_strategy(state, belts[i],  belts[i+1], SOUTH)
 		end
 		
 		for i = belt_count, 2, -1 do
-			local source_belt = belts[i]
-			local target_belt = belts[i-1]
-			self._apply_belt_merge_strategy(source_belt, target_belt, NORTH)
+			self:_apply_belt_merge_strategy(state, belts[i], belts[i-1], NORTH)
 		end
-	end
-	
-	local belt_env, builder_belts, deconstruct_spec = common.create_belt_building_environment(state)
-	
-	if state.belt_merge_choice then
+		
 		for _, belt in ipairs(belts) do
-			if not belt.has_drills then goto continue end
-			local y = belt.y
+			if belt.has_drills ~= true then goto continue end
 			if belt.is_output then
 				belt_env.make_output_belt(belt)
 			elseif belt.merge_strategy == "side-merge" then
@@ -1324,7 +1350,7 @@ function layout:prepare_belt_layout(state)
 			elseif belt.merge_strategy == "back-merge" then
 				belt_env.make_back_merge_belt(belt)
 			else
-				belt_env.place_horizontal_belt(belt.x1, belt.x2, y, EAST)
+				belt_env.make_output_belt(belt)
 			end
 			belt.merge_target = nil
 			
@@ -1589,7 +1615,7 @@ function layout:placement_landfill(state)
 		local x, y = conv(tx-gx, ty-gy, c.w, c.h)
 		local tile = grid:get_tile(ceil(x), ceil(y))
 
-		if tile and tile.built_on then
+		if tile and tile.built_thing then
 			if fill.name == "out-of-map" then
 				goto skip_fill
 			end

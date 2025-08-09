@@ -546,7 +546,7 @@ function render_util.draw_built_things(player_data, event)
 	for _, row in pairs(G) do
 		for _, tile in pairs(row) do
 			---@cast tile GridTile
-			local thing = tile.built_on
+			local thing = tile.built_thing
 			if thing then
 				-- renderer.draw_circle{
 				-- 	x = C.gx + tile.x, y = C.gy + tile.y,
@@ -1206,25 +1206,40 @@ function render_util.draw_consumed_resources(player_data, event)
 	local miners = A.miners
 	for _, miner in ipairs(miners) do
 		-- grid:consume(miner.x+ext_negative, miner.y+ext_negative, area)
-		G:consume_separable_horizontal(miner.x+M.extent_negative, miner.y+M.extent_negative, area, consume_cache)
+		-- G:consume_separable_horizontal(miner.x+M.extent_negative, miner.y+M.extent_negative, area, consume_cache)
 		renderer.draw_rectangle{
-			x = C.ix1 + miner.x - 1, y = C.iy1 + miner.y - 1,
-			w = size,
+			x = C.ix1 + miner.x - 1 + .1,
+			y = C.iy1 + miner.y - 1 + .1,
+			w = size - .2,
 			filled=true,
 			color=miner.postponed and {0.4, 0.2, .4} or {0.2, 0.4, .8},
 		}
+		renderer.draw_text{
+			x = C.ix1 + miner.x - .75,
+			y = C.iy1 + miner.y - .75,
+			color = miner.postponed and {1, 0, 0} or {1, 1, 1},
+			scale = 0.75,
+			text = miner.postponed and "post" or "main",
+			alignment = "left",
+			vertical_alignment = "top",
+		}
 	end
 	
-	for tile, _ in pairs(consume_cache) do
-		G:consume_separable_vertical(tile.x, tile.y, area)
-	end
+	-- for tile, _ in pairs(consume_cache) do
+	-- 	G:consume_separable_vertical(tile.x, tile.y, area)
+	-- end
 	
-	for _, postponed in ipairs(A.postponed) do
+	for index, postponed in ipairs(A.postponed) do
 		renderer.draw_rectangle{
 			x = C.ix1 + postponed.x - 1 + .125, y = C.iy1 + postponed.y - 1 + .125,
 			w = size - .25,
 			width = 7,
 			color={0.8, 0.6, .2},
+		}
+		renderer.draw_text{
+			x = C.ix1 + postponed.x + .125,
+			y = C.iy1 + postponed.y + .125,
+			text = index,
 		}
 	end
 
@@ -1256,7 +1271,7 @@ function render_util.draw_consumed_resources(player_data, event)
 		end
 	end
 
-	G:clear_consumed(state.resource_tiles)
+	-- G:clear_consumed(state.resource_tiles)
 	
 	renderer.draw_text{
 		x = C.gx - 2,

@@ -678,13 +678,13 @@ function layout:prepare_inserter_layout(state)
 			(
 				input_tile
 				and not (
-					input_tile.built_on == "miner"
-					or input_tile.built_on == "container"
+					input_tile.built_thing == "miner"
+					or input_tile.built_thing == "container"
 				)
 				and output_tile
 				and not (
-					output_tile.built_on == "miner"
-					or output_tile.built_on == "container"
+					output_tile.built_thing == "miner"
+					or output_tile.built_thing == "container"
 				)
 			)
 		then

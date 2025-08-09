@@ -144,7 +144,9 @@ function layout:prepare_pole_layout(state)
 		}
 		G:build_thing_simple(pole.grid_x, pole.grid_y, "pole")
 		
-		if pole.no_light ~= true and not drill_output_positions[sx+pole.grid_x+1] then
+		if state.lamp_choice == false then
+			-- no op
+		elseif pole.no_light ~= true and not drill_output_positions[sx+pole.grid_x+1] then
 			lamps:push{
 				name="small-lamp",
 				thing="lamp",
@@ -286,22 +288,95 @@ function layout:_placement_incapable(state, coverage, power_grid)
 			end
 		end
 	end
+end
+
+---Determine and set merge strategies
+---@param self CompactLayout
+---@param source BaseBeltSpecification
+---@param target BaseBeltSpecification
+---@param direction defines.direction.north | defines.direction.south
+function layout:_apply_belt_merge_strategy(state, source, target, direction)
+	local source_t1, source_t2 = source.throughput1, source.throughput2
+	local source_total = source_t1 + source_t2
+	local target_t1, target_t2 = target.merged_throughput1, target.merged_throughput2
+	local target_total = target_t1 + target_t2
 	
+	-- if source.merge_direction or target.merge_strategy == "target" then
+	if (
+		source.has_drills ~= true
+		or target.has_drills ~= true
+		or source.merge_direction
+		or source.merge_strategy == "target"
+		or target.merge_strategy == "target"
+		or source_total > target_total
+	) then
+		return
+	elseif source_total <= target_total and (source_t1 + target_t2) <= 1 and (source_t2 + target_t1) <= 1 then
+		source.merge_target = target
+		source.merge_direction = direction
+		source.is_output = false
+		source.merge_strategy = "back-merge"
+		target.merge_strategy = "target"
+		target.merge_slave = true
+		target.merged_throughput2 = target_t2 + source_t1
+		target.merged_throughput1 = target_t1 + source_t2
+	-- elseif direction == SOUTH and source_total <= 1 - target_t1 then
+	-- 	source.merge_target = target
+	-- 	source.merge_direction = direction
+	-- 	source.is_output = false
+	-- 	source.merge_strategy = "side-merge"
+	-- 	target.merge_strategy = "target"
+	-- 	target.merged_throughput1 = target_t1 + source_total
+	-- elseif direction == NORTH and source_total <= 1 - target_t2 then
+	-- 	source.merge_target = target
+	-- 	source.merge_direction = direction
+	-- 	source.is_output = false
+	-- 	source.merge_strategy = "side-merge"
+	-- 	target.merge_strategy = "target"
+	-- 	target.merged_throughput2 = target_t2 + source_total
+	end
 end
 
 ---@param self CompactLayout
 ---@param state CompactState
 function layout:prepare_belt_layout(state)
 	local M, C, P, G = state.miner, state.coords, state.pole, state.grid
-	
+
 	local belts = state.belts
+	local belt_count = #belts
 	local belt_env, builder_belts, deconstruct_spec = common.create_belt_building_environment(state)
-	
-	if state.belt_merge_choice and false then
-		
+
+	if state.belt_merge_choice and belt_count > 1 then
+		for i = 1, belt_count - 1 do
+			self:_apply_belt_merge_strategy(state, belts[i],  belts[i+1], SOUTH)
+		end
+
+		for i = belt_count, 2, -1 do
+			self:_apply_belt_merge_strategy(state, belts[i], belts[i-1], NORTH)
+		end
+
+		for _, belt in ipairs(belts) do
+			if belt.has_drills ~= true or belt.merge_slave then
+				goto continue
+			elseif belt.merge_strategy == "back-merge" then
+				belt_env.make_interleaved_back_merge_belt(belt)
+				-- belt_env.make_interleaved_output_belt(target, target.x2 ~= merge_x)
+			elseif belt.is_output then
+				belt_env.make_interleaved_output_belt(belt, belt.merge_strategy == "target")
+			-- elseif belt.merge_strategy == "side-merge" then
+			-- 	belt_env.make_side_merge_belt(belt)
+			else
+				belt_env.make_interleaved_output_belt(belt)
+			end
+			belt.merge_target = nil
+
+			::continue::
+		end
 	else
-		for index, belt in ipairs(belts) do
-			belt_env.make_interleaved_output_belt(belt)
+		for _, belt in ipairs(belts) do
+			if belt.has_drills then
+				belt_env.make_interleaved_output_belt(belt)
+			end
 		end
 	end
 
@@ -309,130 +384,5 @@ function layout:prepare_belt_layout(state)
 
 	do return "expensive_deconstruct" end
 end
-
----@param self CompactLayout
----@param state CompactState
-function layout:prepare_belts(state)
-	local M, C, P, G = state.miner, state.coords, state.pole, state.grid
-
-	local attempt = state.best_attempt
-	local miner_lanes = state.miner_lanes
-	local miner_lane_count = state.miner_lane_count
-
-	local builder_power_poles = state.builder_power_poles
-	local connectivity = state.power_connectivity
-	local power_grid = state.power_grid
-
-	if power_grid and #power_grid == 0 then
-		return "expensive_deconstruct"
-	end
-
-	local builder_belts = state.builder_belts
-	local belt_name = state.belt.name
-	local underground_name = state.belt.related_underground_belt --[[@as string]]
-	local belts = List() --[[@as List<BaseBeltSpecification>]]
-	state.belts = belts
-
-	local pipe_adjust = state.place_pipes and -1 or 0
-
-	for i_lane = 1, miner_lane_count, 2 do
-		local iy = ceil(i_lane / 2)
-		local lane1 = miner_lanes[i_lane]
-		local lane2 = miner_lanes[i_lane+1]
-		--local transport_layout_lane = transport_layout[ceil(i_lane / 2)]
-
-		local function get_lane_length(lane, out_x) if lane and lane[#lane] then return lane[#lane].x+out_x end return 0 end
-		local y = attempt.sy + floor((M.size + 0.5) * i_lane)
-		
-		local x1 = attempt.sx + pipe_adjust
-		local belt = {x1=x1, x2=attempt.sx, y=y, built=false, lane1=lane1, lane2=lane2}
-		belts[#belts+1] = belt
-
-		if not lane1 and not lane2 then
-			belts:push{
-				x1=attempt.sx + pipe_adjust,
-				x2=attempt.sx,
-				x_start=attempt.sx + pipe_adjust,
-				x_entry=attempt.sx+pipe_adjust,
-				x_end=attempt.sx,
-				y=y,
-				has_drills=false,
-				is_output=false,
-				lane1=lane1,
-				lane2=lane2,
-				throughput1=0,
-				throughput2=0,
-				merged_throughput1=0,
-				merged_throughput2=0,
-			}
-			goto continue_lane
-		end
-
-		local x2 = max(get_lane_length(lane1, M.output_rotated[SOUTH].x), get_lane_length(lane2, M.output_rotated[NORTH].x))
-
-		belt.x2, belt.built = x2, true
-
-		if not power_grid then goto continue_lane end
-
-		local previous_start, first_interval = x1, true
-		local power_poles, pole_count, belt_intervals = power_grid[iy], #power_grid[iy], {}
-		for i, pole in pairs(power_poles) do
-			if not pole.built then goto continue_poles end
-
-			local next_x = pole.grid_x
-			table_insert(belt_intervals, {
-				x1 = previous_start, x2 = min(x2, next_x - 1),
-				is_first = first_interval,
-			})
-			previous_start = next_x + 2
-			first_interval = false
-
-			if x2 < next_x then
-				--debug_draw:draw_circle{x = x2, y = y, color = {1, 0, 0}}
-				break
-			end
-
-			::continue_poles::
-		end
-		
-		if previous_start <= x2 then
-			--debug_draw:draw_circle{x = x2, y = y, color = {0, 1, 0}}
-			table_insert(belt_intervals, {
-				x1 = previous_start, x2 = x2, is_last = true,
-			})
-		end
-
-		for i, interval in pairs(belt_intervals) do
-			local bx1, bx2 = interval.x1, interval.x2
-			builder_belts[#builder_belts+1] = {
-				name = interval.is_first and belt_name or underground_name,
-				quality = state.belt_quality_choice,
-				thing = "belt", direction=WEST,
-				grid_x = bx1, grid_y = y,
-				type = not interval.is_first and "input" or nil
-			}
-			for x = bx1 + 1, bx2 - 1 do
-				builder_belts[#builder_belts+1] = {
-					name = belt_name,
-					quality = state.belt_quality_choice,
-					thing = "belt", direction=WEST,
-					grid_x = x, grid_y = y,
-				}
-			end
-			builder_belts[#builder_belts+1] = {
-				name = i == #belt_intervals and belt_name or underground_name,
-				quality = state.belt_quality_choice,
-				thing = "belt", direction=WEST,
-				grid_x = bx2, grid_y = y,
-				type = not interval.is_last and "output" or nil
-			}
-		end
-
-		::continue_lane::
-	end
-	
-	return "prepare_lamp_layout"
-end
-
 
 return layout

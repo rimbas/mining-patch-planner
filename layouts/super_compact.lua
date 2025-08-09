@@ -33,29 +33,19 @@ layout.restrictions.pipe_available = false
 
 -- Validate the selection
 ---@param self SuperCompactLayout
----@param state SimpleState
+---@param state SuperCompactState
 function layout:validate(state)
-	local c = state.coords
-	if (state.direction_choice == "west" or state.direction_choice == "east") then
-		if c.h < 3 then
-			return nil, {"mpp.msg_miner_err_1_w", 3}
-		end
-	else
-		if c.w < 3 then
-			return nil, {"mpp.msg_miner_err_1_h", 3}
-		end
-	end
 	return true
 end
 
+---@param self SuperCompactLayout
 ---@param proto MinerStruct
 function layout:restriction_miner(proto)
 	return proto.symmetric
 end
 
-
 ---@param self SuperCompactLayout
----@param state SimpleState
+---@param state SuperCompactState
 ---@return PlacementAttempt
 function layout:_placement_attempt(state, shift_x, shift_y)
 	local grid = state.grid
@@ -100,19 +90,19 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 				end
 				ix = ix + 1
 			end
-			row_index = row_index + 2
+			row_index = row_index + 4
 
 		end
 	end
 
 	miner_stagger(0, -2, "south", 1)
 	miner_stagger(3,  0, "east",  1)
-	miner_stagger(0,  2, "north", 1)
+	miner_stagger(0,  2, "north", 2)
 
 	-- the redundant calculation makes it easier to find the stagger offset
-	miner_stagger(0+size, -2+size+2, "south", 2)
-	miner_stagger(3-size,  0+size+2, "east",  2)
-	miner_stagger(0+size,  2+size+2, "north", 2)
+	miner_stagger(0+size, -2+size+2, "south", 3)
+	miner_stagger(3-size,  0+size+2, "east",  3)
+	miner_stagger(0+size,  2+size+2, "north", 4)
 
 	local result = {
 		sx = shift_x,
@@ -120,33 +110,197 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 		bx = bx,
 		by = by,
 		miners = miners,
+		postponed = postponed,
 		lane_layout = lane_layout,
 		heuristics = heuristic_values,
 		heuristic_score = -(0/0),
-		unconsumed = 0,
+		price = 0,
 	}
 
-	common.process_postponed(state, result, miners, postponed)
-
 	common.finalize_heuristic_values(result, heuristic_values, state.coords)
-
-	
-	for _, miner in pairs(miners) do
-		---@cast miner MinerPlacement
-		local current_lane = lane_layout[miner.line]
-		if not current_lane then
-			current_lane = {}
-			lane_layout[miner.line] = current_lane
-		end
-		table_insert(current_lane, miner)
-	end
 
 	return result
 end
 
+---Sets proper throughput calculations on a belt
+---@param self CompactLayout
+---@param state CompactState
+---@param belt BaseBeltSpecification
+---@param direction defines.direction.west | defines.direction.east | nil
+function layout:_calculate_belt_throughput(state, belt, direction)
+	local belt_speed = state.belt.speed
+	local multiplier = common.get_mining_drill_production(state)
+	---@param lane MinerPlacement[]
+	local function lane_capacity(lane) if lane then return #lane * multiplier / belt_speed end return 0 end
+	local lane1, lane2 = belt.lane1, belt.lane2
+	
+	local dirs =  {[NORTH]=0, [EAST]=0, [SOUTH]=0, [WEST]=0}
+	---@param lane MinerPlacement[]
+	local function sum_miner_directions(lane)
+		for _, drill in ipairs(lane or {}) do
+			dirs[defines.direction[drill.direction]] = dirs[defines.direction[drill.direction]] + 1
+		end
+	end
+	sum_miner_directions(lane1)
+	sum_miner_directions(lane2)
+	if direction == EAST then
+		belt.throughput1 = (dirs[SOUTH]) * multiplier / belt_speed
+		belt.throughput2 = (dirs[NORTH] + dirs[EAST]) * multiplier / belt_speed
+		belt.merged_throughput1 = belt.throughput1
+		belt.merged_throughput2 = belt.throughput2
+	else
+		belt.throughput1 = (dirs[SOUTH] + dirs[EAST]) * multiplier / belt_speed
+		belt.throughput2 = (dirs[NORTH]) * multiplier / belt_speed
+		belt.merged_throughput1 = belt.throughput1
+		belt.merged_throughput2 = belt.throughput2
+	end
+end
 
----@param self SimpleLayout
----@param state SimpleState
+---@param self SuperCompactLayout
+---@param state SuperCompactState
+---@return List<BaseBeltSpecification>
+function layout:_process_mining_drill_lanes(state)
+	local G = state.grid
+	local m = state.miner
+	local m_size = m.size
+	local multiplier = common.get_mining_drill_production(state)
+	local attempt = state.best_attempt
+	local belt_speed = state.belt.speed
+	local miner_lanes = attempt.lane_layout
+
+	for _, miner in pairs(attempt.miners) do
+		---@cast miner MinerPlacement
+		local current_lane = miner_lanes[miner.line]
+		if not current_lane then
+			current_lane = {}
+			miner_lanes[miner.line] = current_lane
+		end
+		table_insert(current_lane, miner)
+	end
+
+	---@type table<number, MinerPlacement[]>
+	local miner_lanes = attempt.lane_layout
+	local miner_lane_count = 0 -- highest index of a lane, because using # won't do the job if a lane is missing
+	for _, lane in pairs(miner_lanes) do
+		miner_lane_count = max(miner_lane_count, lane.row_index)
+	end
+	
+
+	---@param lane MinerPlacement[]
+	---@return number?
+	local function get_lane_length(lane, out_x) if lane and lane[#lane] then return lane[#lane].x+out_x end end
+	---@param lane MinerPlacement[]
+	---@return number?
+	local function get_lane_start(lane, out_x) if lane and lane[1] then return lane[1].x + out_x end end
+	---@param lane MinerPlacement[]
+	---@return number?
+	local function get_lane_end(lane, size) if lane and lane[#lane] then return lane[#lane].x + size end end
+
+	local pipe_adjust = state.place_pipes and -1 or 0
+	local belts = List() --[[@as List<BaseBeltSpecification>]]
+	local pole_gap = (1 + state.pole_gap) / 2
+	for i = 1, miner_lane_count, 2 do
+		local lane1 = miner_lanes[i]
+		local lane2 = miner_lanes[i+1]
+		
+		local y = attempt.sy + 2 + (m.size + 2) * floor(i/2)
+
+		if (not lane1 or #lane1 == 0) and (not lane2 or #lane2 == 0) then
+			belts:push{
+				index=ceil(i/2),
+				x1=attempt.sx + 1,
+				x2=attempt.sx + 1,
+				x_start=attempt.sx + 1,
+				x_entry=attempt.sx + 1,
+				x_end=attempt.sx + 1,
+				y=y,
+				has_drills=false,
+				is_output=false,
+				lane1=lane1,
+				lane2=lane2,
+				throughput1=0,
+				throughput2=0,
+				merged_throughput1=0,
+				merged_throughput2=0,
+			}
+			goto continue
+		end
+
+		---@param drill MinerPlacement
+		local function get_output_position(drill)
+			local output_positions = m.output_rotated
+			local direction = defines.direction[drill.direction]
+			return drill.x + output_positions[direction].x
+		end
+		
+		---@param lane MinerPlacement[]
+		local function get_x_positions(lane)
+			local x1, x2, x_end
+			if not lane or #lane == 0 then
+				return 0/0, 0/0, 0/0 -- this is asking for bugs
+			elseif lane[1] then
+				local drill = lane[1]
+				local x = get_output_position(drill)
+				x1, x2, x_end = x, x, drill.x + m_size - 1
+			end
+			for _, drill in ipairs(lane) do
+				x1 = min(x1, get_output_position(drill))
+				x2 = max(x2, get_output_position(drill))
+				x_end = max(x_end, x2, drill.x + m_size - 1)
+			end
+			return x1, x2, x_end
+		end
+		
+		-- local x1_1, x1_2 = get_lane_start(lane1, m.output_rotated[SOUTH].x), get_lane_start(lane2, m.output_rotated[NORTH].x)
+		local x1_1, x2_1, x_end_1 = get_x_positions(lane1)
+		local x1_2, x2_2, x_end_2 = get_x_positions(lane2)
+		local x1 = min(x1_1, x1_2) --[[@as number]]
+		-- local x2_1, x2_2 = get_lane_length(lane1, m.output_rotated[SOUTH].x), get_lane_length(lane2, m.output_rotated[NORTH].x)
+		local x2 = x2_1 and x2_2 and max(x2_1, x2_2) or x2_1 or x2_2 --[[@as number]]
+		local x_end = max(x_end_1, x_end_2) --[[@as number]]
+		x_end = max(x_end, x2)
+		local x_entry1, x_entry2 = get_lane_start(lane1, 0), get_lane_start(lane2, 0)
+		local x_entry = x_entry1 and x_entry2 and min(x_entry1, x_entry2) or x_entry1 or x_entry2 --[[@as number]]
+		
+		local belt = {
+			index=ceil(i/2),
+			x1=x1,
+			x2=x2,
+			y=y,
+			lane1=lane1,
+			lane2=lane2,
+			has_drills = true,
+			is_output = true,
+			x_start = attempt.sx,
+			x_entry = x_entry,
+			x_end = max(x2, x_end),
+			throughput1 = 0,
+			throughput2 = 0,
+			merged_throughput1 = 0,
+			merged_throughput2 = 0,
+		}
+		
+		self:_calculate_belt_throughput(state, belt, WEST)
+		
+		belts:push(belt)
+
+		::continue::
+	end
+	
+	for i = #belts, 1, -1 do
+		local belt = belts[i]
+		if belt.has_drills ~= true then
+			belts[i] = nil
+		else
+			break
+		end
+	end
+	
+	return belts
+end
+
+---@param self SuperCompactLayout
+---@param state SuperCompactState
 ---@return CallbackState
 function layout:prepare_miner_layout(state)
 	local grid = state.grid
@@ -210,205 +364,117 @@ function layout:prepare_miner_layout(state)
 		--]]
 	end
 
-	return "prepare_belt_layout"
+	local belts = self:_process_mining_drill_lanes(state)
+	state.belts = belts
+	state.belt_count = #belts
+
+	return "prepare_pole_layout"
 end
 
 ---@param self SuperCompactLayout
----@param state SimpleState
-function layout:prepare_belt_layout(state)
-	local m = state.miner
-	local g = state.grid
-	local attempt = state.best_attempt
-	local underground_belt = state.belt.related_underground_belt
-
-	local power_poles = {}
-	state.builder_power_poles = power_poles
+---@param state SuperCompactState
+---@return CallbackState
+function layout:prepare_pole_layout(state)
+	local next_step ="prepare_belt_layout"
+	if state.pole_choice == "none" then return next_step end
+	local G = state.grid
+	local size = state.miner.size
 	
-	---@type table<number, MinerPlacement[]>
-	local belt_lanes = attempt.lane_layout
-	local miner_lane_number = 0 -- highest index of a lane, because using # won't do the job if a lane is missing
-
-	local builder_belts = {}
-	state.builder_belts = builder_belts
-	local function que_entity(t) builder_belts[#builder_belts+1] = t end
-	state.belt_count = 0
-
-	for _, miner in ipairs(attempt.miners) do
-		local index = miner.line
-		miner_lane_number = max(miner_lane_number, index)
-		if not belt_lanes[index] then
-			belt_lanes[index] = {y=miner.y, row_index=index}
-		end
-		local line = belt_lanes[index]
-		line._index = index
-		local out_x = m.output_rotated[defines.direction[miner.direction]][1]
-		if line.last_x == nil or (miner.x + out_x) > line.last_x then
-			line.last_x = miner.x + out_x
-			line.last_miner = miner
-		end
-	end
-
-	do
-		local temp_belts = {}
-		for k, v in pairs(belt_lanes) do if v.last_miner then temp_belts[#temp_belts+1] = v end end
-		table.sort(temp_belts, function(a, b) return a.row_index < b.row_index end)
-		state.belts = temp_belts
-	end
-
-	local shift_x, shift_y = state.best_attempt.sx, state.best_attempt.sy
-
-	local function place_belts(start_x, end_x, y)
-		local belt_start, belt_end = 1 + shift_x + start_x, end_x
-		local pre_miner = g:get_tile(shift_x+m.size, y)
-		local built_miner = pre_miner and pre_miner.built_on == "miner"
-		if start_x == 0 then
-			-- straight runoff
-			for sx = 0, 2 do
-				que_entity{
-					name=state.belt_choice,
-					quality=state.belt_quality_choice,
-					thing="belt",
-					grid_x=belt_start-sx,
-					grid_y=y,
-					direction=WEST,
-				}
-			end
-		elseif not built_miner then
-			for sx = 0, m.size+2 do
-				que_entity{
-					name=state.belt_choice,
-					quality=state.belt_quality_choice,
-					thing="belt",
-					grid_x=belt_start-sx,
-					grid_y=y,
-					direction=WEST,
-				}
-			end
-		else
-			-- underground exit
-			que_entity{
-				name=underground_belt,
-				type="output",
-				quality=state.belt_quality_choice,
-				thing="belt",
-				grid_x=shift_x-1,
-				grid_y=y,
-				direction=WEST,
-			}
-			que_entity{
-				name=underground_belt,
-				type="input",
-				quality=state.belt_quality_choice,
-				thing="belt",
-				grid_x=shift_x+m.size+1,
-				grid_y=y,
-				direction=WEST,
-			}
-			if built_miner then
-				power_poles[#power_poles+1] = {
+	---@type List<PowerPoleGhostSpecification>
+	local builder_power_poles = List()
+	state.builder_power_poles = builder_power_poles
+	
+	local belt_start_adjust = 0
+	
+	for i, belt in ipairs(state.belts) do
+		local y = belt.y
+		local index_x = 1
+		local x_start = belt.x_start + (-1 + belt.index % 2) * 3
+		for x = x_start - 3, belt.x_end, size * 2 do
+			local miner1 = G:get_tile(x, y-1) --[[@as GridTile]]
+			local miner2 = G:get_tile(x, y+1) --[[@as GridTile]]
+			local miner3 = G:get_tile(x+1, y) --[[@as GridTile]]
+			
+			local built = miner1.built_thing or miner2.built_thing or miner3.built_thing
+			
+			if built then
+				if x == belt.x_start then
+					belt_start_adjust = min(belt_start_adjust, -1)
+				end
+				builder_power_poles:push{
 					name=state.pole_choice,
 					quality=state.pole_quality_choice,
-					thing="pole",
-					grid_x = shift_x,
+					thing = "pole",
+					grid_x = x,
 					grid_y = y,
+					no_light = true,
+					ix = index_x, iy = i,
 				}
+				G:build_thing_simple(x, y, "pole")
 			end
+			
+			index_x = index_x + 1
+		end
+	end
+	
+	state.belt_start_adjust = belt_start_adjust
+	
+	return next_step
+end
+
+
+---@param self SuperCompactLayout
+---@param state SuperCompactState
+function layout:prepare_belt_layout(state)
+	local belts = state.belts
+	local belt_count = #belts
+	for _, belt in pairs(belts) do
+		belt.x_start = belt.x_start + state.belt_start_adjust
+	end
+	
+	local belt_env, builder_belts, deconstruct_spec = common.create_belt_building_environment(state)
+	
+	if state.belt_merge_choice and belt_count > 1 then
+		for i = 1, belt_count - 1 do
+			self:_apply_belt_merge_strategy(state, belts[i],  belts[i+1], SOUTH)
 		end
 
-		for x = belt_start, end_x, m.size * 2 do
-			local miner1 = g:get_tile(x, y-1) --[[@as GridTile]]
-			local miner2 = g:get_tile(x, y+1) --[[@as GridTile]]
-			local miner3 = g:get_tile(x+3, y) --[[@as GridTile]]
-			local built = (miner1 and miner1.built_on == "miner") or (miner2 and miner2.built_on == "miner")
-			local capped = miner3 and miner3.built_on == "miner"
-			local pole_built = built or capped
-			local last = x + m.size * 2 > end_x
+		for i = belt_count, 2, -1 do
+			self:_apply_belt_merge_strategy(state, belts[i], belts[i-1], NORTH)
+		end
 
-			if last and not capped and not built then
-				-- no op
-			elseif last and not capped then
-				-- last passtrough and no trailing miner
-				que_entity{
-					name=state.belt_choice,
-					quality=state.belt_quality_choice,
-					thing="belt",
-					grid_x=x+1,
-					grid_y=y,
-					direction=WEST,
-				}
-			elseif capped or built then
-				que_entity{
-					name=underground_belt,
-					type="output",
-					quality=state.belt_quality_choice,
-					thing="belt",
-					grid_x=x+1,
-					grid_y=y,
-					direction=WEST,
-				}
-				que_entity{
-					name=underground_belt,
-					type="input",
-					quality=state.belt_quality_choice,
-					thing="belt",
-					grid_x=x+m.size*2,
-					grid_y=y,
-					direction=WEST,
-				}
+		for _, belt in ipairs(belts) do
+			if belt.has_drills ~= true or belt.merge_slave then
+				goto continue
+			elseif belt.merge_strategy == "back-merge" then
+				belt_env.make_interleaved_back_merge_belt(belt)
+				-- belt_env.make_interleaved_output_belt(target, target.x2 ~= merge_x)
+			elseif belt.is_output then
+				belt_env.make_interleaved_output_belt(belt, belt.merge_strategy == "target")
+			-- elseif belt.merge_strategy == "side-merge" then
+			-- 	belt_env.make_side_merge_belt(belt)
 			else
-				for sx = 1, 6 do
-					que_entity{
-						name=state.belt_choice,
-						quality=state.belt_quality_choice,
-						thing="belt",
-						grid_x=x+sx,
-						grid_y=y,
-						direction=WEST,
-					}
-				end
+				belt_env.make_interleaved_output_belt(belt)
 			end
-			if last and capped then belt_end = x+6 end
+			belt.merge_target = nil
 
-			if pole_built then
-				power_poles[#power_poles+1] = {
-					name=state.pole_choice,
-					quality=state.pole_quality_choice,
-					thing="pole",
-					grid_x = x + 2,
-					grid_y = y,
-				}
-			end
+			::continue::
 		end
-		return belt_start, belt_end
-	end
-
-	for i = 1, miner_lane_number do
-		local belt = belt_lanes[i]
-		if belt and belt.last_x then
-			local y = m.size + shift_y - 1 + (m.size + 2) * (i-1)
-			local x_start = i % 2 == 0 and 3 or 0
-			local bx1, bx2 = place_belts(x_start, belt.last_x, y)
-			belt.x1, belt.x2, belt.y = bx1-3, bx2, y
-			state.belt_count = state.belt_count + 1
-			local lane1, lane2 = {}, {}
-			for _, miner in ipairs(belt) do
-				if miner.direction == "north" then
-					lane2[#lane2+1] = miner
-				else
-					lane1[#lane1+1] = miner
-				end
+	else
+		for i, belt in pairs(belts) do
+			if belt.has_drills then
+				belt_env.make_interleaved_output_belt(belt)
 			end
-			if #lane1 > 0 then belt.lane1 = lane1 end
-			if #lane2 > 0 then belt.lane2 = lane2 end
-
 		end
 	end
 
+	state.builder_belts = builder_belts
+	
 	return "expensive_deconstruct"
 end
 
 ---@param self SuperCompactLayout
----@param state SimpleState
+---@param state SuperCompactState
 ---@return CallbackState
 function layout:placement_miners(state)
 	local create_entity = builder.create_entity_builder(state)

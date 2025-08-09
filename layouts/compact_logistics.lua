@@ -55,7 +55,7 @@ function layout:prepare_belt_layout(state)
 		local belt_start = 1 + shift_x + start_x
 		if start_x ~= 0 then
 			local miner = g:get_tile(shift_x+m.size, y)
-			if miner and miner.built_on == "miner" then
+			if miner and miner.built_thing == "miner" then
 				que_entity{
 					name=state.logistics_choice,
 					quality=state.logistics_quality_choice,
@@ -77,8 +77,8 @@ function layout:prepare_belt_layout(state)
 			local miner1 = g:get_tile(x, y-1) --[[@as GridTile]]
 			local miner2 = g:get_tile(x, y+1) --[[@as GridTile]]
 			local miner3 = g:get_tile(x+3, y) --[[@as GridTile]]
-			local built = (miner1 and miner1.built_on == "miner") or (miner2 and miner2.built_on == "miner")
-			local capped = miner3 and miner3.built_on == "miner"
+			local built = (miner1 and miner1.built_thing == "miner") or (miner2 and miner2.built_thing == "miner")
+			local capped = miner3 and miner3.built_thing == "miner"
 			local pole_built = built or capped
 
 			if capped then

@@ -72,12 +72,13 @@ script.on_configuration_changed(function(config_changed_data)
 		if storage.immediate_tasks == nil then
 			storage.immediate_tasks = {}
 		end
-		
+
 		for _, task in pairs(storage.tasks) do
 			task.performance_scaling = settings.global["mpp-performance-scaling"].value --[[@as number]]
+			task._render_objects = List(task._render_objects)
 		end
 	end
-	
+
 	if version < 010600 then
 		for player_index, data in pairs(storage.players) do
 			---@cast data PlayerData

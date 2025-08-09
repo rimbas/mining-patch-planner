@@ -60,7 +60,7 @@ local need_electricity = {
 ---@field y integer
 ---@field gx double actual coordinate in surface
 ---@field gy double actual coordinate in surface
----@field built_on GridBuilding Is tile occupied by a building entity
+---@field built_thing GridBuilding Is tile occupied by a building entity
 ---@field consumed boolean Is a miner consuming this tile
 ---@field avoid boolean? Should building on the tile be avoided
 ---@field forbidden boolean? Is the tile in range of mixed resource
@@ -337,7 +337,7 @@ function grid_mt:build_thing(cx, cy, thing, size_w, size_h)
 		for x = cx, cx + size_w do
 			local tile = row[x]
 			if tile then
-				tile.built_on = thing
+				tile.built_thing = thing
 			end
 		end
 		::continue_row::
@@ -353,7 +353,7 @@ function grid_mt:build_thing_simple(cx, cy, thing)
 	if row then
 		local tile = row[cx]
 		if tile then
-			tile.built_on = thing
+			tile.built_thing = thing
 			return true
 		end
 	end
@@ -370,7 +370,7 @@ function grid_mt:build_specification(t)
 		if row then
 			local tile = row[cx]
 			if tile then
-				tile.built_on = thing
+				tile.built_thing = thing
 			end
 		end
 	else
@@ -382,7 +382,7 @@ function grid_mt:build_specification(t)
 			for x = x1, x2 do
 				local tile = row[x]
 				if tile then
-					tile.built_on = thing
+					tile.built_thing = thing
 				end
 			end
 			::continue_row::
@@ -402,7 +402,7 @@ function grid_mt:find_thing(cx, cy, thing, size)
 		if row == nil then goto continue_row end
 		for x = x1, x2 do
 			local tile = row[x]
-			if tile and tile.built_on == thing then
+			if tile and tile.built_thing == thing then
 				return true
 			end
 		end
@@ -426,7 +426,7 @@ function grid_mt:find_thing_in(cx, cy, things, r, even)
 		if row == nil then goto continue_row end
 		for x = cx+o-r, cx+r do
 			local tile = row[x]
-			if tile and things[tile.built_on] then
+			if tile and things[tile.built_thing] then
 				return true
 			end
 		end
@@ -480,7 +480,7 @@ function grid_mt:needs_power(mx, my, pole)
 		for x = nx1, nx2 do
 			---@type GridTile
 			local tile = row[x]
-			if tile and need_electricity[tile.built_on] then
+			if tile and need_electricity[tile.built_thing] then
 				return true
 			end
 		end

@@ -1,4 +1,5 @@
 local mpp_util = require("mpp.mpp_util")
+local render_util = require("mpp.render_util")
 
 local common = {}
 
@@ -172,8 +173,9 @@ function common.process_postponed(state, attempt, miners, postponed)
 	local ext_negative, ext_positive = M.extent_negative, M.extent_positive
 	local area, size = M.area, M.size
 	local area_sq = M.area_sq
-	
 	local consume_cache = {}
+	
+	grid:clear_consumed(state.resource_tiles)
 	
 	for _, miner in ipairs(miners) do
 		-- grid:consume(miner.x+ext_negative, miner.y+ext_negative, area)
@@ -335,9 +337,9 @@ local bound_alignment = {
 ---@param state State
 ---@param belt BeltSpecification
 function common.draw_belt_lane(state, belt)
+	if not belt.has_drills then return end
 	local r = state._render_objects
 	local c, ttl, player = state.coords, 0, {state.player}
-	local x1, y1, x2, y2 = belt.x_start, belt.y, math.max(belt.x1+2, belt.x2), belt.y
 	local function l2w(x, y) -- local to world
 		return mpp_util.revert(c.gx, c.gy, state.direction_choice, x, y, c.tw, c.th)
 	end
@@ -345,38 +347,112 @@ function common.draw_belt_lane(state, belt)
 	local w1, w2 = 4, 10
 	if not belt.lane1 and not belt.lane2 then c1 = c3 end
 	
-	r[#r+1] = rendering.draw_line{ -- background main line
-		surface=state.surface, players=player, only_in_alt_mode=true,
-		width=w2, color=c2, time_to_live=ttl or 1,
-		from=l2w(x1, y1), to=l2w(x2+.5, y1),
-	}
-	r[#r+1] = rendering.draw_line{ -- background vertical cap
-		surface=state.surface, players=player, only_in_alt_mode=true,
-		width=w2, color=c2, time_to_live=ttl or 1,
-		from=l2w(x2+.5, y1-.6), to=l2w(x2+.5, y2+.6),
-	}
-	r[#r+1] = rendering.draw_polygon{ -- background arrow
-		surface=state.surface, players=player, only_in_alt_mode=true,
-		width=w2, color=c2, time_to_live=ttl or 1,
-		target=l2w(x1, y1),
-		vertices=triangles[state.direction_choice][1],
-	}
-	r[#r+1] = rendering.draw_line{ -- main line
-		surface=state.surface, players=player, only_in_alt_mode=true,
-		width=w1, color=c1, time_to_live=ttl or 1,
-		from=l2w(x1-.2, y1), to=l2w(x2+.5, y1),
-	}
-	r[#r+1] = rendering.draw_line{ -- vertical cap
-		surface=state.surface, players=player, only_in_alt_mode=true,
-		width=w1, color=c1, time_to_live=ttl or 1,
-		from=l2w(x2+.5, y1-.5), to=l2w(x2+.5, y2+.5),
-	}
-	r[#r+1] = rendering.draw_polygon{ -- arrow
-		surface=state.surface, players=player, only_in_alt_mode=true,
-		width=0, color=c1, time_to_live=ttl or 1,
-		target=l2w(x1, y1),
-		vertices=triangles[state.direction_choice][2],
-	}
+	local overlay_line = belt.overlay_line
+	if overlay_line then
+		---@type List<LuaRenderObject>
+		local background = List()
+		local x1, y1, x2, y2 = nil, nil, overlay_line[1][1], overlay_line[1][2]
+		
+		r:push(rendering.draw_polygon{ -- background arrow
+			surface=state.surface, players=player, only_in_alt_mode=true,
+			width=w2, color=c2, time_to_live=ttl or 1,
+			target=l2w(x2, y2),
+			vertices=triangles[state.direction_choice][1],
+		})
+		
+		for i = 2, #overlay_line do
+			local step = overlay_line[i]
+			if #step == 0 then goto continue end
+			x1, y1, x2, y2 = x2, y2, step[1], step[2]
+			background:push(rendering.draw_line{ -- background main line
+				surface=state.surface, players=player, only_in_alt_mode=true,
+				width=w2, color=c2, time_to_live=ttl or 1,
+				from=l2w(x1, y1), to=l2w(x2, y2),
+			})
+			background:push(rendering.draw_circle{
+				surface=state.surface, players=player, only_in_alt_mode=true,
+				width=w2, color=c2, time_to_live=ttl or 1,
+				target=l2w(x2, y2),
+				filled = true, radius = w2 / 64,
+			})
+			r:push(rendering.draw_line{ -- main line
+				surface=state.surface, players=player, only_in_alt_mode=true,
+				width=w1, color=c1, time_to_live=ttl or 1,
+				from=l2w(x1, y1), to=l2w(x2, y2),
+			})
+			r:push(rendering.draw_circle{
+				surface=state.surface, players=player, only_in_alt_mode=true,
+				width=w1, color=c1, time_to_live=ttl or 1,
+				target=l2w(x2, y2),
+				filled = true, radius = w1 / 64,
+			})
+			::continue::
+		end
+		
+		background:push(rendering.draw_polygon{ -- background arrow
+			surface=state.surface, players=player, only_in_alt_mode=true,
+			width=w2, color=c2, time_to_live=ttl or 1,
+			target=l2w(belt.x_start, belt.y),
+			vertices=triangles[state.direction_choice][1],
+		})
+		r:push(rendering.draw_polygon{ -- arrow
+			surface=state.surface, players=player, only_in_alt_mode=true,
+			width=0, color=c1, time_to_live=ttl or 1,
+			target=l2w(belt.x_start, belt.y),
+			vertices=triangles[state.direction_choice][2],
+		})
+		
+		background:push(rendering.draw_line{ -- background vertical cap
+			surface=state.surface, players=player, only_in_alt_mode=true,
+			width=w2, color=c2, time_to_live=ttl or 1,
+			from=l2w(x2, y1-.6), to=l2w(x2, y2+.6),
+		})
+		r:push(rendering.draw_line{ -- vertical cap
+			surface=state.surface, players=player, only_in_alt_mode=true,
+			width=w1, color=c1, time_to_live=ttl or 1,
+			from=l2w(x2, y1-.5), to=l2w(x2, y2+.5),
+		})
+		
+		for _, obj in pairs(background) do
+			obj.move_to_back()
+			r:push(obj)
+		end
+	else
+		-- simple output belt rendering
+		local x1, y1, x2, y2 = belt.x_start, belt.y, math.max(belt.x_entry+2, belt.x2), belt.y
+		r:push(rendering.draw_line{ -- background main line
+			surface=state.surface, players=player, only_in_alt_mode=true,
+			width=w2, color=c2, time_to_live=ttl or 1,
+			from=l2w(x1, y1), to=l2w(x2+.5, y1),
+		})
+		r:push(rendering.draw_line{ -- background vertical cap
+			surface=state.surface, players=player, only_in_alt_mode=true,
+			width=w2, color=c2, time_to_live=ttl or 1,
+			from=l2w(x2+.5, y1-.6), to=l2w(x2+.5, y2+.6),
+		})
+		r:push(rendering.draw_polygon{ -- background arrow
+			surface=state.surface, players=player, only_in_alt_mode=true,
+			width=w2, color=c2, time_to_live=ttl or 1,
+			target=l2w(x1, y1),
+			vertices=triangles[state.direction_choice][1],
+		})
+		r:push(rendering.draw_line{ -- main line
+			surface=state.surface, players=player, only_in_alt_mode=true,
+			width=w1, color=c1, time_to_live=ttl or 1,
+			from=l2w(x1-.2, y1), to=l2w(x2+.5, y1),
+		})
+		r:push(rendering.draw_line{ -- vertical cap
+			surface=state.surface, players=player, only_in_alt_mode=true,
+			width=w1, color=c1, time_to_live=ttl or 1,
+			from=l2w(x2+.5, y1-.5), to=l2w(x2+.5, y2+.5),
+		})
+		r:push(rendering.draw_polygon{ -- arrow
+			surface=state.surface, players=player, only_in_alt_mode=true,
+			width=0, color=c1, time_to_live=ttl or 1,
+			target=l2w(x1, y1),
+			vertices=triangles[state.direction_choice][2],
+		})
+	end
 end
 
 ---Draws a belt lane overlay
@@ -389,7 +465,7 @@ function common.draw_belt_stats(state, belt, belt_speed, speed1, speed2)
 	local function l2w(x, y) -- local to world
 		return mpp_util.revert(c.gx, c.gy, state.direction_choice, x, y, c.tw, c.th)
 	end
-	local c1, c2, c3, c4 = {.9, .9, .9}, {0, 0, 0}, {.9, 0, 0}, {.4, .4, .4}
+	local c1, c2, c3, c4 = {.9, .9, .9}, {0, 0, 0}, {1, .2, 0}, {.4, .4, .4}
 	
 	local ratio1 = speed1
 	local ratio2 = speed2
@@ -456,24 +532,24 @@ function common.draw_belt_total(state, pos_x, pos_y, speed, capped1, capped2, un
 	local uncapped_total = uncapped1 + uncapped2
 	local unused_capacity = uncapped_total - capped_total
 
-	r[#r+1] = rendering.draw_text{
+	r:push(rendering.draw_text{
 		surface=state.surface, players=player, only_in_alt_mode=true,
 		color=c1, time_to_live=ttl or 1,
 		alignment="center", vertical_alignment="middle",
 		target=l2w(pos_x-4, pos_y-.6, false), scale=2,
 		-- text={"mpp.msg_print_info_lane_saturation_belts", string.format("%.2fx", upper_bound), },
 		text = {"mpp.msg_print_info_lane_throuput_total", ("%.2f"):format(capped_total*speed), ceil(upper_bound)},
-	}
+	})
 	if unused_capacity > 0 then
-		local color = unused_capacity > capped_total * .1 and {.9, 0, 0} or {1, 1, 1}
-		r[#r+1] = rendering.draw_text{
+		local color = unused_capacity > capped_total * .1 and {1, .2, 0} or {1, 1, 1}
+		r:push(rendering.draw_text{
 			surface=state.surface, players=player, only_in_alt_mode=true,
 			color=color, time_to_live=ttl or 1,
 			alignment="center", vertical_alignment="middle",
 			target=l2w(pos_x-4, pos_y+.6, true), scale=2,
 			-- text={"mpp.msg_print_info_lane_saturation_bounds", string.format("%.2fx", lower_bound), string.format("%.2fx", upper_bound)},
 			text = {"mpp.msg_print_info_lane_throuput_unused", ("%.2f"):format(unused_capacity*speed)},
-		}
+		})
 	end
 end
 
@@ -613,7 +689,7 @@ function common.create_belt_building_environment(state)
 		end
 		for y = y1+s1, y2+s2 do
 			local tile = G[y][x]
-			if tile.built_on then
+			if tile.built_thing then
 				return false, 0, 0
 			end
 		end
@@ -678,13 +754,15 @@ function common.create_belt_building_environment(state)
 		local vertical_dir = belt.merge_direction
 		local target = belt.merge_target --[[@as BaseBeltSpecification]]
 		local y = belt.y
+		local yt = target.y
 		
 		local merge_x = nil
 		local entry = max(belt.x_end, target.x2+1)
-		for x = entry, target.x_end do
+		for x = entry, target.x_end+M.size do
 			exists, y1, y2 = gap_exists(x, belt.y, target.y, vertical_dir)
 			if exists then
 				merge_x, accomodation = x, -1
+				break
 			end
 		end
 		
@@ -692,6 +770,7 @@ function common.create_belt_building_environment(state)
 			place_horizontal_belt(belt.x1, merge_x+accomodation, y, EAST) -- main belt
 			place_vertical_belt(merge_x, y1, y2, vertical_dir) -- vertical segment
 			place_horizontal_belt(target.x2+1, merge_x, target.y, WEST) -- target merge accomodation
+			target.overlay_line = {{target.x_start, yt}, {merge_x, yt}, {merge_x, y}, {belt.x1, y}}
 		else
 			place_horizontal_belt(belt.x_start, belt.x2, y, WEST)
 		end
@@ -701,42 +780,132 @@ function common.create_belt_building_environment(state)
 	---@param x1 number
 	---@param x2 number
 	---@param y number
-	---@param direction defines.direction
-	---@param simple_capstone boolean
-	local function place_interleaved_belt_west(x1, x2, y, direction, simple_capstone)
+	---@param open_capstone boolean If open, place an underground output belt
+	local function place_interleaved_belt_west(x1, x2, y, open_capstone)
 		local row = G[y]
 		local tile_before, tile, tile_ahead = nil, row[x1-1], row[x1]
 		
 		for x = x1, x2-1 do
 			tile_before, tile, tile_ahead = tile, tile_ahead, row[x+1]
-			local free = tile.built_on
+			local free = tile.built_thing
 			if free ~= nil then
 				-- no op
-			elseif tile_before.built_on ~= nil then
-				create_underground(x, y, direction, "input")
-			elseif tile_ahead.built_on ~= nil then
-				create_underground(x, y, direction, "output")
+			elseif tile_before.built_thing ~= nil then
+				create_underground(x, y, WEST, "input")
+			elseif tile_ahead.built_thing ~= nil then
+				create_underground(x, y, WEST, "output")
 			else
-				create_belt(x, y, direction)
+				create_belt(x, y, WEST)
 			end
 		end
 		
 		tile_before, tile, tile_ahead = tile, tile_ahead, row[x2+1]
-		if simple_capstone ~= true and tile_ahead.built_on ~= nil then
-			create_underground(x2, y, direction, "output")
-		elseif tile_before.built_on ~= nil then
-			create_underground(x2, y, direction, "input")
+		if open_capstone and tile_ahead.built_thing ~= nil then
+			create_underground(x2, y, WEST, "output")
+		elseif tile_before.built_thing ~= nil then
+			create_underground(x2, y, WEST, "input")
 		else
-			create_belt(x2, y, direction)
+			create_belt(x2, y, WEST)
 		end
 	end
 	environment.place_interleaved_belt_west = place_interleaved_belt_west
-	
+
 	---@param belt BaseBeltSpecification
-	local function make_interleaved_output_belt(belt, simple_capstone)
-		place_interleaved_belt_west(belt.x_start, belt.x2, belt.y, WEST, simple_capstone or true)
+	local function make_interleaved_output_belt(belt, open_capstone)
+		place_interleaved_belt_west(belt.x_start, belt.x2, belt.y, open_capstone)
 	end
 	environment.make_interleaved_output_belt = make_interleaved_output_belt
+
+	local function place_interleaved_belt_east(x1, x2, y)
+		local row = G[y]
+		local tile_before, tile, tile_ahead = nil, row[x1], row[x1+1]
+		
+		if tile_ahead.built_thing ~= nil then
+			create_underground(x1, y, WEST, "output")
+		else
+			create_belt(x1, y, EAST)
+		end
+		
+		for x = x1+1, x2 do
+			tile_before, tile, tile_ahead = tile, tile_ahead, row[x+1]
+			local free = tile.built_thing
+			if free ~= nil then
+				-- no op
+			elseif tile_before.built_thing ~= nil then
+				create_underground(x, y, EAST, "output")
+			elseif tile_ahead.built_thing ~= nil then
+				create_underground(x, y, EAST, "input")
+			else
+				create_belt(x, y, EAST)
+			end
+		end
+	end
+	environment.place_interleaved_belt_east = place_interleaved_belt_east
+
+	---@param belt BaseBeltSpecification
+	local function make_interleaved_back_merge_belt(belt)
+		local vertical_dir = belt.merge_direction
+		local target = belt.merge_target --[[@as BaseBeltSpecification]]
+		local y = belt.y
+		local yt = target.y
+		
+		local s_row, t_row = G[y], G[target.y]
+		
+		local merge_x = nil
+		local entry = max(belt.x2+1, target.x2)
+		local free_entry = s_row[entry-1].built_thing == nil and t_row[entry-1].built_thing == nil
+		for x = entry, max(belt.x2, target.x_end)+M.size do
+			if s_row[x-1].built_thing or s_row[x+1].built_thing then
+				goto continue
+			end
+			exists, y1, y2 = gap_exists(x, belt.y, target.y, vertical_dir)
+			if free_entry and exists then
+				merge_x, accomodation = x, -1
+				break
+			end
+			::continue::
+			free_entry = s_row[x].built_thing == nil and t_row[x].built_thing == nil
+		end
+		
+		if merge_x then
+			local a = 1
+			-- place_interleaved_belt_east(belt.x1, merge_x+accomodation, y) -- main belt
+			-- place_vertical_belt(merge_x, y1, y2, vertical_dir) -- vertical segment
+			-- place_horizontal_belt(target.x2+1, merge_x, target.y, WEST) -- target merge accomodation
+			
+			place_interleaved_belt_east(belt.x1, merge_x+accomodation, y) -- main belt
+			place_vertical_belt(merge_x, y1, y2, vertical_dir) -- vertical segment
+			place_interleaved_belt_west(target.x_start, merge_x, target.y, merge_x == target.x2)
+			target.overlay_line = {{target.x_start, yt}, {merge_x, yt}, {merge_x, y}, {belt.x1, y}}
+			return merge_x
+		else
+			state.player.print("Failed placing a belt")
+		end
+	end
+	environment.make_interleaved_back_merge_belt = make_interleaved_back_merge_belt
+	
+	---@param belt BaseBeltSpecification
+	local function place_sparse_belt(belt, x_start)
+		local lane1, lane2 = belt.lane1, belt.lane2
+		local x1 = x_start or belt.x_entry
+		local x2 = belt.x2
+		local out_x1, out_x2 = M.output_rotated[SOUTH].x, M.output_rotated[NORTH].x
+		local function get_lane_length(lane) if lane then return lane[#lane].x end return 0 end
+		if lane1 and lane2 then
+			x2 = max(get_lane_length(lane1)+out_x1, get_lane_length(lane2)+ out_x2+1)
+		elseif lane1 then
+			x2 = get_lane_length(lane1) + out_x1
+		else
+			x2 = get_lane_length(lane2) + out_x2 + 1
+		end
+		place_horizontal_belt(x1, x2, belt.y, WEST)
+	end
+	environment.place_sparse_belt = place_sparse_belt
+	
+	local function make_sparse_output_belt(belt, x)
+		place_sparse_belt(belt, x or belt.x_entry)
+	end
+	environment.make_sparse_output_belt = make_sparse_output_belt
 	
 	return environment, builder_belts, deconstruct_spec
 end

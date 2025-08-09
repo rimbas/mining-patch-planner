@@ -99,6 +99,7 @@
 ---@field is_output boolean? Does belt output normally
 ---@field merge_strategy BeltMergeStrategy?
 ---@field merge_direction defines.direction.north | defines.direction.south | nil Merge direction
+---@field merge_slave true? The belt does not build itself
 ---@field merge_target BaseBeltSpecification?
 ---@field lane1 MinerPlacement[] Top lane of belt
 ---@field lane2 MinerPlacement[] Bottom lane of belt
@@ -106,10 +107,14 @@
 ---@field throughput2 number Throughput of bottom lane of belt
 ---@field merged_throughput1 number Throughput of top lane of belt
 ---@field merged_throughput2 number Throughput of bottom lane of belt
----@field has_obstacles? true Is belt underground interleaved
+---@field has_obstacles true? Is belt underground interleaved
+---@field overlay_line {[1]:number, [2]:number, curve: defines.direction?}[]? Line for overlay rendering
 
 ---@class BeltSpecification : BaseBeltSpecification
 ---@field index number Belt index for belt planner
+
+---@alias BeltMergeDetail
+---| "source"
 
 ---@class BeltPlannerSpecification
 ---@field [number] BeltSpecification
