@@ -42,13 +42,14 @@ end
 
 ---@param state CompactState
 ---@return PlacementAttempt
-function layout:_placement_attempt(state, shift_x, shift_y)
+function layout:_placement_attempt(state, attempt)
 	local grid = state.grid
 	local M = state.miner
 	local size = M.size
 	local miners, postponed = {}, {}
 	local heuristic_values = common.init_heuristic_values()
 	local lane_layout = {}
+	local shift_x, shift_y = attempt[1], attempt[2]
 	local bx, by = shift_x + M.size - 1, shift_y + M.size - 1
 
 	local heuristic = self:_get_miner_placement_heuristic(state)
@@ -362,7 +363,7 @@ function layout:prepare_belt_layout(state)
 				belt_env.make_interleaved_back_merge_belt(belt)
 				-- belt_env.make_interleaved_output_belt(target, target.x2 ~= merge_x)
 			elseif belt.is_output then
-				belt_env.make_interleaved_output_belt(belt, belt.merge_strategy == "target")
+				belt_env.make_interleaved_output_belt(belt, false)
 			-- elseif belt.merge_strategy == "side-merge" then
 			-- 	belt_env.make_side_merge_belt(belt)
 			else
@@ -382,7 +383,7 @@ function layout:prepare_belt_layout(state)
 
 	state.builder_belts = builder_belts
 
-	do return "expensive_deconstruct" end
+	return "expensive_deconstruct"
 end
 
 return layout

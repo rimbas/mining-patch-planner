@@ -15,6 +15,8 @@ layout.restrictions.lamp_available = false
 layout.restrictions.belt_available = false
 layout.restrictions.logistics_available = true
 layout.restrictions.lane_filling_info_available = false
+layout.restrictions.belt_merging_available = false
+layout.restrictions.belt_planner_available = false
 
 ---@param self SimpleLayout
 ---@param state SimpleState

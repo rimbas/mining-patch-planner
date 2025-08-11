@@ -12,7 +12,7 @@ local miner_direction, opposite = mpp_util.miner_direction, mpp_util.opposite
 
 local table_insert, table_sort = table.insert, table.sort
 local floor, ceil = math.floor, math.ceil
-local min, max = math.min, math.max
+local min, max, mina, maxa = math.min, math.max, math.mina, math.maxa
 local EAST, NORTH, SOUTH, WEST = mpp_util.directions()
 
 ---@class SimpleLayout : Layout
@@ -413,7 +413,6 @@ function layout:process_grid_convolution(state)
 
 	if state.resource_iter >= num_resources then
 		state.convolution_cache = nil
-		-- return "prepare_layout_attempts"
 		return self:prepare_layout_attempts(state)
 	end
 	return true
@@ -478,9 +477,12 @@ function layout:_get_layout_heuristic(state)
 	end
 end
 
+---@param self SimpleLayout
 ---@param state SimpleState
+---@param attempt PlacementCoords
 ---@return PlacementAttempt
-function layout:_placement_attempt(state, shift_x, shift_y)
+function layout:_placement_attempt(state, attempt)
+	local shift_x, shift_y = attempt[1], attempt[2]
 	local grid = state.grid
 	local M = state.miner
 	local size, area = M.size, M.area
@@ -517,7 +519,7 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 			elseif tile.neighbors_outer > 0 and heuristic(tile) then
 				miners[#miners+1] = miner
 				common.add_heuristic_values(heuristic_values, M, tile)
-				bx, by = max(bx, x + size - 1), max(by, row_index + size - 1)
+				bx, by = max(bx, x + size - 1), max(by, y + size - 1)
 			elseif tile.neighbors_outer > 0 then
 				postponed[#postponed+1] = miner
 			end
@@ -609,6 +611,14 @@ function layout:prepare_layout_attempts(state)
 	return "layout_attempts"
 end
 
+---Overridable CallbackState provider what step to continue after determining best attempt
+---@param self SimpleLayout
+---@param state SimpleState
+---@return CallbackState
+function layout:callback_post_attempts(state)
+	return "prepare_miner_layout"
+end
+
 ---@param self SimpleLayout
 ---@param state SimpleState
 ---@return CallbackState
@@ -622,7 +632,7 @@ function layout:layout_attempts(state)
 	state.saved_attempts = saved_attempts
 	if state.attempt_index == 1 then
 		local attempt_state = state.attempts[state.attempt_index]
-		local current_attempt = self:_placement_attempt(state, attempt_state[1], attempt_state[2])
+		local current_attempt = self:_placement_attempt(state, attempt_state)
 		local current_attempt_score = self:_get_layout_heuristic(state)(current_attempt.heuristics, M)
 		current_attempt.heuristic_score = current_attempt_score
 		current_attempt.index = state.attempt_index
@@ -644,7 +654,7 @@ function layout:layout_attempts(state)
 	
 	while state.attempt_index <= attempt_count do
 		local attempt_state = state.attempts[state.attempt_index]
-		local current_attempt = self:_placement_attempt(state, attempt_state[1], attempt_state[2])
+		local current_attempt = self:_placement_attempt(state, attempt_state)
 		local current_attempt_score = self:_get_layout_heuristic(state)(current_attempt.heuristics, M)
 		current_attempt.index = state.attempt_index
 		current_attempt.heuristic_score = current_attempt_score
@@ -693,7 +703,7 @@ function layout:layout_attempts(state)
 			state.saved_attempts = nil
 		end
 		
-		return "prepare_miner_layout"
+		return self:callback_post_attempts(state)
 	end
 
 	return true
@@ -718,7 +728,7 @@ function layout:layout_attempts_fallback(state)
 		
 		if attempt.heuristics.unconsumed == 0 then
 			state.best_attempt = attempt
-			return "prepare_miner_layout"
+			return self:callback_post_attempts(state)
 		end
 		
 		attempt_index = attempt_index + 1
@@ -742,7 +752,7 @@ function layout:layout_attempts_fallback(state)
 		state.best_attempt = attempt
 		state.best_attempt_score = attempt.heuristic_score
 		
-		return "prepare_miner_layout"
+		return self:callback_post_attempts(state)
 	end
 	
 	return true
@@ -1199,14 +1209,14 @@ function layout:_process_mining_drill_lanes(state)
 	local miner_lane_count = state.miner_lane_count -- highest index of a lane, because using # won't do the job if a lane is missing
 
 	---@param lane MinerPlacement[]
-	---@return number
-	local function get_lane_length(lane, out_x) return lane and lane[#lane] and lane[#lane].x+out_x or 0/0 end
+	---@return number?
+	local function get_lane_length(lane, out_x) return lane and lane[#lane] and lane[#lane].x + out_x end
 	---@param lane MinerPlacement[]
-	---@return number
-	local function get_lane_start(lane, out_x) return lane and lane[1] and lane[1].x + out_x or 0/0 end
+	---@return number?
+	local function get_lane_start(lane, out_x) return lane and lane[1] and lane[1].x + out_x end
 	---@param lane MinerPlacement[]
-	---@return number
-	local function get_lane_end(lane, size) return lane and lane[#lane] and lane[#lane].x + size or 0/0 end
+	---@return number?
+	local function get_lane_end(lane, size) return lane and lane[#lane] and lane[#lane].x + size end
 
 	local pipe_adjust = state.place_pipes and -1 or 0
 	local belts = List() --[[@as List<BaseBeltSpecification>]]
@@ -1238,10 +1248,10 @@ function layout:_process_mining_drill_lanes(state)
 			goto continue
 		end
 		
-		local x1 = min(get_lane_start(lane1, out_rot[SOUTH].x), get_lane_start(lane2, out_rot[NORTH].x))
-		local x2 = max(get_lane_length(lane1, out_rot[SOUTH].x), get_lane_length(lane2, out_rot[NORTH].x))
-		local x_end = max(get_lane_end(lane1, m.size-1), get_lane_end(lane2, m.size-1))
-		local x_entry = min(get_lane_start(lane1, 0), get_lane_start(lane2, 0))
+		local x1 = mina(get_lane_start(lane1, out_rot[SOUTH].x), get_lane_start(lane2, out_rot[NORTH].x))
+		local x2 = maxa(get_lane_length(lane1, out_rot[SOUTH].x), get_lane_length(lane2, out_rot[NORTH].x))
+		local x_end = maxa(get_lane_end(lane1, m.size-1), get_lane_end(lane2, m.size-1))
+		local x_entry = mina(get_lane_start(lane1, 0), get_lane_start(lane2, 0))
 		
 		local belt = {
 			index=ceil(i/2),
@@ -1342,8 +1352,9 @@ function layout:prepare_belt_layout(state)
 		end
 		
 		for _, belt in ipairs(belts) do
-			if belt.has_drills ~= true then goto continue end
-			if belt.is_output then
+			if belt.has_drills ~= true or belt.merge_slave then
+				goto continue
+			elseif belt.is_output then
 				belt_env.make_output_belt(belt)
 			elseif belt.merge_strategy == "side-merge" then
 				belt_env.make_side_merge_belt(belt)

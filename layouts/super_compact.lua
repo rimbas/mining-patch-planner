@@ -6,7 +6,7 @@ local builder = require("mpp.builder")
 
 local table_insert = table.insert
 local floor, ceil = math.floor, math.ceil
-local min, max = math.min, math.max
+local min, max, mina, maxa = math.min, math.max, math.mina, math.maxa
 local EAST, NORTH, SOUTH, WEST = mpp_util.directions()
 
 ---@class SuperCompactLayout : SimpleLayout
@@ -47,13 +47,14 @@ end
 ---@param self SuperCompactLayout
 ---@param state SuperCompactState
 ---@return PlacementAttempt
-function layout:_placement_attempt(state, shift_x, shift_y)
+function layout:_placement_attempt(state, attempt)
 	local grid = state.grid
 	local M = state.miner
 	local size, area = M.size, M.area
 	local miners, postponed = {}, {}
 	local heuristic_values = common.init_heuristic_values()
 	local lane_layout = {}
+	local shift_x, shift_y = attempt[1], attempt[2]
 	local bx, by = shift_x + size - 1, shift_y + size - 1
 	
 	--@param tile GridTile
@@ -200,6 +201,7 @@ function layout:_process_mining_drill_lanes(state)
 	local belts = List() --[[@as List<BaseBeltSpecification>]]
 	local pole_gap = (1 + state.pole_gap) / 2
 	for i = 1, miner_lane_count, 2 do
+		local x_default = attempt.sx + 1
 		local lane1 = miner_lanes[i]
 		local lane2 = miner_lanes[i+1]
 		
@@ -208,11 +210,11 @@ function layout:_process_mining_drill_lanes(state)
 		if (not lane1 or #lane1 == 0) and (not lane2 or #lane2 == 0) then
 			belts:push{
 				index=ceil(i/2),
-				x1=attempt.sx + 1,
-				x2=attempt.sx + 1,
-				x_start=attempt.sx + 1,
-				x_entry=attempt.sx + 1,
-				x_end=attempt.sx + 1,
+				x1=x_default,
+				x2=x_default,
+				x_start=x_default,
+				x_entry=x_default,
+				x_end=x_default,
 				y=y,
 				has_drills=false,
 				is_output=false,
@@ -237,30 +239,30 @@ function layout:_process_mining_drill_lanes(state)
 		local function get_x_positions(lane)
 			local x1, x2, x_end
 			if not lane or #lane == 0 then
-				return 0/0, 0/0, 0/0 -- this is asking for bugs
+				return
 			elseif lane[1] then
 				local drill = lane[1]
 				local x = get_output_position(drill)
 				x1, x2, x_end = x, x, drill.x + m_size - 1
 			end
 			for _, drill in ipairs(lane) do
-				x1 = min(x1, get_output_position(drill))
-				x2 = max(x2, get_output_position(drill))
-				x_end = max(x_end, x2, drill.x + m_size - 1)
+				x1 = mina(x1, get_output_position(drill))
+				x2 = maxa(x2, get_output_position(drill))
+				x_end = maxa(x_end, x2, drill.x + m_size - 1)
 			end
 			return x1, x2, x_end
 		end
 		
+		local a = 1
+		
 		-- local x1_1, x1_2 = get_lane_start(lane1, m.output_rotated[SOUTH].x), get_lane_start(lane2, m.output_rotated[NORTH].x)
 		local x1_1, x2_1, x_end_1 = get_x_positions(lane1)
 		local x1_2, x2_2, x_end_2 = get_x_positions(lane2)
-		local x1 = min(x1_1, x1_2) --[[@as number]]
+		local x1 = mina(x1_1, x1_2)
 		-- local x2_1, x2_2 = get_lane_length(lane1, m.output_rotated[SOUTH].x), get_lane_length(lane2, m.output_rotated[NORTH].x)
-		local x2 = x2_1 and x2_2 and max(x2_1, x2_2) or x2_1 or x2_2 --[[@as number]]
-		local x_end = max(x_end_1, x_end_2) --[[@as number]]
-		x_end = max(x_end, x2)
-		local x_entry1, x_entry2 = get_lane_start(lane1, 0), get_lane_start(lane2, 0)
-		local x_entry = x_entry1 and x_entry2 and min(x_entry1, x_entry2) or x_entry1 or x_entry2 --[[@as number]]
+		local x2 = maxa(x2_1, x2_2)
+		local x_end = maxa(x_end_1, x_end_2, x2)
+		local x_entry = mina(get_lane_start(lane1, 0), get_lane_start(lane2, 0)) --[[@as number]]
 		
 		local belt = {
 			index=ceil(i/2),
@@ -422,6 +424,53 @@ function layout:prepare_pole_layout(state)
 	return next_step
 end
 
+---Determine and set merge strategies
+---@param self SimpleLayout
+---@param source BaseBeltSpecification
+---@param target BaseBeltSpecification
+---@param direction defines.direction.north | defines.direction.south
+function layout:_apply_belt_merge_strategy(state, source, target, direction)
+	local source_t1, source_t2 = source.throughput1, source.throughput2
+	local source_total = source_t1 + source_t2
+	local target_t1, target_t2 = target.merged_throughput1, target.merged_throughput2
+	local target_total = target_t1 + target_t2
+	
+	if (
+		source.has_drills ~= true
+		or target.has_drills ~= true
+		or source.merge_direction
+		or source.merge_strategy == "target"
+		or target.merge_strategy == "target"
+		or source_total > target_total
+	) then
+		return
+	elseif source_total <= target_total and (source_t1 + target_t2) <= 1 and (source_t2 + target_t1) <= 1 then
+		source.merge_target = target
+		source.merge_direction = direction
+		source.is_output = false
+		source.merge_strategy = "back-merge"
+		self:_calculate_belt_throughput(state, source, EAST)
+		source_t1, source_t2 = source.throughput1, source.throughput2
+		target.merge_strategy = "target"
+		target.merge_slave = true
+		target.merged_throughput2 = target_t2 + source_t1
+		target.merged_throughput1 = target_t1 + source_t2
+	elseif direction == SOUTH and source_total <= 1 - target_t1 then
+		source.merge_target = target
+		source.merge_direction = direction
+		source.is_output = false
+		source.merge_strategy = "side-merge"
+		target.merge_strategy = "target"
+		target.merged_throughput1 = target_t1 + source_total
+	elseif direction == NORTH and source_total <= 1 - target_t2 then
+		source.merge_target = target
+		source.merge_direction = direction
+		source.is_output = false
+		source.merge_strategy = "side-merge"
+		target.merge_strategy = "target"
+		target.merged_throughput2 = target_t2 + source_total
+	end
+end
 
 ---@param self SuperCompactLayout
 ---@param state SuperCompactState
@@ -450,7 +499,7 @@ function layout:prepare_belt_layout(state)
 				belt_env.make_interleaved_back_merge_belt(belt)
 				-- belt_env.make_interleaved_output_belt(target, target.x2 ~= merge_x)
 			elseif belt.is_output then
-				belt_env.make_interleaved_output_belt(belt, belt.merge_strategy == "target")
+				belt_env.make_interleaved_output_belt(belt)
 			-- elseif belt.merge_strategy == "side-merge" then
 			-- 	belt_env.make_side_merge_belt(belt)
 			else

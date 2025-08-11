@@ -8,6 +8,7 @@ local mpp_util = require("mpp.mpp_util")
 local builder = require("mpp.builder")
 local common   = require("layouts.common")
 local compatibility = require("mpp.compatibility")
+local belt_planner  = require("mpp.belt_planner")
 local is_buildable_in_space = compatibility.is_buildable_in_space
 local direction_coord = mpp_util.direction_coord
 
@@ -35,6 +36,7 @@ local layout = table.deepcopy(base)
 ---@field lamps BpPlacementEnt[]
 ---
 ---@field entity_output_locations table<number, table<number, true>> Mining drill output locations
+---@field drill_output_locations BpDrillOutputLocation
 ---@field entity_input_locations table<number, table<number, true>> Inserter pickup spots
 ---@field collected_beacons BpPlacementEnt[]
 ---@field collected_containers BpPlacementEnt[]
@@ -78,6 +80,8 @@ local layout = table.deepcopy(base)
 ---@field in_x number Input coordinate in grid
 ---@field in_y number Input coordinate in grid
 
+---@alias BpDrillOutputLocation table<number, table<number, {[defines.direction]: number}>>
+
 layout.name = "blueprints"
 layout.translation = {"", "[item=blueprint] ", {"mpp.settings_layout_choice_blueprints"}}
 
@@ -88,6 +92,8 @@ layout.restrictions.lamp_available = false
 layout.restrictions.coverage_tuning = true
 layout.restrictions.landfill_omit_available = true
 layout.restrictions.start_alignment_tuning = true
+layout.restrictions.belt_planner_available = true
+layout.restrictions.lane_filling_info_available = true
 
 ---Called from script.on_load
 ---@param self BlueprintLayout
@@ -129,6 +135,7 @@ function layout:start(state)
 	state.bp_category_map = bp:get_entity_categories()
 
 	state.entity_output_locations = {}
+	state.drill_output_locations = {}
 	state.entity_input_locations = {}
 	state.collected_beacons = {}
 	state.collected_power = {}
@@ -143,15 +150,9 @@ function layout:start(state)
 end
 
 layout.initialize_grid = simple.initialize_grid
-
--- ---@param self BlueprintLayout
--- ---@param state BlueprintState
--- function layout:process_grid(state)
--- 	simple.process_grid(self --[[@as SimpleLayout]], state)
--- 	return "prepare_layout_attempts"
--- end
 layout.preprocess_grid = simple.preprocess_grid
 layout.process_grid = simple.process_grid
+layout.process_grid_convolution = simple.process_grid_convolution
 
 ---@param self BlueprintLayout
 ---@param state BlueprintState
@@ -179,7 +180,6 @@ function layout:prepare_layout_attempts(state)
 		start_x, slack_x = 0, 0
 	end
 
-	-- TODO: make attempts use
 	attempts[1] = {
 		sx = start_x, sy = start_y,
 		cx = count_x, cy = count_y,
@@ -217,18 +217,41 @@ function layout:prepare_layout_attempts(state)
 	end
 	--]]
 
-	return "init_layout_attempt"
+	return "layout_attempts"
+end
+
+layout.layout_attempts = simple.layout_attempts
+layout.layout_attempts_fallback = simple.layout_attempts_fallback
+
+
+---Overridable CallbackState provider what step to continue after determining best attempt
+---@param self SimpleLayout
+---@param state SimpleState
+---@return CallbackState
+function layout:callback_post_attempts(state)
+	return "collect_entities"
+end
+
+function layout:_get_layout_heuristic(state)
+	if state.coverage_choice then
+		return common.overfill_layout_heuristic
+	else
+		return common.simple_layout_heuristic
+	end
 end
 
 ---@param self BlueprintLayout
 ---@param state BlueprintState
+---@param attempt BpPlacementCoords
 ---@return BpPlacementAttempt
 function layout:_placement_attempt(state, attempt)
 	local grid = state.grid
 	local bp = state.cache
 	local M = state.miner
+	local size, area = M.size, M.area
 	local entities, num_ents = state.bp_mining_drills, #state.bp_mining_drills
 	local sx, sy, countx, county = attempt.sx, attempt.sy, attempt.cx-1, attempt.cy-1
+	local bx, by = sx, sy
 	local bpw, bph = bp.w, bp.h
 	local heuristic = simple._get_miner_placement_heuristic(self --[[@as SimpleLayout]], state)
 	local heuristic_values = common.init_heuristic_values()
@@ -241,7 +264,7 @@ function layout:_placement_attempt(state, attempt)
 	-- 	color = {0, 0, 0},
 	-- 	radius = 0.5,
 	-- }
-
+	
 	local miners, postponed = attempt.miners, {}
 	local other_ents = attempt.other_ents
 	local s_ix = attempt.s_ix or 0
@@ -253,7 +276,7 @@ function layout:_placement_attempt(state, attempt)
 	--while iy <= county do
 		local capstone_y = iy == county
 		for ix = s_ix, countx do
-		--while ix <= countx do
+			--while ix <= countx do
 			--for _, ent in pairs(bp.entities) do
 			for ie = s_ie, num_ents do
 			--while ie <= #entities do
@@ -288,6 +311,7 @@ function layout:_placement_attempt(state, attempt)
 				elseif heuristic(tile) then
 					miners[#miners+1] = struct
 					common.add_heuristic_values(heuristic_values, M, tile)
+					bx, by = max(bx, x + size - 1), max(by, y + size - 1)
 				else
 					postponed[#postponed+1] = struct
 				end
@@ -300,47 +324,26 @@ function layout:_placement_attempt(state, attempt)
 	end
 
 	local result = {
-		sx = sx, sy = sy,
-		cx = attempt.cx, cy = attempt.cy,
+		sx = sx,
+		sy = sy,
+		cx = attempt.cx,
+		cy = attempt.cy,
+		bx = bx,
+		by = by,
 		miners = miners,
+		postponed = {},
 		lane_layout = {},
 		heuristics = heuristic_values,
 		heuristic_score = -(0/0),
-		unconsumed = 0,
+		price = 0,
 	}
-
-	common.process_postponed(state, result, miners, postponed)
 
 	common.finalize_heuristic_values(result, heuristic_values, state.coords)
 
 	return result
 end
 
----@param self BlueprintLayout
----@param state BlueprintState
----@return CallbackState
-function layout:init_layout_attempt(state)
-	local attempt = state.attempts[state.attempt_index]
 
-	state.best_attempt = self:_placement_attempt(state, attempt)
-	state.best_attempt_score = simple._get_layout_heuristic(self --[[@as SimpleLayout]], state)(state.best_attempt.heuristics)
-	state.best_attempt.heuristic_score = state.best_attempt_score
-
-	if state.debug_dump then
-		state.saved_attempts = {}
-		state.saved_attempts[#state.saved_attempts+1] = state.best_attempt
-	end
-
-	state.attempt_index = state.attempt_index + 1
-	return "layout_attempt"
-end
-
----@param self BlueprintLayout
----@param state BlueprintState
----@return CallbackState
-function layout:layout_attempt(state)
-	return "collect_entities"
-end
 
 ---@param self BlueprintLayout
 ---@param state BlueprintState
@@ -465,6 +468,20 @@ local function append_transfer_location(locations, x, y)
 	end
 end
 
+local function append_drill_output_location(locations, x, y, direction)
+	local output_row = locations[y]
+	if output_row then
+		local struct = output_row[x]
+		if struct then
+			struct[direction] = 1
+		else
+			output_row = {[direction] = 1}
+		end
+	else
+		locations[y] = {[x] = {[direction] = 1}}
+	end
+end
+
 ---@param self SimpleLayout
 ---@param state BlueprintState
 ---@return CallbackState
@@ -475,6 +492,7 @@ function layout:prepare_miner_layout(state)
 	state.builder_miners = builder_miners
 
 	local output_locations = state.entity_output_locations
+	local drill_output_locations = state.drill_output_locations
 
 	for _, miner in ipairs(state.best_attempt.miners) do
 
@@ -492,8 +510,10 @@ function layout:prepare_miner_layout(state)
 
 		local output = M.output_rotated[miner.direction]
 		-- local output = M.output_rotated[mpp_util.clamped_rotation(miner.direction, M.rotation_bump)]
-		append_transfer_location(output_locations, miner.x + output.x, miner.y + output.y)
-
+		local pos_x, pos_y = miner.x + output.x, miner.y + output.y
+		append_transfer_location(output_locations, pos_x, pos_y)
+		append_drill_output_location(drill_output_locations, pos_x, pos_y, miner.direction)
+		
 		--[[ debug visualisation - mining drill placement
 		local x, y = miner.origin_x, miner.origin_y
 		local off = state.miner.size / 2
@@ -578,8 +598,6 @@ function layout:prepare_container_layout(state)
 		local name = container.name
 		local struct = mpp_util.entity_struct(name)
 		local x, y = container.x, container.y
-
-
 
 		if not find_output(x, y, x+struct.w-1, y+struct.h-1) then goto continue end
 
@@ -773,6 +791,8 @@ end
 ---@field group_input number?
 ---@field previous table<BpBeltPiece, true>
 ---@field next BpBeltPiece?
+---@field lane1 number Drill count outputting to this lane
+---@field lane2 number Drill count outputting to this lane
 
 ---@type table<string, number>
 local underground_belt_length_cache = {}
@@ -826,6 +846,8 @@ function layout:prepare_belt_layout_init(state)
 			previous = {},
 			extent_w = belt.w/2,
 			extent_h = belt.h/2,
+			lane1 = 0,
+			lane2 = 0,
 		}
 		--all_belts[#all_belts+1] = belt_piece
 		--belts_unvisited[belt_piece] = true
@@ -844,15 +866,18 @@ end
 ---@param state BlueprintState
 ---@return CallbackState
 function layout:prepare_belt_layout_forward(state)
-
-	local active_group = 1
+	---@type table<number, table<BpBeltPiece, true>>
+	local belt_groups = {}
+	local active_group_id = 1
+	local active_group = {}
+	belt_groups[active_group_id] = active_group
 	local belt_grid = state.belt_grid
 	local all_belts = state.all_belts
 
-	---@type (table<string, BpBeltPiece>)[]
-	local extra_output_locations = {}
+	---@type List<{ [1]: number, [2]: number, belt: BpBeltPiece }>
+	local belt_exits = List()
 
-	---@param piece BpBeltPiece
+	---@param piece BpBeltPiece?
 	---@param previous BpBeltPiece?
 	local function traverse(piece, previous)
 		if
@@ -860,33 +885,40 @@ function layout:prepare_belt_layout_forward(state)
 			or piece.group_output
 			or (previous and (piece.direction == (previous.direction+SOUTH) % ROTATION) )
 		then
+			if piece == nil and previous then
+				-- local converter = mpp_util.reverter_delegate(state.coords, state.direction_choice)
+				-- rendering.draw_circle{
+				-- 	surface = state.surface,
+				-- 	target = {converter(previous.x+.5, previous.y+.5)},
+				-- 	radius = 0.5, color = {1, 1, 1},
+				-- }
+				belt_exits:push{previous.x, previous.y, belt=previous}
+			end
 			return
 		end
 
 		--belts_unvisited[piece] = nil
-		piece.group_output = active_group
+		piece.group_output = active_group_id
 		if previous then
 			piece.previous[previous] = true
 		end
 		all_belts[piece] = true
+		active_group[piece] = true
 
 		local x, y = piece.x, piece.y
 		local next_pos = direction_coord[piece.direction] --[[@as BpBeltPiece]]
 		local next_x, next_y = next_pos.x, next_pos.y
+		local nx, ny = x+next_x, y+next_y
 
 		if piece.type == "splitter" then
 			local other_x = x + next_pos.x + piece.w - 1
 			local other_y = y + next_pos.y + piece.h - 1
-			-- extra_output_locations[#extra_output_locations+1] = {
-			-- 	piece = belt_grid:get_tile(other_x, other_y) --[[@as BpBeltPiece]],
-			-- 	previous = previous,
-			-- }
 			traverse(
 				belt_grid:get_tile(other_x, other_y) --[[@as BpBeltPiece]],
 				piece
 			)
 			return traverse(
-				belt_grid:get_tile(x+next_x, y+next_y) --[[@as BpBeltPiece]],
+				belt_grid:get_tile(nx, ny) --[[@as BpBeltPiece]],
 				piece
 			)
 		elseif piece.type == "underground-belt" and piece.is_underground == "input" then
@@ -909,7 +941,7 @@ function layout:prepare_belt_layout_forward(state)
 		end
 
 		return traverse(
-			belt_grid:get_tile(x+next_x, y+next_y) --[[@as BpBeltPiece]],
+			belt_grid:get_tile(nx, ny) --[[@as BpBeltPiece]],
 			piece
 		)
 	end
@@ -919,13 +951,30 @@ function layout:prepare_belt_layout_forward(state)
 		if not belt_row then goto continue end
 		for x in pairs(output_row) do
 			traverse(belt_row[x] --[[@as BpBeltPiece]])
+			active_group_id = active_group_id + 1
 		end
 		::continue::
 	end
 
-	-- for _, pieces in pairs(extra_output_locations) do
-	-- 	traverse(pieces.piece, pieces.previous) -- --[[@as BpBeltPiece]])
-	-- end
+	table.sort(belt_exits, function(a, b) return a[2] < b[2] end)
+	
+	local belts = List()
+	for _, coord in pairs(belt_exits) do
+		local x, y = coord[1], coord[2]
+		local belt = {
+			x = x,
+			x_start = x,
+			y = y,
+			has_drills = true,
+			is_output = true,
+			throughput1 = 0,
+			throughput2 = 0,
+			merged_throughput1 = 0,
+			merged_throughput2 = 0,
+		}
+		belts:push(belt)
+	end
+	state.belts = belts
 
 	return "prepare_belt_layout_backward"
 end
@@ -1189,6 +1238,11 @@ layout.placement_landfill = simple.placement_landfill
 ---@param self BlueprintLayout
 ---@param state BlueprintState
 function layout:finish(state)
+	if state.belt_planner_choice then
+		belt_planner.clear_belt_planner_stack(storage.players[state.player.index])
+		simple._give_belt_blueprint(self, state)
+	end
+	
 	return false
 end
 

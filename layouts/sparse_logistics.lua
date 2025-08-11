@@ -14,19 +14,20 @@ layout.name = "sparse_logistics"
 layout.translation = {"", "[entity=passive-provider-chest] ", {"mpp.settings_layout_choice_sparse_logistics"}}
 
 layout.restrictions.belt_available = false
+layout.restrictions.belt_merging_available = false
+layout.restrictions.belt_planner_available = false
 layout.restrictions.logistics_available = true
 layout.restrictions.lane_filling_info_available = false
 
----@param self SparseLayout
+---@param self SparseLogisticsLayout
 ---@param state SimpleState
 function layout:prepare_belt_layout(state)
-	local M = state.miner
-
 	local belts = {}
 	state.builder_belts = belts
+	local output_rotated = state.miner.output_rotated
 
 	for _, miner in ipairs(state.best_attempt.miners) do
-		local out_pos = state.miner.output_rotated[miner.direction]
+		local out_pos = output_rotated[miner.direction]
 		belts[#belts+1] = {
 			name=state.logistics_choice,
 			quality=state.logistics_quality_choice,
@@ -36,7 +37,7 @@ function layout:prepare_belt_layout(state)
 		}
 	end
 
-	return "prepare_pole_layout"
+	return "prepare_lamp_layout"
 end
 
 layout.finish = logistics.finish

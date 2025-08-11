@@ -1020,12 +1020,14 @@ local function update_misc_selection(player)
 		icon_enabled=("entity/cliff")
 	}
 
-	values:push{
-		value="belt_planner",
-		tooltip={"mpp.belt_planner"},
-		icon=("mpp_belt_planner"),
-		icon_enabled=("mpp_belt_planner")
-	}
+	if layout.restrictions.belt_planner_available then
+		values:push{
+			value="belt_planner",
+			tooltip={"mpp.belt_planner"},
+			icon=("mpp_belt_planner"),
+			icon_enabled=("mpp_belt_planner")
+		}
+	end
 	
 	if layout.restrictions.belt_merging_available then
 		values:push{

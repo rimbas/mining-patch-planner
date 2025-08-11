@@ -1,29 +1,30 @@
 local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
 
-local simple = require("layouts.simple")
+local compact = require("layouts.compact")
 local mpp_util = require("mpp.mpp_util")
 local mpp_revert = mpp_util.revert
 local pole_grid_mt = require("mpp.pole_grid_mt")
 
----@class LogisticsLayout:SimpleLayout
-local layout = table.deepcopy(simple)
+---@class LogisticsLayout : CompactLayout
+local layout = table.deepcopy(compact)
 
 layout.name = "logistics"
 layout.translation = {"", "[entity=passive-provider-chest] ", {"mpp.settings_layout_choice_logistics"}}
 
 layout.restrictions.belt_available = false
+layout.restrictions.belt_merging_available = false
+layout.restrictions.belt_planner_available = false
+layout.restrictions.pole_zero_gap = false
 layout.restrictions.logistics_available = true
 layout.restrictions.lane_filling_info_available = false
 
 ---@param self LogisticsLayout
 ---@param state SimpleState
 function layout:prepare_belt_layout(state)
+	local G = state.grid
 	local m = state.miner
 	local attempt = state.best_attempt
-
-	local power_poles = {}
-	state.builder_power_poles = power_poles
 
 	---@type table<number, MinerPlacement[]>
 	local miner_lanes = {{}}
@@ -74,11 +75,12 @@ function layout:prepare_belt_layout(state)
 					grid_x=x,
 					grid_y=y,
 				}
+				G:build_thing_simple(x, y, "belt")
 			end
 		end
 	end
 
-	return "prepare_pole_layout"
+	return "expensive_deconstruct"
 end
 
 ---@param self SimpleLayout

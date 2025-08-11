@@ -336,7 +336,7 @@ function belt_planner.layout(state)
 					y = op_y,
 				}
 			end
-		elseif op_direction == NORTH and op_y >= belt_specification[1].y then
+		elseif op_direction == NORTH and op_y > belt_specification[1].y then
 			local intermediate_positions = plan_west(op_x+count, op_y-1+count)
 			
 			for _, pos in ipairs(intermediate_positions) do
@@ -351,7 +351,7 @@ function belt_planner.layout(state)
 					y2 = op_y,
 				})
 			end
-		elseif op_direction == SOUTH and op_y <= belt_specification[count].y then
+		elseif op_direction == SOUTH and op_y < belt_specification[count].y then
 			local intermediate_positions = plan_west(op_x+1, op_y)
 			
 			for _, pos in ipairs(intermediate_positions) do
@@ -404,8 +404,6 @@ function belt_planner.layout(state)
 		
 		local step_positions = plan_vertical(actual_x+direction_accomodation, intermediate_y, op_direction)
 		local output_positions = List()
-		
-		-- local capped_x_start = min(
 		
 		for _, position in ipairs(step_positions) do
 			---@cast position BeltOutputPosition

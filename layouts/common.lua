@@ -459,6 +459,7 @@ end
 ---@param state State
 ---@param belt BeltSpecification
 function common.draw_belt_stats(state, belt, belt_speed, speed1, speed2)
+	if not belt.has_drills then return end
 	local r = state._render_objects
 	local c, ttl, player = state.coords, 0, {state.player}
 	local x1, y1, x2, y2 = belt.x_start, belt.y, belt.x2, belt.y
@@ -801,7 +802,7 @@ function common.create_belt_building_environment(state)
 		
 		tile_before, tile, tile_ahead = tile, tile_ahead, row[x2+1]
 		if open_capstone and tile_ahead.built_thing ~= nil then
-			create_underground(x2, y, WEST, "output")
+			create_belt(x2, y, WEST)
 		elseif tile_before.built_thing ~= nil then
 			create_underground(x2, y, WEST, "input")
 		else
@@ -868,16 +869,10 @@ function common.create_belt_building_environment(state)
 		end
 		
 		if merge_x then
-			local a = 1
-			-- place_interleaved_belt_east(belt.x1, merge_x+accomodation, y) -- main belt
-			-- place_vertical_belt(merge_x, y1, y2, vertical_dir) -- vertical segment
-			-- place_horizontal_belt(target.x2+1, merge_x, target.y, WEST) -- target merge accomodation
-			
 			place_interleaved_belt_east(belt.x1, merge_x+accomodation, y) -- main belt
 			place_vertical_belt(merge_x, y1, y2, vertical_dir) -- vertical segment
 			place_interleaved_belt_west(target.x_start, merge_x, target.y, merge_x == target.x2)
 			target.overlay_line = {{target.x_start, yt}, {merge_x, yt}, {merge_x, y}, {belt.x1, y}}
-			return merge_x
 		else
 			state.player.print("Failed placing a belt")
 		end
@@ -885,27 +880,77 @@ function common.create_belt_building_environment(state)
 	environment.make_interleaved_back_merge_belt = make_interleaved_back_merge_belt
 	
 	---@param belt BaseBeltSpecification
-	local function place_sparse_belt(belt, x_start)
+	---@param opts {x1:number, x2:number, direction:defines.direction}?
+	local function place_sparse_belt(belt, opts)
+		opts = opts or {}
 		local lane1, lane2 = belt.lane1, belt.lane2
-		local x1 = x_start or belt.x_entry
-		local x2 = belt.x2
+		local y = belt.y
+		local x1 = opts.x1 or belt.x_start
+		local x2 = opts.x2 or belt.x2
 		local out_x1, out_x2 = M.output_rotated[SOUTH].x, M.output_rotated[NORTH].x
 		local function get_lane_length(lane) if lane then return lane[#lane].x end return 0 end
-		if lane1 and lane2 then
+		if opts.x2 then
+			-- no op
+		elseif lane1 and lane2 then
 			x2 = max(get_lane_length(lane1)+out_x1, get_lane_length(lane2)+ out_x2+1)
 		elseif lane1 then
 			x2 = get_lane_length(lane1) + out_x1
 		else
 			x2 = get_lane_length(lane2) + out_x2 + 1
 		end
-		place_horizontal_belt(x1, x2, belt.y, WEST)
+		
+		if lane2 then
+			local out_x = M.output_rotated[NORTH].x
+			for _, miner in ipairs(lane2) do
+				local my = miner.y
+				place_vertical_belt(miner.x + out_x, y + 1, my - 1, NORTH)
+			end
+		end
+		
+		place_horizontal_belt(x1, x2, y, opts.direction or WEST)
 	end
 	environment.place_sparse_belt = place_sparse_belt
 	
 	local function make_sparse_output_belt(belt, x)
-		place_sparse_belt(belt, x or belt.x_entry)
+		place_sparse_belt(belt, {x1 = x or belt.x_start})
 	end
 	environment.make_sparse_output_belt = make_sparse_output_belt
+	
+	---@param belt BaseBeltSpecification
+	local function make_sparse_back_merge_belt(belt)
+		local vertical_dir = belt.merge_direction
+		local target = belt.merge_target --[[@as BaseBeltSpecification]]
+		local y = belt.y
+		local yt = target.y
+		
+		local s_row, t_row = G[y], G[target.y]
+		
+		local merge_x = nil
+		local entry = max(belt.x2+1, target.x2)
+		local free_entry = s_row[entry-1].built_thing == nil and t_row[entry-1].built_thing == nil
+		for x = entry, max(belt.x2, target.x_end)+M.size do
+			if s_row[x-1].built_thing or s_row[x+1].built_thing then
+				goto continue
+			end
+			exists, y1, y2 = gap_exists(x, belt.y, target.y, vertical_dir)
+			if free_entry and exists then
+				merge_x, accomodation = x, -1
+				break
+			end
+			::continue::
+			free_entry = s_row[x].built_thing == nil and t_row[x].built_thing == nil
+		end
+		
+		if merge_x then
+			place_sparse_belt(belt, {x1 = belt.x1, direction = EAST, x2 = merge_x+accomodation})
+			place_vertical_belt(merge_x, y1, y2, vertical_dir) -- vertical segment
+			place_sparse_belt(target, {x1 = target.x_start, x2 = merge_x})
+			target.overlay_line = {{target.x_start, yt}, {merge_x, yt}, {merge_x, y}, {belt.x1, y}}
+		else
+			state.player.print("Failed placing a belt")
+		end
+	end
+	environment.make_sparse_back_merge_belt = make_sparse_back_merge_belt
 	
 	return environment, builder_belts, deconstruct_spec
 end

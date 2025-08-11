@@ -39,13 +39,14 @@ layout.restrictions.module_available = true
 ---@param self ThroughputLayout
 ---@param state ThroughputState
 ---@return PlacementAttempt
-function layout:_placement_attempt(state, shift_x, shift_y)
+function layout:_placement_attempt(state, attempt)
 	local grid = state.grid
 	local M, C = state.miner, state.coords
 	local size, area = M.size, M.area
 	local miners, postponed = {}, {}
 	local heuristic_values = common.init_heuristic_values()
 	local lane_layout = {}
+	local shift_x, shift_y = attempt[1], attempt[2]
 
 	local heuristic = self:_get_miner_placement_heuristic(state)
 

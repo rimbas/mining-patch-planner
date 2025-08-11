@@ -38,7 +38,7 @@ end
 
 ---@param state SimpleState
 ---@return PlacementAttempt
-function layout:_placement_attempt(state, shift_x, shift_y)
+function layout:_placement_attempt(state, attempt)
 	local grid = state.grid
 	local M = state.miner
 	local size, area = state.miner.size, state.miner.area
@@ -46,6 +46,7 @@ function layout:_placement_attempt(state, shift_x, shift_y)
 	local heuristic_values = common.init_heuristic_values()
 	local row_index = 1
 	local lane_layout = {}
+	local shift_x, shift_y = attempt[1], attempt[2]
 
 	for uy = shift_y, state.coords.th + size, area do
 		local column_index = 1
@@ -142,7 +143,7 @@ function layout:init_layout_attempt(state)
 
 	local attempt = state.attempts[state.attempt_index]
 
-	state.best_attempt = self:_placement_attempt(state, attempt[1], attempt[2])
+	state.best_attempt = self:_placement_attempt(state, attempt)
 	state.best_attempt_score = #state.best_attempt.miners
 
 	if state.debug_dump then
@@ -155,34 +156,11 @@ function layout:init_layout_attempt(state)
 		return "layout_attempt"
 	end
 
-	return "prepare_miner_layout"
+	return self:callback_post_attempts(state)
 end
 
 function layout:_get_layout_heuristic(state)
 	return function(attempt) return #attempt.miners end
-end
-
----Bruteforce the best solution
----@param self SimpleLayout
----@param state SimpleState
-function layout:layout_attempt(state)
-	local attempt_state = state.attempts[state.attempt_index]
-
-	---@type PlacementAttempt
-	local current_attempt = self:_placement_attempt(state, attempt_state[1], attempt_state[2])
-	local current_attempt_score = #current_attempt.miners
-
-	if current_attempt_score < state.best_attempt_score or current_attempt.unconsumed < state.best_attempt.unconsumed then
-		state.best_attempt_index = state.attempt_index
-		state.best_attempt = current_attempt
-		state.best_attempt_score = current_attempt_score
-	end
-
-	if state.attempt_index >= #state.attempts then
-		return "prepare_miner_layout"
-	end
-	state.attempt_index = state.attempt_index + 1
-	return true
 end
 
 ---@param self SimpleLayout
@@ -376,6 +354,7 @@ function layout:_apply_belt_merge_strategy(state, source, target, direction)
 		target.merge_strategy = "target"
 		target.merged_throughput2 = target_t2 + source_t1
 		target.merged_throughput1 = target_t1 + source_t2
+		target.merge_slave = true
 	-- elseif direction == SOUTH and source_total <= 1 - target_t1 then
 	-- 	source.merge_target = target
 	-- 	source.merge_direction = direction
@@ -420,13 +399,14 @@ function layout:prepare_belt_layout(state)
 		end
 		
 		for _, belt in ipairs(belts) do
-			if belt.has_drills ~= true then goto continue end
-			if belt.is_output then
+			if belt.has_drills ~= true or belt.merge_slave then
+				goto continue
+			elseif belt.merge_strategy == "back-merge" then
+				belt_env.make_sparse_back_merge_belt(belt)
+			elseif belt.is_output then
 				belt_env.make_sparse_output_belt(belt, belt.x_start)
 			-- elseif belt.merge_strategy == "side-merge" then
 			-- 	belt_env.make_side_merge_belt(belt)
-			elseif belt.merge_strategy == "back-merge" then
-				belt_env.make_back_merge_belt(belt)
 			else
 				belt_env.make_sparse_output_belt(belt, belt.x_start)
 			end
@@ -444,90 +424,6 @@ function layout:prepare_belt_layout(state)
 	
 	state.builder_belts = builder_belts
 
-	return "prepare_lamp_layout"
-end
-
----@param self SparseLayout
----@param state SimpleState
-function layout:prepare_belt_layout_ex(state)
-	local m = state.miner
-	local g = state.grid
-	local attempt = state.best_attempt
-
-	local miner_lanes = state.miner_lanes
-	local miner_lane_count = state.miner_lane_count
-	local miner_max_column = state.miner_max_column
-
-	for _, lane in pairs(miner_lanes) do
-		table.sort(lane, function(a, b) return a.x < b.x end)
-	end
-
-	local builder_belts = {}
-	state.builder_belts = builder_belts
-
-	local function get_lane_length(lane) if lane then return lane[#lane].x end return 0 end
-	local function que_entity(t) builder_belts[#builder_belts+1] = t end
-
-	local belt_lanes = {}
-	state.belts = belt_lanes
-	local pipe_adjust = state.place_pipes and -1 or 0
-	for i = 1, miner_lane_count, 2 do
-		local lane1 = miner_lanes[i]
-		local lane2 = miner_lanes[i+1]
-
-		local y = attempt.sy + m.area - m.outer_span + m.area * (i-1)
-
-		local belt = {x1=attempt.sx + 1, x2=attempt.sx + 1, y=y, built=false, lane1=lane1, lane2=lane2}
-		belt_lanes[#belt_lanes+1] = belt
-
-		if lane1 or lane2 then
-			local x1 = attempt.sx + pipe_adjust - m.extent_negative
-			local out_x1 = m.output_rotated[SOUTH].x
-			local out_x2 = m.output_rotated[NORTH].x
-			local x2
-			if lane1 and lane2 then
-				x2 = max(get_lane_length(lane1)+out_x1, get_lane_length(lane2)+ out_x2+1)
-			elseif lane1 then
-				x2 = get_lane_length(lane1) + out_x1
-			else
-				x2 = get_lane_length(lane2) + out_x2 + 1
-			end
-
-			belt.x1, belt.x2, belt.built = x1, x2, true
-
-			for x = x1, x2 do
-				que_entity{
-					name=state.belt_choice,
-					quality=state.belt_quality_choice,
-					thing="belt",
-					grid_x=x,
-					grid_y=y,
-					direction=defines.direction.west,
-				}
-			end
-		end
-
-		if lane2 then
-			local out_x = m.output_rotated[NORTH].x
-			for _, miner in ipairs(lane2) do
-				
-				for ny = y + 1, y + m.outer_span * 2 - 1 - m.wrong_parity do
-					que_entity{
-						name=state.belt_choice,
-						quality=state.belt_quality_choice,
-						thing="belt",
-						grid_x=miner.x + out_x,
-						grid_y=ny,
-						direction=defines.direction.north,
-					}
-				end
-			end
-			
-		end
-	end
-
-	state.belt_count = #belt_lanes
-	
 	return "prepare_lamp_layout"
 end
 

@@ -48,6 +48,33 @@ function math.sign(x)
 	return (x < 0 and 1) or (x == 0 and 0) or -1
 end
 
+---math.min but ignores nil values
+---@param x number?
+---@param ... number?
+---@return number
+function math.mina(x, ...)
+	for _, v in pairs{...} do
+		if v ~= nil and (x == nil or v < x) then
+			x = v
+		end
+	end
+	return x --[[@as number]]
+end
+
+
+---math.max but ignores nil values
+---@param x number?
+---@param ... number?
+---@return number
+function math.maxa(x, ...)
+	for _, v in pairs{...} do
+		if v ~= nil and (x == nil or v > x) then
+			x = v
+		end
+	end
+	return x --[[@as number]]
+end
+
 ---Collects boolean expression result
 ---Yes, this kills short-circuiting
 ---@param ... boolean
