@@ -1010,14 +1010,14 @@ local function update_misc_selection(player)
 		value="avoid_water",
 		tooltip={"mpp.choice_avoid_water"},
 		icon=("fluid/water"),
-		icon_enabled=("fluid/water")
+		icon_enabled=("mpp_water_avoided")
 	}
 
 	values:push{
 		value="avoid_cliffs",
 		tooltip={"mpp.choice_avoid_cliffs"},
 		icon=("entity/cliff"),
-		icon_enabled=("entity/cliff")
+		icon_enabled=("mpp_cliff_avoided")
 	}
 
 	if layout.restrictions.belt_planner_available then
@@ -1268,6 +1268,11 @@ local function update_debugging_selection(player_data)
 		{
 			value="draw_power_grid",
 			tooltip="Draw power grid connectivity",
+			icon=("entity/substation"),
+		},
+		{
+			value="draw_pole_joiner",
+			tooltip="Draw power pole joiner",
 			icon=("entity/substation"),
 		},
 		{

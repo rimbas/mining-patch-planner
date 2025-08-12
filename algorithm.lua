@@ -122,7 +122,7 @@ local function create_state(event)
 	state._collected_ghosts = {}
 	state._render_objects = List()
 	state._lane_info_rendering = {}
-	state.performance_scaling = settings.global["mpp-performance-scaling"].value
+	state.performance_scaling = max(0.01, settings.global["mpp-performance-scaling"].value --[[@as number]])
 
 	---@type PlayerData
 	local player_data = storage.players[event.player_index]

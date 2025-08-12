@@ -1,17 +1,15 @@
 ---------------------------------------------------------------------------------------------------
 Version: 1.7.0
-Date: 2025-06-28
-  TODO:
-    - Undo system for belt routing
-    - Redo power pole placement (problems with determination of lanes)
-    - Quality dropdown when quality count > 10
+Date: 2025-08-12
   Features:
+    - Added an option to give a belt planner after layout creation.
+    - Added belt merging option.
+    - Improved belt lane throughput and usage overlay.
     - Added layout rotation keybind. (R and Shift+R by default)
-    - Belt merging option
-    - Better belt lane throughput and usage overlay.
+    - Added dropdown select for qualitys when there are more than 10.
   Optimizations:
-    - Optimized work done per tick.
-    - Added performance scaling option.
+    - Added performance scaling mod setting. (work done per tick)
+    - Improved work done per tick.
   Bugfixes:
     - Fixed crash when trying to add modules on a mining drill witout module slots.
 ---------------------------------------------------------------------------------------------------

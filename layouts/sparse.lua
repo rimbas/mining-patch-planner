@@ -4,7 +4,7 @@ local renderer = require("mpp.render_util")
 local drawing  = require("mpp.drawing")
 
 local floor, ceil = math.floor, math.ceil
-local min, max = math.min, math.max
+local min, max, mina, maxa = math.min, math.max, math.mina, math.maxa
 local EAST, NORTH, SOUTH, WEST, ROTATION = mpp_util.directions()
 
 local base = require("layouts.base")
@@ -81,13 +81,13 @@ function layout:_placement_attempt(state, attempt)
 		bx = 1,
 		by = 1,
 		miners=miners,
+		postponed = {},
 		lane_layout=lane_layout,
 		heuristics = heuristic_values,
 		heuristic_score = #miners,
 		unconsumed = 0,
+		price = 0,
 	}
-
-	common.process_postponed(state, result, miners, {})
 
 	common.finalize_heuristic_values(result, heuristic_values, state.coords)
 
@@ -134,33 +134,11 @@ function layout:prepare_layout_attempts(state)
 		end
 	end
 	
-	return "init_layout_attempt"
-end
-
----@param self SimpleLayout
----@param state SimpleState
-function layout:init_layout_attempt(state)
-
-	local attempt = state.attempts[state.attempt_index]
-
-	state.best_attempt = self:_placement_attempt(state, attempt)
-	state.best_attempt_score = #state.best_attempt.miners
-
-	if state.debug_dump then
-		state.best_attempt.heuristic_score = state.best_attempt_score
-		state.saved_attempts = {}
-		state.saved_attempts[#state.saved_attempts+1] = state.best_attempt
-	end
-
-	if #state.attempts > 1 then
-		return "layout_attempt"
-	end
-
-	return self:callback_post_attempts(state)
+	return "layout_attempts"
 end
 
 function layout:_get_layout_heuristic(state)
-	return function(attempt) return #attempt.miners end
+	return function(heuristic, miner) return heuristic.drill_count end
 end
 
 ---@param self SimpleLayout
@@ -369,6 +347,17 @@ function layout:_apply_belt_merge_strategy(state, source, target, direction)
 	-- 	source.merge_strategy = "side-merge"
 	-- 	target.merge_strategy = "target"
 	-- 	target.merged_throughput2 = target_t2 + source_total
+	end
+end
+
+---@param state SimpleState
+---@param attempt PlacementAttempt
+---@return fun(i): number
+function layout:_mining_drill_lane_y_provider(state, attempt)
+	local extent_positive = state.miner.extent_positive
+	local area = state.miner.area
+	return function(i)
+		return ceil(attempt.sy + extent_positive + area * (i-1))
 	end
 end
 

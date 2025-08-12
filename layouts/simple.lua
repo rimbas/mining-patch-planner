@@ -1168,6 +1168,10 @@ function layout:prepare_pole_layout(state)
 		}
 		G:build_thing_simple(pole.grid_x, pole.grid_y, "pole")
 	end
+	
+	-- if M.size * 2 + 1 > P.wire then
+	-- -- todo: handle power pole joiners when wire doesn't reach between lanes
+	-- end
 
 	return next_step
 end
@@ -1183,17 +1187,21 @@ function layout:_calculate_belt_throughput(state, belt, direction)
 	---@param lane MinerPlacement[]
 	local function lane_capacity(lane) if lane then return #lane * multiplier / belt_speed end return 0 end
 	local lane1, lane2 = belt.lane1, belt.lane2
-	
-	if direction == EAST then
-		belt.throughput1 = lane_capacity(lane2)
-		belt.throughput2 = lane_capacity(lane1)
-		belt.merged_throughput1 = belt.throughput1
-		belt.merged_throughput2 = belt.throughput2
-	else
-		belt.throughput1 = lane_capacity(lane1)
-		belt.throughput2 = lane_capacity(lane2)
-		belt.merged_throughput1 = belt.throughput1
-		belt.merged_throughput2 = belt.throughput2
+
+	belt.throughput1 = lane_capacity(lane1)
+	belt.throughput2 = lane_capacity(lane2)
+	belt.merged_throughput1 = belt.throughput1
+	belt.merged_throughput2 = belt.throughput2
+end
+
+---@param state SimpleState
+---@param attempt PlacementAttempt
+---@return fun(i): number
+function layout:_mining_drill_lane_y_provider(state, attempt)
+	local size = state.miner.size
+	local pole_gap = (1 + state.pole_gap) / 2
+	return function(i)
+		return ceil(attempt.sy + size + (size + pole_gap) * (i-1))
 	end
 end
 
@@ -1218,14 +1226,15 @@ function layout:_process_mining_drill_lanes(state)
 	---@return number?
 	local function get_lane_end(lane, size) return lane and lane[#lane] and lane[#lane].x + size end
 
+	local y_provider = self:_mining_drill_lane_y_provider(state, attempt)
+	
 	local pipe_adjust = state.place_pipes and -1 or 0
 	local belts = List() --[[@as List<BaseBeltSpecification>]]
-	local pole_gap = (1 + state.pole_gap) / 2
 	for i = 1, miner_lane_count, 2 do
 		local lane1 = miner_lanes[i]
 		local lane2 = miner_lanes[i+1]
 
-		local y = ceil(attempt.sy + m.size + (m.size + pole_gap) * (i-1))
+		local y = y_provider(i)
 
 		if not lane1 and not lane2 then
 			belts:push{
@@ -1337,8 +1346,8 @@ function layout:prepare_belt_layout(state)
 
 	local belts = self:_process_mining_drill_lanes(state)
 	state.belts = belts
-	state.belt_count = #belts
 	local belt_count = #belts
+	state.belt_count = belt_count
 
 	local belt_env, builder_belts, deconstruct_spec = common.create_belt_building_environment(state)
 	
@@ -1694,7 +1703,9 @@ function layout:_display_lane_filling(state)
 	if #state.belts > 1 then
 		local x = state.best_attempt.sx + 2
 		local y = state.belts[1].y
-		if state.coords.is_vertical then
+		if state.direction_choice == "east" then
+			y = state.belts[state.belt_count].y + 3
+		elseif state.coords.is_vertical then
 			y = y + (state.belts[state.belt_count].y - y) / 2 + 3
 			x = x - 4
 		end
@@ -1715,7 +1726,7 @@ end
 function layout:_give_belt_blueprint(state)
 	local belts = state.belts
 	
-	if belts == nil or  #belts == 0 then return end
+	if belts == nil or #belts == 0 then return end
 	
 	---@type BeltPlannerSpecification
 	local belt_planner_spec = {
@@ -1729,10 +1740,13 @@ function layout:_give_belt_blueprint(state)
 		_renderables = {},
 	}
 	
+	table.sort(belts, function(a, b) return a.y < b.y end)
+	
 	local count = 0
-	for _, belt in pairs(belts) do
+	for index, belt in pairs(belts) do
 		if belt.is_output == true then
 			count = count + 1
+			belt.index = count
 			belt_planner_spec[count] = table.deepcopy(belt)
 		end
 	end

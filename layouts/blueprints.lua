@@ -1,10 +1,12 @@
 local floor, ceil = math.floor, math.ceil
 local min, max = math.min, math.max
+local table_insert = table.insert
 
 local base = require("layouts.base")
 local simple = require("layouts.simple")
 local grid_mt = require("mpp.grid_mt")
 local mpp_util = require("mpp.mpp_util")
+local color = require("mpp.color")
 local builder = require("mpp.builder")
 local common   = require("layouts.common")
 local compatibility = require("mpp.compatibility")
@@ -35,6 +37,10 @@ local layout = table.deepcopy(base)
 ---@field builder_power_poles BpPlacementEnt[]
 ---@field lamps BpPlacementEnt[]
 ---
+---@field belt_grid Grid BpBeltPiece grid
+---@field all_belts table<BpBeltPiece, true>
+---@field belt_exits List<{ [1]: number, [2]: number, belt: BpBeltPiece }>
+---@field group_tributaries table<number, number>
 ---@field entity_output_locations table<number, table<number, true>> Mining drill output locations
 ---@field drill_output_locations BpDrillOutputLocation
 ---@field entity_input_locations table<number, table<number, true>> Inserter pickup spots
@@ -266,7 +272,6 @@ function layout:_placement_attempt(state, attempt)
 	-- }
 	
 	local miners, postponed = attempt.miners, {}
-	local other_ents = attempt.other_ents
 	local s_ix = attempt.s_ix or 0
 	local s_iy = attempt.s_iy or 0
 	local s_ie = attempt.s_ie or 1
@@ -331,7 +336,7 @@ function layout:_placement_attempt(state, attempt)
 		bx = bx,
 		by = by,
 		miners = miners,
-		postponed = {},
+		postponed = postponed,
 		lane_layout = {},
 		heuristics = heuristic_values,
 		heuristic_score = -(0/0),
@@ -384,7 +389,7 @@ function layout:collect_entities(state)
 	local s_ix = attempt.s_ix or 0
 	local s_iy = attempt.s_iy or 0
 	local s_ie = attempt.s_ie or 1
-	local progress, progress_cap = 0, 100
+	local progress, progress_cap = 0, 1000 * state.performance_scaling
 	--local ix, iy, ie = s_ix, s_iy, s_ie
 	for iy = s_iy, county do
 	--while iy <= county do
@@ -475,7 +480,7 @@ local function append_drill_output_location(locations, x, y, direction)
 		if struct then
 			struct[direction] = 1
 		else
-			output_row = {[direction] = 1}
+			output_row[x] = {[direction] = 1}
 		end
 	else
 		locations[y] = {[x] = {[direction] = 1}}
@@ -515,6 +520,7 @@ function layout:prepare_miner_layout(state)
 		append_drill_output_location(drill_output_locations, pos_x, pos_y, miner.direction)
 		
 		--[[ debug visualisation - mining drill placement
+		local converter = mpp_util.reverter_delegate(state.coords, state.direction_choice)
 		local x, y = miner.origin_x, miner.origin_y
 		local off = state.miner.size / 2
 		rendering.draw_rectangle{
@@ -525,6 +531,13 @@ function layout:prepare_miner_layout(state)
 			--target = {c.x1 + x, c.y1 + y},
 			left_top = {C.gx+x-off, C.gy + y - off},
 			right_bottom = {C.gx+x+off, C.gy + y + off},
+		}
+		rendering.draw_circle{
+			surface = state.surface,
+			target = {converter(pos_x+.5, pos_y+.5)},
+			filled = false,
+			color = {1, 1, 1},
+			radius = 0.4, width = 6,
 		}
 		--]]
 
@@ -866,27 +879,33 @@ end
 ---@param state BlueprintState
 ---@return CallbackState
 function layout:prepare_belt_layout_forward(state)
-	---@type table<number, table<BpBeltPiece, true>>
-	local belt_groups = {}
 	local active_group_id = 1
-	local active_group = {}
-	belt_groups[active_group_id] = active_group
 	local belt_grid = state.belt_grid
 	local all_belts = state.all_belts
-
+	---@type table<number, number>
+	local group_tributaries = {} -- mapping of belts groups feeding into larger group
+	state.group_tributaries = group_tributaries
+	
 	---@type List<{ [1]: number, [2]: number, belt: BpBeltPiece }>
 	local belt_exits = List()
+	state.belt_exits = belt_exits
 
 	---@param piece BpBeltPiece?
 	---@param previous BpBeltPiece?
 	local function traverse(piece, previous)
-		if
+		if piece and piece.group_output then
+			local other_group = piece.group_output
+			local aux_tributary = group_tributaries[other_group]
+			if aux_tributary then
+				group_tributaries[active_group_id] = aux_tributary
+			else
+				group_tributaries[active_group_id] = other_group
+			end
+		elseif
 			piece == nil
-			or piece.group_output
 			or (previous and (piece.direction == (previous.direction+SOUTH) % ROTATION) )
 		then
-			if piece == nil and previous then
-				-- local converter = mpp_util.reverter_delegate(state.coords, state.direction_choice)
+			if previous then
 				-- rendering.draw_circle{
 				-- 	surface = state.surface,
 				-- 	target = {converter(previous.x+.5, previous.y+.5)},
@@ -903,7 +922,6 @@ function layout:prepare_belt_layout_forward(state)
 			piece.previous[previous] = true
 		end
 		all_belts[piece] = true
-		active_group[piece] = true
 
 		local x, y = piece.x, piece.y
 		local next_pos = direction_coord[piece.direction] --[[@as BpBeltPiece]]
@@ -956,14 +974,58 @@ function layout:prepare_belt_layout_forward(state)
 		::continue::
 	end
 
+	return "process_forward_outputs"
+end
+
+---@param self BlueprintLayout
+---@param state BlueprintState
+---@return CallbackState
+function layout:process_forward_outputs(state)
+	local group_tributaries = state.group_tributaries
+	local belt_grid = state.belt_grid
+	local all_belts = state.all_belts
+	local belt_exits = state.belt_exits
+	
+	local converter = mpp_util.reverter_delegate(state.coords, state.direction_choice)
+	
+	if state.display_lane_filling_choice then
+		for piece, _ in pairs(all_belts) do
+			local tributary = group_tributaries[piece.group_output]
+			if tributary then
+				piece.group_output = tributary
+			end
+			-- local set_color = color.hue_sequence(piece.group_output)
+			-- rendering.draw_circle{
+			-- 	surface = state.surface,
+			-- 	target = {converter(piece.x+.5, piece.y+.5)},
+			-- 	radius = 0.45, color = set_color, width=4,
+			-- }
+		end
+	end
+	
 	table.sort(belt_exits, function(a, b) return a[2] < b[2] end)
 	
-	local belts = List()
+	local belt_choice = nil
+	local ent_prot = prototypes.entity
+	---@type table<number, BaseBeltSpecification>
+	local tributary_to_belts_map = {}
+	local belts = List() --[[@as List<BaseBeltSpecification>]]
 	for _, coord in pairs(belt_exits) do
+		local piece = coord.belt
+		if not belt_choice then
+			local belt = ent_prot[piece.ent.name]
+			if belt.type == "transport-belt" then
+				belt_choice = belt.name
+				state.belt_choice = belt_choice
+			end
+		end
 		local x, y = coord[1], coord[2]
 		local belt = {
-			x = x,
+			x1 = x,
+			x2 = x,
 			x_start = x,
+			x_entry = x,
+			x_end = x,
 			y = y,
 			has_drills = true,
 			is_output = true,
@@ -971,20 +1033,54 @@ function layout:prepare_belt_layout_forward(state)
 			throughput2 = 0,
 			merged_throughput1 = 0,
 			merged_throughput2 = 0,
+			lane1 = {},
+			lane2 = {},
 		}
-		belts:push(belt)
+		tributary_to_belts_map[piece.group_output] = belt
+		-- belts:push(belt)
 	end
 	state.belts = belts
-
+	
+	for _, belt in pairs(tributary_to_belts_map) do
+		-- deduplicate belt outputs from tributary
+		belts:push(belt)
+	end
+	state.belt_count = #belts
+	
+	if belt_choice and state.display_lane_filling_choice then
+		local belt_struct = mpp_util.belt_struct(belt_choice)
+		state.belt = belt_struct
+		local belt_speed = state.belt.speed
+		local multiplier = common.get_mining_drill_production(state)
+		
+		for iy, row in pairs(state.drill_output_locations) do
+			for ix, outputs in pairs(row) do
+				local piece = belt_grid:get_tile(ix, iy) --[[@as BpBeltPiece?]]
+				if not piece then goto continue end
+				local belt = tributary_to_belts_map[piece.group_output --[[@as number]]]
+				local l1, l2 = common.get_belt_lane_inputs(piece.direction, outputs)
+				belt.throughput1 = belt.throughput1 + l1
+				belt.throughput2 = belt.throughput2 + l2
+				::continue::
+			end
+		end
+		
+		for _, belt in ipairs(belts) do
+			belt.throughput1 = belt.throughput1 * multiplier / belt_speed
+			belt.throughput2 = belt.throughput2 * multiplier / belt_speed
+			belt.merged_throughput1 = belt.throughput1
+			belt.merged_throughput2 = belt.throughput2
+		end
+		
+	end
+	
 	return "prepare_belt_layout_backward"
 end
-
 
 ---@param self BlueprintLayout
 ---@param state BlueprintState
 ---@return CallbackState
 function layout:prepare_belt_layout_backward(state)
-
 	--local debug_draw = drawing(state, true, false)
 
 	local active_group = 1
@@ -1211,7 +1307,7 @@ function layout:placement_all(state)
 
 	local is_space = state.is_space
 
-	local progress = builder_index + 32
+	local progress = builder_index + ceil(100 * state.performance_scaling)
 	for i = builder_index, #builder_all do
 	--for _, thing in pairs(builder_all) do
 		if i > progress then
@@ -1238,6 +1334,9 @@ layout.placement_landfill = simple.placement_landfill
 ---@param self BlueprintLayout
 ---@param state BlueprintState
 function layout:finish(state)
+	
+	simple._display_lane_filling(self, state)
+	
 	if state.belt_planner_choice then
 		belt_planner.clear_belt_planner_stack(storage.players[state.player.index])
 		simple._give_belt_blueprint(self, state)

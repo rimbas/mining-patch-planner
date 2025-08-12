@@ -68,15 +68,22 @@ script.on_configuration_changed(function(config_changed_data)
 		return
 	end
 
-	if version < 010700 then
+	if version < 010636 then
 		if storage.immediate_tasks == nil then
 			storage.immediate_tasks = {}
 		end
 
 		for _, task in pairs(storage.tasks) do
-			task.performance_scaling = settings.global["mpp-performance-scaling"].value --[[@as number]]
-			task._render_objects = List(task._render_objects)
+			if task._render_objects then
+				for _, render_object in pairs(task._render_objects) do
+					if render_object.valid then
+						render_object.destroy()
+					end
+				end
+			end
 		end
+		
+		storage.tasks = {}
 	end
 
 	if version < 010600 then

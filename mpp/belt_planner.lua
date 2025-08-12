@@ -142,7 +142,7 @@ function belt_planner.layout(state)
 	-- local belt_direction = mpp_util.clamped_rotation(((-defines.direction[state.direction_choice]) % ROTATION)-EAST, world_direction)
 	local belt_direction = world_direction
 	
-	local create_entity = builder.create_entity_builder(state)
+	local create_entity = builder.create_entity_builder(state, {do_deconstruction=true})
 	
 	-- rendering.clear()
 

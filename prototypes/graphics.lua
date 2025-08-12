@@ -353,4 +353,20 @@ data:extend{
 		mipmap_count = 0,
 		flags = { "icon" },
 	},
+	{
+		type = "sprite",
+		name = "mpp_cliff_avoided",
+		filename = graphics.."cliff-avoided.png",
+		size = 64,
+		mipmap_count = 0,
+		flags = { "icon" },
+	},
+	{
+		type = "sprite",
+		name = "mpp_water_avoided",
+		filename = graphics.."water-avoided.png",
+		size = 64,
+		mipmap_count = 0,
+		flags = { "icon" },
+	},
 }

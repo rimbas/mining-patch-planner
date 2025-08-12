@@ -26,11 +26,16 @@ local quality_enabled = script.feature_flags.quality
 
 ---@alias EntityBuilderFunction fun(ghost: GhostSpecification, check_allowed: boolean?): LuaEntity?
 
+---@class EntityBuilderOptions
+---@field do_deconstruction boolean?
+
 --- Builder for a convenience function that automatically translates
 --- internal grid state for a surface.create_entity call
 ---@param state MinimumPreservedState | State | BeltinatorState
+---@param opts EntityBuilderOptions?
 ---@return EntityBuilderFunction
-function builder.create_entity_builder(state)
+function builder.create_entity_builder(state, opts)
+	opts = opts or {}
 	local c = state.coords
 	local grid = state.grid
 	local DIR = state.direction_choice
@@ -40,13 +45,25 @@ function builder.create_entity_builder(state)
 	local collected_ghosts = state._collected_ghosts
 	-- local is_space = state.is_space
 
+	local deconstruction_planner
+	if opts.do_deconstruction then
+		deconstruction_planner = storage.script_inventory[state.deconstruction_choice and 2 or 1]
+	end
+	
+	local _player = state.player
+	local _force = _player.force
+	local _build_check_type = defines.build_check_type.blueprint_ghost
+	
 	return function(ghost, check_allowed)
 		ghost.raise_built = true
-		ghost.player = state.player
-		ghost.force = state.player.force
-		ghost.inner_name=ghost.name --[[@as string]]
+		ghost.player = _player
+		ghost.force = _force
+		---@diagnostic disable-next-line: assign-type-mismatch
+		ghost.inner_name = ghost.name
 		ghost.name="entity-ghost"
-		ghost.position=coord_revert_world(gx, gy, DIR, ghost.grid_x, ghost.grid_y, tw, th)
+		local position = coord_revert_world(gx, gy, DIR, ghost.grid_x, ghost.grid_y, tw, th)
+		---@diagnostic disable-next-line: assign-type-mismatch
+		ghost.position = position
 		ghost.direction=direction_conv[ghost.direction or defines.direction.north]
 		
 		if not quality_enabled then ghost.quality = nil end
@@ -66,13 +83,34 @@ function builder.create_entity_builder(state)
 			name = ghost.inner_name,
 			-- name = "entity-ghost",
 			-- inner_name = ghost.inner_name,
-			force = state.player.force,
-			position = ghost.position,
+			force = _force,
+			position = position,
 			direction = ghost.direction,
-			build_check_type = defines.build_check_type.blueprint_ghost,
+			build_check_type = _build_check_type,
 			--forced = true,
 		} then
 			return
+		end
+		
+		if deconstruction_planner then
+			local x, y = position[1], position[2]
+			local left_top = {x+.01, y+.01}
+			local right_bottom = {position[1]+.99, position[2]+.99}
+			surface.deconstruct_area{
+				force = _force,
+				player = _player,
+				area = {
+					left_top = left_top,
+					right_bottom = right_bottom,
+				},
+				item = deconstruction_planner,
+			}
+			-- rendering.draw_rectangle{
+			-- 	left_top = left_top,
+			-- 	right_bottom = right_bottom,
+			-- 	color = {1, 0, 0},
+			-- 	surface = surface,
+			-- }
 		end
 
 		local result = surface.create_entity(ghost)

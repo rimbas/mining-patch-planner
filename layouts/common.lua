@@ -482,14 +482,14 @@ function common.draw_belt_stats(state, belt, belt_speed, speed1, speed2)
 		color=get_color(ratio1), time_to_live=ttl or 1,
 		alignment=alignment[state.direction_choice][1], vertical_alignment="middle",
 		target=l2w(x1-2, y1-.6), scale=1.6,
-		text=string.format("%.2f%s /s", cap_prod(ratio1))
+		text=string.format("%.2f%s/s", cap_prod(ratio1))
 	}
 	r[#r+1] = rendering.draw_text{
 		surface=state.surface, players=player, only_in_alt_mode=true,
 		color=get_color(ratio2), time_to_live=ttl or 1,
 		alignment=alignment[state.direction_choice][2], vertical_alignment="middle",
 		target=l2w(x1-2, y1+.6), scale=1.6,
-		text=string.format("%.2f%s /s", cap_prod(ratio2))
+		text=string.format("%.2f%s/s", cap_prod(ratio2))
 	}
 	local total_ratio = min(1, ratio1) + min(1, ratio2)
 	local total_color = c1
@@ -502,7 +502,7 @@ function common.draw_belt_stats(state, belt, belt_speed, speed1, speed2)
 		color=total_color, time_to_live=ttl or 1,
 		alignment="center", vertical_alignment="middle",
 		target=l2w(x1+accomodation, y1), scale=2,
-		text=string.format("%.2f%s /s", min(2, total_ratio) * belt_speed, (ratio1>1 or ratio2>1) and  "+" or "")
+		text=string.format("%.2f%s/s", min(2, total_ratio) * belt_speed, (ratio1>1 or ratio2>1) and  "+" or "")
 	}
 end
 
@@ -758,8 +758,8 @@ function common.create_belt_building_environment(state)
 		local yt = target.y
 		
 		local merge_x = nil
-		local entry = max(belt.x_end, target.x2+1)
-		for x = entry, target.x_end+M.size do
+		local entry = max(belt.x2+1, target.x2+1)
+		for x = entry, max(belt.x2, target.x2)+M.size do
 			exists, y1, y2 = gap_exists(x, belt.y, target.y, vertical_dir)
 			if exists then
 				merge_x, accomodation = x, -1
@@ -953,6 +953,23 @@ function common.create_belt_building_environment(state)
 	environment.make_sparse_back_merge_belt = make_sparse_back_merge_belt
 	
 	return environment, builder_belts, deconstruct_spec
+end
+
+local clamped_rotation = mpp_util.clamped_rotation
+
+---@param belt_direction defines.direction
+---@param drill_directions table<defines.direction, 1>
+function common.get_belt_lane_inputs(belt_direction, drill_directions)
+	local lane1, lane2 = 0, 0
+	for unrot_drill_dir, count in pairs(drill_directions) do
+		local drill_dir = clamped_rotation(unrot_drill_dir - belt_direction)
+		if drill_dir == EAST then
+			lane2 = lane2 + count
+		else
+			lane1 = lane1 + count
+		end
+	end
+	return lane1, lane2
 end
 
 return common

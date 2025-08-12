@@ -1381,4 +1381,79 @@ function render_util.draw_belt_specification(player_data, event)
 	local breakpoint = true
 end
 
+---Preview the pole coverage
+---@param player_data PlayerData
+---@param event EventData.on_player_reverse_selected_area
+function render_util.draw_pole_joiner(player_data, event)
+	local renderer = render_util.renderer(event)
+
+	local fx1, fy1 = floor(event.area.left_top.x), floor(event.area.left_top.y)
+	local gx, gy = fx1 + .5, fy1 + .5
+
+	local M = mpp_util.miner_struct(player_data.choices.miner_choice)
+	local P = mpp_util.pole_struct(player_data.choices.pole_choice, player_data.choices.pole_quality_choice)
+	
+	---@param x1 number
+	---@param y1 number
+	---@param x2 number
+	---@param y2 number
+	local function pole_joiner(x1, y1, x2, y2)
+		local gap = y2 - y1
+		renderer.draw_circle{
+			x = gx + x1,
+			y = gy + y1,
+		}
+		renderer.draw_circle{
+			x = gx + x2,
+			y = gy + y2,
+		}
+		
+		local wire = P.wire
+		if y2 - y1 <= wire then
+			renderer.draw_line{
+				from = {gx + x1, gy + y1},
+				to = {gx + x2, gy + y2},
+			}
+			return
+		end
+		
+		local function check_pos(sx, sy, step)
+			local x = x1 + sx
+			local y = y1+floor((y2-y1)/2) + sy
+			renderer.draw_circle{
+				x = gx + x,
+				y = gy + y,
+				r = 0.4,
+				filled = true,
+			}
+			renderer.draw_text{
+				x = gx + x,
+				y = gy + y,
+				text = step,
+			}
+		end
+		
+		local max_deviation = gap - wire
+		local step_cap = max_deviation ^ 2
+		local l_step, l_x, l_y, l_d, l_m = 0, 0, 0, 1, 1
+		while l_step < step_cap do
+			while 2 * l_x * l_d < l_m do
+				check_pos(l_x, l_y, l_step)
+				l_x, l_step = l_x + l_d, l_step + 1
+			end
+			while 2 * l_y * l_d < l_m do
+				check_pos(l_x, l_y, l_step)
+				l_y, l_step = l_y + l_d, l_step + 1
+			end
+			l_d, l_m = -1 * l_d, l_m + 1
+		end
+		
+		
+		
+	end
+	
+	pole_joiner(0, 0, 0, 1 + M.size * 2 + 1)
+	
+end
+
 return render_util

@@ -31,10 +31,10 @@ mpp_util.coord_convert = coord_convert
 
 ---Rotates a direction and clamps it
 ---@param direction defines.direction
----@param rotation defines.direction
+---@param rotation defines.direction?
 ---@return defines.direction
 local function clamped_rotation(direction, rotation)
-	return (direction + rotation) % ROTATION
+	return (direction + (rotation or NORTH)) % ROTATION
 end
 
 mpp_util.clamped_rotation = clamped_rotation
