@@ -319,34 +319,55 @@ function layout:_apply_belt_merge_strategy(state, source, target, direction)
 		source.has_drills ~= true
 		or target.has_drills ~= true
 		or source.merge_direction
-		or source.merge_strategy == "target"
-		or target.merge_strategy == "target"
+		or source.merge_strategy
+		or target.merge_strategy
 		or source_total > target_total
 	) then
-		return
-	elseif source_total <= target_total and (source_t1 + target_t2) <= 1 and (source_t2 + target_t1) <= 1 then
+		return -- no op
+	elseif direction == SOUTH and source_t1 == 0 and source_total <= 1 - target_t1 then
+		source.merge_target = target
+		source.merge_direction = direction
+		source.is_output = false
+		source.merge_strategy = "side-merge"
+		target.merge_strategy = "target"
+		target.merged_throughput1 = target_t1 + source_total
+	elseif direction == NORTH and source_t2 == 0 and source_total <= 1 - target_t2 then
+		source.merge_target = target
+		source.merge_direction = direction
+		source.is_output = false
+		source.merge_strategy = "side-merge"
+		target.merge_strategy = "target"
+		target.merged_throughput2 = target_t2 + source_total
+	elseif (
+		source_total <= target_total
+		and (source_t1 + target_t2) <= 1
+		and (source_t2 + target_t1) <= 1
+		and target.merge_strategy ~= "target-back-merge"
+		and source.merge_strategy ~= "target"
+	)
+	then
 		source.merge_target = target
 		source.merge_direction = direction
 		source.is_output = false
 		source.merge_strategy = "back-merge"
-		target.merge_strategy = "target"
+		target.merge_strategy = "target-back-merge"
 		target.merged_throughput2 = target_t2 + source_t1
 		target.merged_throughput1 = target_t1 + source_t2
 		target.merge_slave = true
-	-- elseif direction == SOUTH and source_total <= 1 - target_t1 then
-	-- 	source.merge_target = target
-	-- 	source.merge_direction = direction
-	-- 	source.is_output = false
-	-- 	source.merge_strategy = "side-merge"
-	-- 	target.merge_strategy = "target"
-	-- 	target.merged_throughput1 = target_t1 + source_total
-	-- elseif direction == NORTH and source_total <= 1 - target_t2 then
-	-- 	source.merge_target = target
-	-- 	source.merge_direction = direction
-	-- 	source.is_output = false
-	-- 	source.merge_strategy = "side-merge"
-	-- 	target.merge_strategy = "target"
-	-- 	target.merged_throughput2 = target_t2 + source_total
+	elseif direction == SOUTH and source_total <= 1 - target_t1 then
+		source.merge_target = target
+		source.merge_direction = direction
+		source.is_output = false
+		source.merge_strategy = "side-merge"
+		target.merge_strategy = "target"
+		target.merged_throughput1 = target_t1 + source_total
+	elseif direction == NORTH and source_total <= 1 - target_t2 then
+		source.merge_target = target
+		source.merge_direction = direction
+		source.is_output = false
+		source.merge_strategy = "side-merge"
+		target.merge_strategy = "target"
+		target.merged_throughput2 = target_t2 + source_total
 	end
 end
 
@@ -394,8 +415,8 @@ function layout:prepare_belt_layout(state)
 				belt_env.make_sparse_back_merge_belt(belt)
 			elseif belt.is_output then
 				belt_env.make_sparse_output_belt(belt, belt.x_start)
-			-- elseif belt.merge_strategy == "side-merge" then
-			-- 	belt_env.make_side_merge_belt(belt)
+			elseif belt.merge_strategy == "side-merge" then
+				belt_env.make_sparse_side_merge_belt(belt)
 			else
 				belt_env.make_sparse_output_belt(belt, belt.x_start)
 			end

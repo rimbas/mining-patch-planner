@@ -1181,6 +1181,7 @@ end
 ---@param state SimpleState
 ---@param belt BaseBeltSpecification
 ---@param direction defines.direction.west | defines.direction.east | nil
+---@return number, number
 function layout:_calculate_belt_throughput(state, belt, direction)
 	local belt_speed = state.belt.speed
 	local multiplier = common.get_mining_drill_production(state)
@@ -1188,10 +1189,11 @@ function layout:_calculate_belt_throughput(state, belt, direction)
 	local function lane_capacity(lane) if lane then return #lane * multiplier / belt_speed end return 0 end
 	local lane1, lane2 = belt.lane1, belt.lane2
 
-	belt.throughput1 = lane_capacity(lane1)
-	belt.throughput2 = lane_capacity(lane2)
-	belt.merged_throughput1 = belt.throughput1
-	belt.merged_throughput2 = belt.throughput2
+	return lane_capacity(lane1), lane_capacity(lane2)
+	-- belt.throughput1 = lane_capacity(lane1)
+	-- belt.throughput2 = lane_capacity(lane2)
+	-- belt.merged_throughput1 = belt.throughput1
+	-- belt.merged_throughput2 = belt.throughput2
 end
 
 ---@param state SimpleState
@@ -1280,7 +1282,9 @@ function layout:_process_mining_drill_lanes(state)
 			merged_throughput2 = 0,
 		}
 		
-		self:_calculate_belt_throughput(state, belt, WEST)
+		local throughput1, throughput2 = self:_calculate_belt_throughput(state, belt, EAST)
+		belt.throughput1, belt.throughput2 = throughput1, throughput2
+		belt.merged_throughput1, belt.merged_throughput2 = throughput1, throughput2
 		
 		belts:push(belt)
 
@@ -1300,24 +1304,47 @@ function layout:_apply_belt_merge_strategy(state, source, target, direction)
 	local source_total = source_t1 + source_t2
 	local target_t1, target_t2 = target.merged_throughput1, target.merged_throughput2
 	local target_total = target_t1 + target_t2
+	local source_west1, source_west2 = self:_calculate_belt_throughput(state, source, WEST)
 	
 	if (
 		source.has_drills ~= true
 		or target.has_drills ~= true
 		or source.merge_direction
-		or source.merge_strategy == "target"
-		or target.merge_strategy == "target"
+		or source.merge_strategy
+		or target.merge_strategy
 		or source_total > target_total
 	) then
-		return
-	elseif source_total <= target_total and (source_t1 + target_t2) <= 1 and (source_t2 + target_t1) <= 1 then
+		return -- no op
+	elseif direction == SOUTH and source_t1 == 0 and source_total <= 1 - target_t1 then
+		source.merge_target = target
+		source.merge_direction = direction
+		source.is_output = false
+		source.merge_strategy = "side-merge"
+		target.merge_strategy = "target"
+		target.merged_throughput1 = target_t1 + source_total
+	elseif direction == NORTH and source_t2 == 0 and source_total <= 1 - target_t2 then
+		source.merge_target = target
+		source.merge_direction = direction
+		source.is_output = false
+		source.merge_strategy = "side-merge"
+		target.merge_strategy = "target"
+		target.merged_throughput2 = target_t2 + source_total
+	elseif (
+		source_total <= target_total
+		and (source_west1 + target_t2) <= 1
+		and (source_west2 + target_t1) <= 1
+		and target.merge_strategy ~= "target-back-merge"
+		and source.merge_strategy ~= "target"
+	)
+	then
 		source.merge_target = target
 		source.merge_direction = direction
 		source.is_output = false
 		source.merge_strategy = "back-merge"
-		self:_calculate_belt_throughput(state, source, EAST)
+		source.throughput1, source.throughput2 = source_west1, source_west2
+		source.merged_throughput1, source.merged_throughput2 = source_west1, source_west2
 		source_t1, source_t2 = source.throughput1, source.throughput2
-		target.merge_strategy = "target"
+		target.merge_strategy = "target-back-merge"
 		target.merged_throughput2 = target_t2 + source_t1
 		target.merged_throughput1 = target_t1 + source_t2
 	elseif direction == SOUTH and source_total <= 1 - target_t1 then
@@ -1677,117 +1704,6 @@ end
 
 ---@param self SimpleLayout
 ---@param state SimpleState
-function layout:_display_lane_filling(state)
-	if not state.display_lane_filling_choice or not state.belts then return end
-
-	local belt_speed = state.belt.speed
-	local throughput_capped1, throughput_capped2 = 0, 0
-	local throughput_total1, throughput_total2 = 0, 0
-	--local ore_hardness = prototypes.entity[state.found_resources
-	for i, belt in pairs(state.belts) do
-		---@cast belt BeltSpecification
-		if belt.merge_direction or not belt.lane1 and not belt.lane2 then goto continue end
-
-		local speed1, speed2 = belt.merged_throughput1, belt.merged_throughput2
-
-		throughput_capped1 = throughput_capped1 + math.min(1, speed1)
-		throughput_capped2 = throughput_capped2 + math.min(1, speed2)
-		throughput_total1 = throughput_total1 + speed1
-		throughput_total2 = throughput_total2 + speed2
-
-		common.draw_belt_lane(state, belt)
-		common.draw_belt_stats(state, belt, belt_speed, speed1, speed2)
-		::continue::
-	end
-
-	if #state.belts > 1 then
-		local x = state.best_attempt.sx + 2
-		local y = state.belts[1].y
-		if state.direction_choice == "east" then
-			y = state.belts[state.belt_count].y + 3
-		elseif state.coords.is_vertical then
-			y = y + (state.belts[state.belt_count].y - y) / 2 + 3
-			x = x - 4
-		end
-
-		common.draw_belt_total(
-			state, x, y - 3, belt_speed,
-			throughput_capped1, throughput_capped2,
-			throughput_total1, throughput_total2
-		)
-	end
-
-	--local lanes = math.ceil(math.max(throughput1, throughput2))
-	--state.player.print("Enough to fill "..lanes.." belts after balancing")
-end
-
----@param self SimpleLayout
----@param state SimpleState
-function layout:_give_belt_blueprint(state)
-	local belts = state.belts
-	
-	if belts == nil or #belts == 0 then return end
-	
-	---@type BeltPlannerSpecification
-	local belt_planner_spec = {
-		surface = state.surface,
-		player = state.player,
-		coords = state.coords,
-		direction_choice = state.direction_choice,
-		belt_choice = state.belt_choice,
-		count = 0,
-		ungrouped = true,
-		_renderables = {},
-	}
-	
-	table.sort(belts, function(a, b) return a.y < b.y end)
-	
-	local count = 0
-	for index, belt in pairs(belts) do
-		if belt.is_output == true then
-			count = count + 1
-			belt.index = count
-			belt_planner_spec[count] = table.deepcopy(belt)
-		end
-	end
-	
-	local converter = mpp_util.reverter_delegate(state.coords, state.direction_choice)
-	
-	for i, belt in ipairs(belt_planner_spec) do
-		local index = count - i + 1
-		belt.index = index
-		local gx, gy = converter(belt.x_start-1, belt.y)
-		belt.world_x = gx
-		belt.world_y = gy
-		
-		-- rendering.draw_circle{
-		-- 	surface = state.surface,
-		-- 	target = {gx+.5, gy+.5},
-		-- 	radius = 0.45,
-		-- 	width = 3,
-		-- 	color = {1, 1, 1},
-		-- }
-		
-		-- rendering.draw_text{
-		-- 	surface = state.surface,
-		-- 	target = {gx+.5, gy},
-		-- 	color = {1, 1, 1},
-		-- 	text = index,
-		-- 	alignment= "center",
-		-- 	scale = 2,
-		-- }
-	end
-	
-	belt_planner_spec.count = count
-	belt_planner_spec.ungrouped = true
-	
-	belt_planner.push_belt_planner_step(state.player.index, belt_planner_spec)
-
-	return belt_planner.give_blueprint(state, belt_planner_spec)
-end
-
----@param self SimpleLayout
----@param state SimpleState
 ---@return CallbackState
 function layout:finish(state)
 	if state.print_placement_info_choice and state.player.valid then
@@ -1798,7 +1714,7 @@ function layout:finish(state)
 		end
 	end
 
-	self:_display_lane_filling(state)
+	common.display_lane_filling(state)
 
 	if mpp_util.get_dump_state(state.player.index) then
 		common.save_state_to_file(state, "json")
@@ -1806,7 +1722,7 @@ function layout:finish(state)
 	
 	if state.belt_planner_choice then
 		belt_planner.clear_belt_planner_stack(storage.players[state.player.index])
-		layout:_give_belt_blueprint(state)
+		common.give_belt_blueprint(state)
 	end
 
 	return false

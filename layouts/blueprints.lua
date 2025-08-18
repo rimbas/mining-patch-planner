@@ -1335,11 +1335,11 @@ layout.placement_landfill = simple.placement_landfill
 ---@param state BlueprintState
 function layout:finish(state)
 	
-	simple._display_lane_filling(self, state)
+	common.display_lane_filling(state)
 	
 	if state.belt_planner_choice then
 		belt_planner.clear_belt_planner_stack(storage.players[state.player.index])
-		simple._give_belt_blueprint(self, state)
+		common.give_belt_blueprint( state)
 	end
 	
 	return false

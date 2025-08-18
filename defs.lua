@@ -84,6 +84,7 @@
 
 ---@alias BeltMergeStrategy
 ---| "target" Belt blocked from being merge target (already a target)
+---| "target-back-merge"
 ---| "side-merge" Routes belt into side of another belt
 ---| "back-merge" Routes belt into back of another belt
 ---| "splitter-merge" Merges at the front using a splitter

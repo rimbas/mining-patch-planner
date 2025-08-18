@@ -1,5 +1,4 @@
 require("mpp.global_extends")
-local current_version = require("mpp.version")
 local conf = require("configuration")
 local compatibility = require("mpp.compatibility")
 require("migration")
@@ -22,18 +21,7 @@ local floor = math.floor
 
 storage = storage --[[@as MppStorage]]
 
-script.on_init(function()
-	storage.players = {}
-	---@type State[]
-	storage.tasks = {}
-	storage.immediate_tasks = {}
-	storage.version = current_version
-	conf.initialize_deconstruction_filter()
-
-	for _, player in pairs(game.players) do
-		conf.initialize_global(player.index)
-	end
-end)
+script.on_init(conf.initialize_storage)
 
 ---@param event EventData
 function task_runner_handler(event)
@@ -316,7 +304,7 @@ script.on_event(defines.events.on_built_entity, function(event)
 	local belt_planner_stack = storage.players[event.player_index].belt_planner_stack
 	
 	if #belt_planner_stack == 0 then
-		game.get_player(event.player_index).print("Can't plan belt. No previous saved state found.")
+		game.get_player(event.player_index).print({"mpp.msg_belt_planner_err_no_previous_state"})
 		return
 	end
 	
@@ -324,7 +312,14 @@ script.on_event(defines.events.on_built_entity, function(event)
 	local spec = belt_planner_stack[#belt_planner_stack]
 	
 	local coords = spec.coords
-	local count = spec.count
+	
+	do
+		local mid_x, mid_y = coords.gx + coords.w / 2, coords.gy + coords.h / 2
+		if math.abs(mid_x - gx) > 100 or math.abs(mid_y - gy) > 100 then
+			game.get_player(event.player_index).print({"mpp.msg_belt_planner_err_too_far"})
+			return
+		end
+	end
 	
 	local conv = coord_convert[spec.direction_choice]
 	-- local rot = mpp_util.bp_direction[state.direction_choice][direction]

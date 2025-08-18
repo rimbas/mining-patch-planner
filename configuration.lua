@@ -1,4 +1,5 @@
 local util = require("util")
+local current_version = require("mpp.version")
 local conf = {}
 
 ---@alias FilteredEntityStatus
@@ -139,7 +140,7 @@ conf.default_config = {
 		show_non_electric_miners_choice = false,
 		force_pipe_placement_choice = false,
 		print_debug_info_choice = false,
-		display_lane_filling_choice = false,
+		display_lane_filling_choice = true,
 	},
 
 	gui = {
@@ -153,6 +154,7 @@ conf.default_config = {
 		blueprint_receptacle = nil_element_placeholder,
 		layout_dropdown = nil_element_placeholder,
 		quality_toggle = nil_element_placeholder,
+		undo_button = nil_element_placeholder,
 	},
 
 	blueprints = {
@@ -249,6 +251,19 @@ function conf.update_player_quality_data(player_index)
 		if quality_prototypes[choice] == nil then
 			choices[setting_name] = "normal"
 		end
+	end
+end
+
+function conf.initialize_storage()
+	storage.players = {}
+	---@type State[]
+	storage.tasks = {}
+	storage.immediate_tasks = {}
+	storage.version = current_version
+	conf.initialize_deconstruction_filter()
+
+	for _, player in pairs(game.players) do
+		conf.initialize_global(player.index)
 	end
 end
 

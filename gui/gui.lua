@@ -3,6 +3,7 @@ local mpp_util = require("mpp.mpp_util")
 local enums = require("mpp.enums")
 local blueprint_meta = require("mpp.blueprintmeta")
 local compatibility = require("mpp.compatibility")
+local belt_planner = require("mpp.belt_planner")
 local common = require("layouts.common")
 
 local layouts = algorithm.layouts
@@ -1509,11 +1510,22 @@ local function on_gui_click(event)
 		update_selections(player)
 	elseif evt_ele_tags["mpp_toggle"] then
 		abort_blueprint_mode(player)
-
+		
 		local action = evt_ele_tags["mpp_toggle"]
 		local value = evt_ele_tags["value"]
 		local last_value = player_data.choices[value.."_choice"]
 
+		if value == "belt_planner" and event.button == defines.mouse_button_type.right then
+			local last_state = player_data.last_state
+			if not last_state then
+				player.print({"mpp.msg_belt_planner_err_create_planner_no_previous_state"})
+				return
+			end
+			belt_planner.clear_belt_planner_stack(player_data)
+			common.give_belt_blueprint(last_state)
+			return
+		end
+		
 		if evt_ele_tags.mpp_icon_enabled then
 			if not last_value then
 				event.element.sprite = evt_ele_tags.mpp_icon_enabled --[[@as string]]

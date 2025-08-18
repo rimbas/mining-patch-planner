@@ -34,6 +34,42 @@ script.on_configuration_changed(function(config_changed_data)
 	local version = storage.version or 0
 	storage.version = current_version
 	local game_players = game.players
+	
+	if version < 010700 then -- do a clean slate before 1.7
+		rendering.clear("mining-patch-planner")
+		
+		if storage.players then
+			for player_index, data in pairs(storage.players) do
+				local mpp_root = game_players[player_index].gui.screen.mpp_settings_frame
+				if mpp_root and mpp_root.valid then
+					mpp_root.destroy()
+				end
+				
+				---@cast data PlayerData
+				data.last_state = nil
+				local bp_inventory = data.blueprint_items
+				if bp_inventory and bp_inventory.valid then
+					bp_inventory.destroy()
+				end
+			end
+		end
+		
+		local scr_inv = storage.script_inventory
+		if scr_inv and scr_inv.valid then
+			scr_inv.destroy()
+		end
+		
+		local t = List()
+		for k, _ in pairs(storage) do
+			t:push(k)
+		end
+		for _, key in ipairs(t) do
+			storage[key] = nil
+		end
+		
+		conf.initialize_storage()
+	end
+	
 	if config_changed_data.mod_changes["mining-patch-planner"] and version < current_version then
 		storage.tasks = storage.tasks or {}
 		conf.initialize_deconstruction_filter()
@@ -51,73 +87,5 @@ script.on_configuration_changed(function(config_changed_data)
 			conf.update_player_quality_data(player_index)
 		end
 	end
-
-	if config_changed_data.old_version and string.sub(config_changed_data.old_version, 1, 3) == "1.1" then
-		-- delete tasks old 1.1 tasks
-		storage.tasks = {}
-		
-		rendering.clear("mining-patch-planner")
-		
-		for player_index, data in pairs(storage.players) do
-			---@cast data PlayerData
-			data.last_state = nil
-		end
-	end
 	
-	if version == 0 then
-		return
-	end
-
-	if version < 010636 then
-		if storage.immediate_tasks == nil then
-			storage.immediate_tasks = {}
-		end
-
-		for _, task in pairs(storage.tasks) do
-			if task._render_objects then
-				for _, render_object in pairs(task._render_objects) do
-					if render_object.valid then
-						render_object.destroy()
-					end
-				end
-			end
-		end
-		
-		storage.tasks = {}
-	end
-
-	if version < 010600 then
-		for player_index, data in pairs(storage.players) do
-			---@cast data PlayerData
-			local blueprints = data.blueprints
-			local bp_inventory = data.blueprint_items
-
-			for k, v in pairs(blueprints.flow) do
-				v.destroy()
-			end
-
-			if bp_inventory and bp_inventory.valid then
-				bp_inventory.clear()
-				bp_inventory.resize(1)
-			end
-
-			blueprints.original_id = {}
-			blueprints.mapping = {}
-			blueprints.cache = {}
-			blueprints.flow = {}
-			blueprints.button = {}
-			blueprints.delete = {}
-		end
-	end
-
-	if version < 010617 then
-		for player_index, player_data in pairs(storage.players) do
-			local filtered = player_data.filtered_entities
-			for k, v in pairs(filtered) do
-				if v == true then
-					filtered[k] = "user_hidden"
-				end
-			end
-		end
-	end
 end)

@@ -124,15 +124,14 @@ function layout:_placement_attempt(state, attempt)
 end
 
 ---Sets proper throughput calculations on a belt
----@param self CompactLayout
----@param state CompactState
+---@param self Layout
+---@param state State
 ---@param belt BaseBeltSpecification
 ---@param direction defines.direction.west | defines.direction.east | nil
+---@return number, number
 function layout:_calculate_belt_throughput(state, belt, direction)
 	local belt_speed = state.belt.speed
 	local multiplier = common.get_mining_drill_production(state)
-	---@param lane MinerPlacement[]
-	local function lane_capacity(lane) if lane then return #lane * multiplier / belt_speed end return 0 end
 	local lane1, lane2 = belt.lane1, belt.lane2
 	
 	local dirs =  {[NORTH]=0, [EAST]=0, [SOUTH]=0, [WEST]=0}
@@ -144,16 +143,10 @@ function layout:_calculate_belt_throughput(state, belt, direction)
 	end
 	sum_miner_directions(lane1)
 	sum_miner_directions(lane2)
-	if direction == EAST then
-		belt.throughput1 = (dirs[SOUTH]) * multiplier / belt_speed
-		belt.throughput2 = (dirs[NORTH] + dirs[EAST]) * multiplier / belt_speed
-		belt.merged_throughput1 = belt.throughput1
-		belt.merged_throughput2 = belt.throughput2
+	if direction == WEST then
+		return (dirs[SOUTH]) * multiplier / belt_speed, (dirs[NORTH] + dirs[EAST]) * multiplier / belt_speed
 	else
-		belt.throughput1 = (dirs[SOUTH] + dirs[EAST]) * multiplier / belt_speed
-		belt.throughput2 = (dirs[NORTH]) * multiplier / belt_speed
-		belt.merged_throughput1 = belt.throughput1
-		belt.merged_throughput2 = belt.throughput2
+		return (dirs[SOUTH] + dirs[EAST]) * multiplier / belt_speed, (dirs[NORTH]) * multiplier / belt_speed
 	end
 end
 
@@ -282,7 +275,9 @@ function layout:_process_mining_drill_lanes(state)
 			merged_throughput2 = 0,
 		}
 		
-		self:_calculate_belt_throughput(state, belt, WEST)
+		local throughput1, throughput2 = self:_calculate_belt_throughput(state, belt, EAST)
+		belt.throughput1, belt.throughput2 = throughput1, throughput2
+		belt.merged_throughput1, belt.merged_throughput2 = throughput1, throughput2
 		
 		belts:push(belt)
 
@@ -425,7 +420,7 @@ function layout:prepare_pole_layout(state)
 end
 
 ---Determine and set merge strategies
----@param self SimpleLayout
+---@param self SuperCompactLayout
 ---@param source BaseBeltSpecification
 ---@param target BaseBeltSpecification
 ---@param direction defines.direction.north | defines.direction.south
@@ -434,6 +429,7 @@ function layout:_apply_belt_merge_strategy(state, source, target, direction)
 	local source_total = source_t1 + source_t2
 	local target_t1, target_t2 = target.merged_throughput1, target.merged_throughput2
 	local target_total = target_t1 + target_t2
+	local source_west1, source_west2 = self:_calculate_belt_throughput(state, source, WEST)
 	
 	if (
 		source.has_drills ~= true
@@ -444,12 +440,13 @@ function layout:_apply_belt_merge_strategy(state, source, target, direction)
 		or source_total > target_total
 	) then
 		return
-	elseif source_total <= target_total and (source_t1 + target_t2) <= 1 and (source_t2 + target_t1) <= 1 then
+	elseif source_total <= target_total and (source_west1 + target_t2) <= 1 and (source_west2 + target_t1) <= 1 then
 		source.merge_target = target
 		source.merge_direction = direction
 		source.is_output = false
 		source.merge_strategy = "back-merge"
-		self:_calculate_belt_throughput(state, source, EAST)
+		source.throughput1, source.throughput2 = source_west1, source_west2
+		source.merged_throughput1, source.merged_throughput2 = source_west1, source_west2
 		source_t1, source_t2 = source.throughput1, source.throughput2
 		target.merge_strategy = "target"
 		target.merge_slave = true

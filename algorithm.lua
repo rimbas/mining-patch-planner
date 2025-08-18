@@ -39,6 +39,7 @@ require_layout("blueprints")
 ---@class MinimumPreservedState : TaskState
 ---@field layout_choice string
 ---@field resources LuaEntity[] Filtered resources
+---@field belts BaseBeltSpecification[]
 ---@field belt_planner_belts BeltPlannerSpecification
 ---@field belt_choice string
 ---@field _previous_state MinimumPreservedState?

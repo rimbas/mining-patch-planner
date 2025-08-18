@@ -69,6 +69,7 @@ function task_runner.mining_patch_task(state)
 				coords = state.coords,
 				layout_choice = state.layout_choice,
 				direction_choice = state.direction_choice,
+				belts = state.belts,
 				belt_choice = state.belt_choice,
 				belt_planner_belts = state.belt_planner_belts,
 				_preview_rectangle = state._preview_rectangle,

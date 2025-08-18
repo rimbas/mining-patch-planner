@@ -1,5 +1,6 @@
 local mpp_util = require("mpp.mpp_util")
 local render_util = require("mpp.render_util")
+local belt_planner = require("mpp.belt_planner")
 
 local common = {}
 
@@ -554,7 +555,7 @@ function common.draw_belt_total(state, pos_x, pos_y, speed, capped1, capped2, un
 	end
 end
 
----@param state SimpleState
+---@param state State
 ---@return number
 function common.get_mining_drill_production(state)
 	local drill_speed = prototypes.entity[state.miner_choice].mining_speed
@@ -707,9 +708,14 @@ function common.create_belt_building_environment(state)
 		local s_entry, t_entry = belt.x_entry, target.x_entry
 		local y = belt.y
 		
+		local lane = vertical_dir == NORTH and target.lane2 or target.lane1
+		if lane then
+			t_entry = lane[1].x - 1
+		end
+		
 		local merge_x = nil
 		local exists, y1, y2, accomodation = false, 0, 0, 0
-		if target.x_start < t_entry and t_entry <= s_entry then
+		if target.x_start <= t_entry and t_entry < s_entry then
 			local entry = min(s_entry, t_entry)
 			for x = entry, target.x_start, -1 do
 				exists, y1, y2 = gap_exists(x, belt.y, target.y, vertical_dir)
@@ -740,7 +746,7 @@ function common.create_belt_building_environment(state)
 			place_horizontal_belt(belt.x1, merge_x+accomodation, y, EAST) -- main belt
 			place_vertical_belt(merge_x, y1, y2, vertical_dir) -- vertical segment
 			if merge_x >= target.x2 + 1 then
-				place_vertical_belt(target.x2+1, merge_x+1, target.y, WEST) -- target merge accomodation
+				place_horizontal_belt(target.x2+1, merge_x+1, target.y, WEST) -- target merge accomodation
 			end
 		else
 			-- fallback
@@ -944,13 +950,28 @@ function common.create_belt_building_environment(state)
 		if merge_x then
 			place_sparse_belt(belt, {x1 = belt.x1, direction = EAST, x2 = merge_x+accomodation})
 			place_vertical_belt(merge_x, y1, y2, vertical_dir) -- vertical segment
-			place_sparse_belt(target, {x1 = target.x_start, x2 = merge_x})
+			place_sparse_belt(target, {x1 = target.x_start, x2 = merge_x}) -- target belt
 			target.overlay_line = {{target.x_start, yt}, {merge_x, yt}, {merge_x, y}, {belt.x1, y}}
 		else
 			state.player.print("Failed placing a belt")
 		end
 	end
 	environment.make_sparse_back_merge_belt = make_sparse_back_merge_belt
+	
+	---@param belt BaseBeltSpecification
+	local function make_sparse_side_merge_belt(belt)
+		make_side_merge_belt(belt)
+		
+		local lane2 = belt.lane2
+		if lane2 then
+			local out_x = M.output_rotated[NORTH].x
+			for _, miner in ipairs(lane2) do
+				local my = miner.y
+				place_vertical_belt(miner.x + out_x, y + 1, my - 1, NORTH)
+			end
+		end
+	end
+	environment.make_sparse_side_merge_belt = make_sparse_side_merge_belt
 	
 	return environment, builder_belts, deconstruct_spec
 end
@@ -970,6 +991,115 @@ function common.get_belt_lane_inputs(belt_direction, drill_directions)
 		end
 	end
 	return lane1, lane2
+end
+
+---@param state SimpleState
+function common.display_lane_filling(state)
+	if not state.display_lane_filling_choice or not state.belts then return end
+
+	local belt_speed = state.belt.speed
+	local throughput_capped1, throughput_capped2 = 0, 0
+	local throughput_total1, throughput_total2 = 0, 0
+	--local ore_hardness = prototypes.entity[state.found_resources
+	for i, belt in pairs(state.belts) do
+		---@cast belt BeltSpecification
+		if belt.merge_direction or not belt.lane1 and not belt.lane2 then goto continue end
+
+		local speed1, speed2 = belt.merged_throughput1, belt.merged_throughput2
+
+		throughput_capped1 = throughput_capped1 + math.min(1, speed1)
+		throughput_capped2 = throughput_capped2 + math.min(1, speed2)
+		throughput_total1 = throughput_total1 + speed1
+		throughput_total2 = throughput_total2 + speed2
+
+		common.draw_belt_lane(state, belt)
+		common.draw_belt_stats(state, belt, belt_speed, speed1, speed2)
+		::continue::
+	end
+
+	if #state.belts > 1 then
+		local x = state.best_attempt.sx + 2
+		local y = state.belts[1].y
+		if state.direction_choice == "east" then
+			y = state.belts[state.belt_count].y + 6
+		elseif state.coords.is_vertical then
+			y = y + (state.belts[state.belt_count].y - y) / 2 + 3
+			x = x - 4
+		end
+
+		common.draw_belt_total(
+			state, x, y - 3, belt_speed,
+			throughput_capped1, throughput_capped2,
+			throughput_total1, throughput_total2
+		)
+	end
+
+	--local lanes = math.ceil(math.max(throughput1, throughput2))
+	--state.player.print("Enough to fill "..lanes.." belts after balancing")
+end
+
+---@param state MinimumPreservedState
+function common.give_belt_blueprint(state)
+	local belts = state.belts
+	
+	if belts == nil or #belts == 0 then return end
+	
+	---@type BeltPlannerSpecification
+	local belt_planner_spec = {
+		surface = state.surface,
+		player = state.player,
+		coords = state.coords,
+		direction_choice = state.direction_choice,
+		belt_choice = state.belt_choice,
+		count = 0,
+		ungrouped = true,
+		_renderables = {},
+	}
+	
+	table.sort(belts, function(a, b) return a.y < b.y end)
+	
+	local count = 0
+	for index, belt in pairs(belts) do
+		if belt.is_output == true then
+			count = count + 1
+			belt.index = count
+			belt_planner_spec[count] = table.deepcopy(belt)
+		end
+	end
+	
+	local converter = mpp_util.reverter_delegate(state.coords, state.direction_choice)
+	
+	for i, belt in ipairs(belt_planner_spec) do
+		local index = count - i + 1
+		belt.index = index
+		local gx, gy = converter(belt.x_start-1, belt.y)
+		belt.world_x = gx
+		belt.world_y = gy
+		
+		-- rendering.draw_circle{
+		-- 	surface = state.surface,
+		-- 	target = {gx+.5, gy+.5},
+		-- 	radius = 0.45,
+		-- 	width = 3,
+		-- 	color = {1, 1, 1},
+		-- }
+		
+		-- rendering.draw_text{
+		-- 	surface = state.surface,
+		-- 	target = {gx+.5, gy},
+		-- 	color = {1, 1, 1},
+		-- 	text = index,
+		-- 	alignment= "center",
+		-- 	scale = 2,
+		-- }
+	end
+	
+	belt_planner_spec.count = count
+	belt_planner_spec.ungrouped = true
+	
+	belt_planner.push_belt_planner_step(state.player.index, belt_planner_spec)
+
+	return belt_planner.give_blueprint(state, belt_planner_spec)
 end
 
 return common
