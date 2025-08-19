@@ -426,13 +426,13 @@ end
 ---@field tile GridTile Top left tile
 ---@field line number lane index
 ---@field column number column index
----@field direction? defines.direction
+---@field direction? DirectionString
 
 ---@class MinerPlacement : MinerPlacementInit
 ---@field stagger number Super compact layout stagger index
 ---@field ent BlueprintEntity|nil
 ---@field unconsumed number Unconsumed resource count for postponed miners
----@field direction defines.direction
+---@field direction DirectionString
 ---@field postponed boolean
 
 ---@class PlacementCoords
@@ -513,6 +513,7 @@ function layout:_placement_attempt(state, attempt)
 				tile = tile,
 				line = row_index,
 				column = column_index,
+				direction = row_index % 2 == 1 and SOUTH or NORTH,
 			}
 			if tile.forbidden then
 				-- no op

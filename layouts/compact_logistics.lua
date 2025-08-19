@@ -18,9 +18,11 @@ layout.restrictions.lane_filling_info_available = false
 layout.restrictions.belt_merging_available = false
 layout.restrictions.belt_planner_available = false
 
+layout.prepare_belt_layout = logistics.prepare_belt_layout
+
 ---@param self SimpleLayout
 ---@param state SimpleState
-function layout:prepare_belt_layout(state)
+function layout:prepare_belt_layout_ex(state)
 	local m = state.miner
 	local g = state.grid
 	local C = state.coords

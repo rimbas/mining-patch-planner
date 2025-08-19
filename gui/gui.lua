@@ -1024,7 +1024,7 @@ local function update_misc_selection(player)
 	if layout.restrictions.belt_planner_available then
 		values:push{
 			value="belt_planner",
-			tooltip={"mpp.belt_planner"},
+			tooltip={"mpp.choice_belt_planner"},
 			icon=("mpp_belt_planner"),
 			icon_enabled=("mpp_belt_planner")
 		}
@@ -1174,7 +1174,7 @@ local function update_misc_selection(player)
 	if layout.restrictions.placement_info_available then
 		values:push{
 			value="print_placement_info",
-			tooltip={"mpp.print_placement_info"},
+			tooltip={"mpp.choice_print_placement_info"},
 			icon=("mpp_print_placement_info_disabled"),
 			icon_enabled=("mpp_print_placement_info_enabled"),
 		}
@@ -1183,7 +1183,7 @@ local function update_misc_selection(player)
 	if layout.restrictions.lane_filling_info_available then
 		values:push{
 			value="display_lane_filling",
-			tooltip={"mpp.display_lane_filling"},
+			tooltip={"mpp.choice_display_lane_filling"},
 			icon=("mpp_display_lane_filling_disabled"),
 			icon_enabled=("mpp_display_lane_filling_enabled"),
 		}
@@ -1192,7 +1192,7 @@ local function update_misc_selection(player)
 	if player_data.advanced and layout.restrictions.pipe_available then
 		values:push{
 			value="force_pipe_placement",
-			tooltip={"mpp.force_pipe_placement"},
+			tooltip={"mpp.choice_force_pipe_placement"},
 			icon=("mpp_force_pipe_disabled"),
 			icon_enabled=("mpp_force_pipe_enabled"),
 		}

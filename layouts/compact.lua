@@ -69,6 +69,7 @@ function layout:_placement_attempt(state, attempt)
 				tile = tile,
 				line = row_index,
 				column = column_index,
+				direction = row_index % 2 == 1 and "south" or "north",
 			}
 			if tile.forbidden then
 				-- no op

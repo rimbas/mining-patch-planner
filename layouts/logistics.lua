@@ -1,10 +1,4 @@
-local floor, ceil = math.floor, math.ceil
-local min, max = math.min, math.max
-
 local compact = require("layouts.compact")
-local mpp_util = require("mpp.mpp_util")
-local mpp_revert = mpp_util.revert
-local pole_grid_mt = require("mpp.pole_grid_mt")
 
 ---@class LogisticsLayout : CompactLayout
 local layout = table.deepcopy(compact)
@@ -22,61 +16,35 @@ layout.restrictions.lane_filling_info_available = false
 ---@param self LogisticsLayout
 ---@param state SimpleState
 function layout:prepare_belt_layout(state)
-	local G = state.grid
-	local m = state.miner
-	local attempt = state.best_attempt
-
-	---@type table<number, MinerPlacement[]>
-	local miner_lanes = {{}}
-	local miner_lane_number = 0 -- highest index of a lane, because using # won't do the job if a lane is missing
-	local miner_max_column = 0
-
-	for _, miner in ipairs(attempt.miners) do
-		local index = miner.line
-		miner_lane_number = max(miner_lane_number, index)
-		if not miner_lanes[index] then miner_lanes[index] = {} end
-		local line = miner_lanes[index]
-		line[#line+1] = miner
-		miner_max_column = max(miner_max_column, miner.column)
-	end
-	state.miner_lane_count = miner_lane_number
-	state.miner_max_column = miner_max_column
-
-	for _, lane in pairs(miner_lanes) do
-		table.sort(lane, function(a, b) return a.x < b.x end)
-	end
-	---@param lane MinerPlacement[]
-	local function get_lane_length(lane) if lane then return lane[#lane].x end return 0 end
-	---@param lane MinerPlacement[]
-	local function get_lane_column(lane) if lane and #lane > 0 then return lane[#lane].column or 0 end return 0 end
-
-	local belts = {}
-	state.builder_belts = belts
-	local pole_gap = (1 + state.pole_gap) / 2
-	for i = 1, miner_lane_number, 2 do
-		local lane1 = miner_lanes[i]
-		local lane2 = miner_lanes[i+1]
-
-		local y = ceil(attempt.sy - 1 + (m.size + pole_gap) * i)
-		local x0 = attempt.sx
+	local G, M = state.grid, state.miner
+	local belts = state.belts
+	local output_rotated = M.output_rotated
+	local logistics_choice, quality_choice = state.logistics_choice, state.logistics_quality_choice
+	
+	local builder_belts = List()
+	state.builder_belts = builder_belts
+	for _, belt in ipairs(belts) do
+		local y, x_collection = belt.y, {}
 		
-		local column_count = max(get_lane_column(lane1), get_lane_column(lane2))
-		local indices = {}
-		if lane1 then for _, v in ipairs(lane1) do indices[v.column] = v end end
-		if lane2 then for _, v in ipairs(lane2) do indices[v.column] = v end end
-
-		for j = 1, column_count do
-			local x = x0 + m.out_x + m.size * (j-1)
-			if indices[j] then
-				belts[#belts+1] = {
-					name=state.logistics_choice,
-					quality=state.logistics_quality_choice,
-					thing="belt",
-					grid_x=x,
-					grid_y=y,
-				}
-				G:build_thing_simple(x, y, "belt")
+		local function iterate_lane(lane)
+			if not lane then return end
+			for _, drill in ipairs(lane) do
+				local output_pos = output_rotated[defines.direction[drill.direction]]
+				x_collection[drill.x + output_pos.x] = true
 			end
+		end
+		iterate_lane(belt.lane1)
+		iterate_lane(belt.lane2)
+		
+		for x, _ in pairs(x_collection) do
+			builder_belts:push{
+				name=logistics_choice,
+				quality=quality_choice,
+				thing="belt",
+				grid_x=x,
+				grid_y=y,
+			}
+			G:build_thing_simple(x, y, "belt")
 		end
 	end
 
