@@ -13,6 +13,8 @@ Date: 2025-08-18
   Bugfixes:
     - Various fixes in layouts.
     - Fixed crash when trying to add modules on a mining drill witout module slots.
+  Translation:
+    - Added German translation. (Thanks to Lucanoria)
 ---------------------------------------------------------------------------------------------------
 Version: 1.6.35
 Date: 2025-04-08
