@@ -140,7 +140,7 @@ function layout:prepare_belt_layout(state)
 			belt_lanes[index] = {y=miner.y, row_index=index}
 		end
 		local line = belt_lanes[index]
-		local out_x = M.output_rotated[defines.direction[miner.direction]][1]
+		local out_x = M.output_rotated[miner.direction][1]
 		if line.first_x == nil or (miner.x + out_x) < line.first_x then
 			line.first_x = miner.x + out_x
 		end

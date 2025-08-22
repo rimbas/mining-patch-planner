@@ -45,7 +45,7 @@ function layout:prepare_belt_layout_ex(state)
 		if not miner_lanes[index] then miner_lanes[index] = {} end
 		local line = miner_lanes[index]
 		line._index = index
-		local out_x = m.output_rotated[defines.direction[miner.direction]][1]
+		local out_x = m.output_rotated[miner.direction][1]
 		if line.last_x == nil or (miner.x+out_x) > line.last_x then
 			line.last_x = miner.x + out_x
 			line.last_miner = miner

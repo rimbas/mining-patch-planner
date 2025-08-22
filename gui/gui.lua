@@ -572,7 +572,6 @@ end
 
 ---@param player_data PlayerData
 local function update_direction_section(player_data)
-	local breakpoint = true
 	local section = player_data.gui.selections.direction
 	local choice = player_data.choices.direction_choice
 	
@@ -1243,6 +1242,11 @@ local function update_debugging_selection(player_data)
 		},
 		{
 			value="draw_drill_struct",
+			tooltip="Draw drill struct overlay",
+			icon=("entity/electric-mining-drill"),
+		},
+		{
+			value="draw_raw_drill_struct",
 			tooltip="Draw drill struct overlay",
 			icon=("entity/electric-mining-drill"),
 		},

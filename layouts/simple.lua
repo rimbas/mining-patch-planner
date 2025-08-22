@@ -112,7 +112,6 @@ function layout:initialize(state)
 	end
 end
 
-
 -- Validate the selection
 ---@param self SimpleLayout
 ---@param state SimpleState
@@ -426,13 +425,13 @@ end
 ---@field tile GridTile Top left tile
 ---@field line number lane index
 ---@field column number column index
----@field direction? DirectionString
+---@field direction? defines.direction
 
 ---@class MinerPlacement : MinerPlacementInit
 ---@field stagger number Super compact layout stagger index
 ---@field ent BlueprintEntity|nil
 ---@field unconsumed number Unconsumed resource count for postponed miners
----@field direction DirectionString
+---@field direction defines.direction
 ---@field postponed boolean
 
 ---@class PlacementCoords
@@ -624,7 +623,8 @@ end
 ---@param state SimpleState
 ---@return CallbackState
 function layout:layout_attempts(state)
-	local M = state.miner
+	local M, C = state.miner, state.coords
+	local layout_heuristic = self:_get_layout_heuristic(state)
 	local attempt_count = #state.attempts
 	local attempts_done = 0
 	local budget, cost = 12345 * state.performance_scaling, 0
@@ -634,7 +634,7 @@ function layout:layout_attempts(state)
 	if state.attempt_index == 1 then
 		local attempt_state = state.attempts[state.attempt_index]
 		local current_attempt = self:_placement_attempt(state, attempt_state)
-		local current_attempt_score = self:_get_layout_heuristic(state)(current_attempt.heuristics, M)
+		local current_attempt_score = layout_heuristic(current_attempt.heuristics, M, C)
 		current_attempt.heuristic_score = current_attempt_score
 		current_attempt.index = state.attempt_index
 		-- state.best_attempt = current_attempt
@@ -656,7 +656,7 @@ function layout:layout_attempts(state)
 	while state.attempt_index <= attempt_count do
 		local attempt_state = state.attempts[state.attempt_index]
 		local current_attempt = self:_placement_attempt(state, attempt_state)
-		local current_attempt_score = self:_get_layout_heuristic(state)(current_attempt.heuristics, M)
+		local current_attempt_score = layout_heuristic(current_attempt.heuristics, M, C)
 		current_attempt.index = state.attempt_index
 		current_attempt.heuristic_score = current_attempt_score
 		state.attempt_index = state.attempt_index + 1
@@ -1000,7 +1000,6 @@ function layout:prepare_pipe_layout(state)
 	local function joiner_vertical(x, y, h, belt_y)
 		if h <= span then return end
 		local quotient, remainder = math.divmod(h, span)
-		-- local breakpoint = true
 		function make_points(step_size)
 			local t = {}
 			for i = 1, quotient do
@@ -1024,6 +1023,7 @@ function layout:prepare_pipe_layout(state)
 		for _, py in ipairs(stepping) do
 			que_entity{
 				name=ground_pipe,
+				quality=pipe_quality,
 				thing="pipe",
 				grid_x=x,
 				grid_y = py,
@@ -1031,6 +1031,7 @@ function layout:prepare_pipe_layout(state)
 			}
 			que_entity{
 				name=ground_pipe,
+				quality=pipe_quality,
 				thing="pipe",
 				grid_x=x,
 				grid_y = py+1,
@@ -1095,7 +1096,7 @@ function layout:prepare_pole_layout(state)
 	local coverage = mpp_util.calculate_pole_coverage_simple(state, state.miner_max_column, state.miner_lane_count)
 
 	local power_grid = pole_grid_mt.new()
-	-- state.power_grid = power_grid
+	state.power_grid = power_grid
 
 	-- rendering.draw_circle{
 	-- 	surface = state.surface,
@@ -1169,10 +1170,6 @@ function layout:prepare_pole_layout(state)
 		}
 		G:build_thing_simple(pole.grid_x, pole.grid_y, "pole")
 	end
-	
-	-- if M.size * 2 + 1 > P.wire then
-	-- -- todo: handle power pole joiners when wire doesn't reach between lanes
-	-- end
 
 	return next_step
 end
@@ -1369,8 +1366,7 @@ end
 ---@param state SimpleState
 ---@return CallbackState
 function layout:prepare_belt_layout(state)
-	local G = state.grid
-	local m = state.miner
+	local G, M, P = state.grid, state.miner, state.pole
 
 	local belts = self:_process_mining_drill_lanes(state)
 	state.belts = belts
@@ -1414,6 +1410,278 @@ function layout:prepare_belt_layout(state)
 	
 	state.builder_belts = builder_belts
 
+	common.commit_built_tiles_to_grid(G, builder_belts, "belt")
+	
+	if (
+		state.pole_choice ~= "none"
+		and state.pole_choice ~= "zero_gap"
+		and M.size * 2 + 1 >= floor(P.wire)
+		and M.size < (P.wire - 1) * 2
+	) then
+		return "prepare_power_pole_joiners"
+	end
+	return "prepare_lamp_layout"
+end
+
+---@param self SimpleLayout
+---@param state SimpleState
+---@return CallbackState
+function layout:prepare_power_pole_joiners(state)
+	local G, M, P, B, C = state.grid, state.miner, state.pole, state.belts, state.coords
+	local builder_poles = state.builder_power_poles
+	local power_grid = state.power_grid
+	local max_x, max_y = power_grid._max_x, power_grid._max_y
+	
+	do
+		local last_row = power_grid[max_y] --[[@as table<number, GridPole>]]
+		local consumers_exist = false
+		for _, pole in pairs(last_row) do
+			if pole.has_consumers then
+				consumers_exist = true
+				break
+			end
+		end
+		if not consumers_exist then
+			max_y = max_y - 1
+		end
+	end
+	
+	local function build_pole(x, y)
+		table_insert(
+			builder_poles,
+			{
+				name=state.pole_choice, quality=state.pole_quality_choice,
+				thing="pole",
+				grid_x = x,
+				grid_y = y,
+				no_light = true,
+				ix = 0, iy = 0,
+			}
+		)
+	end
+	
+	local function find_free_tile_ex(start_x, start_y, step_cap)
+		step_cap = step_cap or 9
+		local l_step, l_x, l_y, l_d, l_m = 0, 0, 0, 1, 1
+		while l_step < step_cap do
+			while 2 * l_y * l_d < l_m and l_step < step_cap do
+				local tile = G:get_tile(start_x + l_x, start_y+l_y)
+				if tile and tile.built_thing == nil then return tile end
+				l_y, l_step = l_y + l_d, l_step + 1
+			end
+			while 2 * l_x * l_d < l_m and l_step < step_cap do
+				local tile = G:get_tile(start_x + l_x, start_y+l_y)
+				if tile and tile.built_thing == nil then return tile end
+				l_x, l_step = l_x + l_d, l_step + 1
+			end
+			l_d, l_m = -1 * l_d, l_m + 1
+		end
+	end
+	
+	-- hella cursed
+	-- no, don't tell me to put it in an array and loop like a normal person
+	local function find_free_tile(start_x, start_y)
+		local tile
+		local function try_tile(x_shift, y_shift)
+			tile = G:get_tile(start_x + x_shift, start_y + y_shift)
+			return tile and tile.built_thing == nil
+		end
+		if     try_tile( 0,  0) then
+		elseif try_tile( 0,  1) then
+		elseif try_tile( 0, -1) then
+		elseif try_tile( 1,  0) then
+		elseif try_tile(-1,  0) then
+		elseif try_tile( 1,  1) then
+		elseif try_tile( 1, -1) then
+		elseif try_tile(-1,  1) then
+		elseif try_tile(-1, -1) then
+		else return nil
+		end
+		return tile
+	end
+	
+	local function build_joiner(p1, p2, tile)
+		if not p1.built then
+			p1.built = true
+			build_pole(p1.grid_x, p1.grid_y)
+		end
+		if not p2.built then
+			p2.built = true
+			build_pole(p2.grid_x, p2.grid_y)
+		end
+		build_pole(tile.x, tile.y)
+	end
+	
+	---@param row1 table<number, GridPole>
+	---@param row2 table<number, GridPole>
+	---@return boolean
+	local function try_find_spot_at_start(row1, row2)
+		local current_pole = row1[1]
+		for col = 2, max_x do
+			local pole = row1[col]
+			if pole.built then
+				current_pole = pole
+				break
+			end
+		end
+		
+		if current_pole then -- try first built pole
+			local next_pole = row2[current_pole.ix]
+			local mx, my = power_grid:get_pole_midpoint(current_pole, next_pole)
+			
+			local tile = find_free_tile(mx, my, 9)
+			if tile then
+				build_joiner(current_pole, next_pole, tile)
+				return true
+			end
+		end
+		
+		if current_pole.ix > 1 then -- try previous
+			local index = current_pole.ix - 1
+			current_pole = row1[index]
+			next_pole = row2[index]
+			local mx, my = power_grid:get_pole_midpoint(current_pole, next_pole)
+			local tile = find_free_tile(mx, my, 9)
+			if tile then
+				build_joiner(current_pole, next_pole, tile)
+				return true
+			end
+		end
+		return false
+	end
+	
+	---@param row1 table<number, GridPole>
+	---@param row2 table<number, GridPole>
+	---@return boolean
+	local function try_find_spot_at_end(row1, row2)
+		local current_pole = row1[max_x]
+		for col = max_x - 1, 1, -1 do
+			local pole = row1[col]
+			if pole.built then
+				current_pole = pole
+				break
+			end
+		end
+		
+		if current_pole then -- try first built pole
+			local next_pole = row2[current_pole.ix]
+			local mx, my = power_grid:get_pole_midpoint(current_pole, next_pole)
+			
+			local tile = find_free_tile(mx, my)
+			if tile then
+				build_joiner(current_pole, next_pole, tile)
+				return true
+			end
+		end
+		
+		if current_pole.ix < max_x then -- try next
+			local index = current_pole.ix + 1
+			current_pole = row1[index]
+			next_pole = row2[index]
+			local mx, my = power_grid:get_pole_midpoint(current_pole, next_pole)
+			local tile = find_free_tile(mx, my)
+			if tile then
+				build_joiner(current_pole, next_pole, tile)
+				return true
+			end
+		end
+		return false
+	end
+	
+	---@param row1 table<number, GridPole>
+	---@param row2 table<number, GridPole>
+	---@param belt BaseBeltSpecification
+	---@return boolean
+	local function try_find_spot_last_resort(row1, row2, belt)
+		if not belt then return false end
+		local p1, p2 = row1[max_x], row2[max_x]
+		
+		local tile = find_free_tile(belt.x_end+1, belt.y)
+		if tile then
+			local joiner = {grid_x = tile.x, grid_y = tile.y}
+			if (
+				power_grid:pole_reaches(p1, joiner, P)
+				and power_grid:pole_reaches(p2, joiner, P)
+			) then
+				build_joiner(p1, p2, tile)
+				return true
+			end
+		end
+		
+		local mid_x, mid_y = power_grid:get_pole_midpoint(p1, p2)
+		
+		tile = find_free_tile(belt.x_end+1, mid_y)
+		if tile then
+			local joiner = {grid_x = tile.x, grid_y = tile.y}
+			if (
+				power_grid:pole_reaches(p1, joiner, P)
+				and power_grid:pole_reaches(p2, joiner, P)
+			) then
+				build_joiner(p1, p2, tile)
+				return true
+			end
+		end
+		
+		return false
+	end
+	
+	local found_spots = {} -- keep track which unconnected power pole lanes we joined
+	local current_row = power_grid[1]
+	for row_index = 2, max_y do
+		local next_row = power_grid[row_index]
+		local modified_row_index = row_index - 1
+		if found_spots[modified_row_index] then goto continue end
+		
+		-- CURSED SIDE EFFECT IN IF CHECK
+		if try_find_spot_at_end(current_row, next_row) then
+			found_spots[modified_row_index] = true
+			goto continue
+		elseif try_find_spot_at_start(current_row, next_row) then
+			found_spots[modified_row_index] = true
+			goto continue
+		-- elseif try_find_spot_last_resort(current_row, next_row, B[modified_row_index]) then
+		-- 	found_spots[row_index] = true
+		-- 	goto continue
+		end
+		
+		::continue::
+		current_row = next_row
+	end
+	
+	current_row = power_grid[max_y]
+	for row_index = max_y - 1, 1, -1 do
+		local next_row = power_grid[row_index]
+		if found_spots[row_index] then goto continue end
+		
+		-- CURSED SIDE EFFECT IN IF CHECK
+		if try_find_spot_at_start(current_row, next_row) then
+			found_spots[row_index] = true
+			goto continue
+		elseif try_find_spot_at_end(current_row, next_row) then
+			found_spots[row_index] = true
+			goto continue
+		-- elseif try_find_spot_last_resort(current_row, next_row, B[row_index]) then
+		-- 	found_spots[row_index] = true
+		-- 	goto continue
+		end
+		
+		::continue::
+		current_row = next_row
+	end
+	
+	current_row = power_grid[max_y]
+	for row_index = max_y - 1, 1, -1 do
+		local next_row = power_grid[row_index]
+		if found_spots[row_index]  then goto continue end
+		
+		if try_find_spot_last_resort(current_row, next_row, B[row_index]) then
+			found_spots[row_index] = true
+		end
+		
+		::continue::
+		current_row = next_row
+	end
+	
 	return "prepare_lamp_layout"
 end
 

@@ -62,6 +62,10 @@ function layout:_placement_attempt(state, attempt)
 
 	local heuristic = self:_get_miner_placement_heuristic(state)
 	
+	---@param start_x number
+	---@param start_y number
+	---@param direction defines.direction
+	---@param row_start number
 	local function miner_stagger(start_x, start_y, direction, row_start)
 		local row_index = row_start
 		for y = 1 + shift_y + start_y, state.coords.th + 2, size * 3 + 1 do
@@ -86,6 +90,7 @@ function layout:_placement_attempt(state, attempt)
 				elseif tile.neighbors_outer > 0 and heuristic(tile) then
 					table_insert(miners, miner)
 					common.add_heuristic_values(heuristic_values, M, tile)
+					bx, by = max(bx, x + size - 1), max(by, y + size - 1)
 				elseif tile.neighbors_outer > 0 then
 					postponed[#postponed+1] = miner
 				end
@@ -96,14 +101,14 @@ function layout:_placement_attempt(state, attempt)
 		end
 	end
 
-	miner_stagger(0, -2, "south", 1)
-	miner_stagger(3,  0, "east",  1)
-	miner_stagger(0,  2, "north", 2)
+	miner_stagger(0, -2, SOUTH, 1)
+	miner_stagger(3,  0, EAST,  1)
+	miner_stagger(0,  2, NORTH, 2)
 
 	-- the redundant calculation makes it easier to find the stagger offset
-	miner_stagger(0+size, -2+size+2, "south", 3)
-	miner_stagger(3-size,  0+size+2, "east",  3)
-	miner_stagger(0+size,  2+size+2, "north", 4)
+	miner_stagger(0+size, -2+size+2, SOUTH, 3)
+	miner_stagger(3-size,  0+size+2, EAST,  3)
+	miner_stagger(0+size,  2+size+2, NORTH, 4)
 
 	local result = {
 		sx = shift_x,
@@ -138,7 +143,7 @@ function layout:_calculate_belt_throughput(state, belt, direction)
 	---@param lane MinerPlacement[]
 	local function sum_miner_directions(lane)
 		for _, drill in ipairs(lane or {}) do
-			dirs[defines.direction[drill.direction]] = dirs[defines.direction[drill.direction]] + 1
+			dirs[drill.direction] = dirs[drill.direction] + 1
 		end
 	end
 	sum_miner_directions(lane1)
@@ -157,9 +162,8 @@ function layout:_process_mining_drill_lanes(state)
 	local G = state.grid
 	local m = state.miner
 	local m_size = m.size
-	local multiplier = common.get_mining_drill_production(state)
 	local attempt = state.best_attempt
-	local belt_speed = state.belt.speed
+	local output_positions = m.output_rotated
 	local miner_lanes = attempt.lane_layout
 
 	for _, miner in pairs(attempt.miners) do
@@ -178,21 +182,12 @@ function layout:_process_mining_drill_lanes(state)
 	for _, lane in pairs(miner_lanes) do
 		miner_lane_count = max(miner_lane_count, lane.row_index)
 	end
-	
 
-	---@param lane MinerPlacement[]
-	---@return number?
-	local function get_lane_length(lane, out_x) if lane and lane[#lane] then return lane[#lane].x+out_x end end
 	---@param lane MinerPlacement[]
 	---@return number?
 	local function get_lane_start(lane, out_x) if lane and lane[1] then return lane[1].x + out_x end end
-	---@param lane MinerPlacement[]
-	---@return number?
-	local function get_lane_end(lane, size) if lane and lane[#lane] then return lane[#lane].x + size end end
 
-	local pipe_adjust = state.place_pipes and -1 or 0
 	local belts = List() --[[@as List<BaseBeltSpecification>]]
-	local pole_gap = (1 + state.pole_gap) / 2
 	for i = 1, miner_lane_count, 2 do
 		local x_default = attempt.sx + 1
 		local lane1 = miner_lanes[i]
@@ -223,9 +218,7 @@ function layout:_process_mining_drill_lanes(state)
 
 		---@param drill MinerPlacement
 		local function get_output_position(drill)
-			local output_positions = m.output_rotated
-			local direction = defines.direction[drill.direction]
-			return drill.x + output_positions[direction].x
+			return drill.x + output_positions[drill.direction].x
 		end
 		
 		---@param lane MinerPlacement[]
@@ -246,13 +239,9 @@ function layout:_process_mining_drill_lanes(state)
 			return x1, x2, x_end
 		end
 		
-		local a = 1
-		
-		-- local x1_1, x1_2 = get_lane_start(lane1, m.output_rotated[SOUTH].x), get_lane_start(lane2, m.output_rotated[NORTH].x)
 		local x1_1, x2_1, x_end_1 = get_x_positions(lane1)
 		local x1_2, x2_2, x_end_2 = get_x_positions(lane2)
 		local x1 = mina(x1_1, x1_2)
-		-- local x2_1, x2_2 = get_lane_length(lane1, m.output_rotated[SOUTH].x), get_lane_length(lane2, m.output_rotated[NORTH].x)
 		local x2 = maxa(x2_1, x2_2)
 		local x_end = maxa(x_end_1, x_end_2, x2)
 		local x_entry = mina(get_lane_start(lane1, 0), get_lane_start(lane2, 0)) --[[@as number]]
@@ -537,7 +526,7 @@ function layout:placement_miners(state)
 			thing = "miner",
 			grid_x = miner.origin_x,
 			grid_y = miner.origin_y,
-			direction = mpp_util.clamped_rotation(defines.direction[miner.direction], M.rotation_bump),
+			direction = mpp_util.clamped_rotation(miner.direction, M.rotation_bump),
 		}
 
 		if state.module_choice ~= "none" then

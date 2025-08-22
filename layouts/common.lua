@@ -37,15 +37,17 @@ end
 
 ---@param heuristic HeuristicsBlock
 ---@param miner MinerStruct
-function common.simple_layout_heuristic(heuristic, miner)
+---@param coords Coords
+function common.simple_layout_heuristic(heuristic, miner, coords)
 	local lane_mult = 1 + ceil(heuristic.lane_count / 2) * 0.05
 	-- local unconsumed = 1 + log(max(1, heuristic.unconsumed), 10)
 	local consumerism = 1 / log(heuristic.outer_neighbor_sum + 1, 10)
-	local centricity = 1 + (heuristic.centricity / miner.size * 0.5)
+	local centricity = 1 + (heuristic.centricity  * 0.5)
 	local value = 1
 		-- (heuristic.inner_density + heuristic.empty_space / heuristic.drill_count)
 		* heuristic.inner_sum_deviation
 		* heuristic.outer_neighbor_sum
+		* consumerism
 		* centricity
 		* lane_mult
 		-- * unconsumed
@@ -54,15 +56,18 @@ end
 
 ---@param heuristic HeuristicsBlock
 ---@param miner MinerStruct
-function common.overfill_layout_heuristic(heuristic, miner)
+---@param coords Coords
+function common.overfill_layout_heuristic(heuristic, miner, coords)
 	local lane_mult = 1 + ceil(heuristic.lane_count / 2) * 0.05
 	-- local unconsumed = 1 + log(max(1, heuristic.unconsumed), 10)
 	local empty_space = heuristic.empty_space / heuristic.drill_count
-	local centricity = 1 + (heuristic.centricity / miner.size * 0.5)
+	local consumerism = 1 / log(heuristic.outer_neighbor_sum + 1, 10)
+	local centricity = 1 + (heuristic.centricity * 0.5)
 	local value = 1
 		* heuristic.outer_density
 		* heuristic.resource_sum_deviation
 		* centricity
+		* consumerism
 		-- * empty_space
 		* lane_mult
 		-- * unconsumed
@@ -181,7 +186,7 @@ function common.process_postponed(state, attempt, miners, postponed)
 	for _, miner in ipairs(miners) do
 		-- grid:consume(miner.x+ext_negative, miner.y+ext_negative, area)
 		grid:consume_separable_horizontal(miner.x+ext_negative, miner.y+ext_negative, area, consume_cache)
-		-- bx, by = max(bx, miner.x + size - 1), max(by, miner.y + size - 1)
+		bx, by = max(bx, miner.x + size - 1), max(by, miner.y + size - 1)
 		price = price + area
 	end
 
@@ -254,6 +259,9 @@ function common.save_state_to_file(state, type_)
 	local coverage = state.coverage_choice and "t" or "f"
 	local filename = string.format("layout_%s_%i;%i_%s_%i_%s_%s_%x.%s", get_map_seed(), gx, gy, state.miner_choice, #state.resources, dir, coverage, game.tick, type_)
 
+	state.power_grid = nil
+	state.power_connectivity = nil
+	
 	if type_ == "json" then
 		state._previous_state = nil
 		game.print(string.format("Dumped data to %s ", filename))
@@ -262,10 +270,6 @@ function common.save_state_to_file(state, type_)
 		game.print(string.format("Dumped data to %s ", filename))
 		helpers.write_file("mpp-inspect/"..filename, serpent.dump(state, {}), false, state.player.index)
 	end
-end
-
-function common.calculate_patch_slack(state)
-
 end
 
 ---Determines if mining drill is restricted by the layout
@@ -1038,6 +1042,16 @@ function common.display_lane_filling(state)
 	--state.player.print("Enough to fill "..lanes.." belts after balancing")
 end
 
+---@param grid Grid
+---@param things GhostSpecification[]
+---@param typ GridBuilding
+function common.commit_built_tiles_to_grid(grid, things, typ)
+	typ = typ or "other"
+	for _, v in pairs(things) do
+		grid[v.grid_y][v.grid_x].built_thing = typ
+	end
+end
+
 ---@param state MinimumPreservedState
 function common.give_belt_blueprint(state)
 	local belts = state.belts
@@ -1100,6 +1114,139 @@ function common.give_belt_blueprint(state)
 	belt_planner.push_belt_planner_step(state.player.index, belt_planner_spec)
 
 	return belt_planner.give_blueprint(state, belt_planner_spec)
+end
+
+function common.create_pipe_building_environment(state)
+	local G = state.grid
+	
+	local pipe = state.pipe_choice
+	local pipe_quality = state.pipe_quality_choice
+
+	local ground_pipe, ground_proto = mpp_util.find_underground_pipe(pipe)
+	---@cast ground_pipe string
+	local step, span
+	if ground_proto then
+		step = ground_proto.max_underground_distance
+		span = step + 1
+	end
+	
+	---@type GhostSpecification[]
+	local builder_pipes = state.builder_pipes or {}
+	local deconstruct_spec = List()
+	---@class PipeEnvironment
+	local environment = {
+		builder_pipes = builder_pipes,
+		deconstruct_specification = deconstruct_spec
+	}
+	
+	local function que_entity(t)
+		builder_pipes[#builder_pipes+1] = t
+		G:build_thing_simple(t.grid_x, t.grid_y, "pipe")
+	end
+	
+	local function horizontal_underground(x, y, w)
+		que_entity{name=ground_pipe, quality=pipe_quality, thing="pipe", grid_x=x, grid_y=y, direction=WEST}
+		que_entity{name=ground_pipe, quality=pipe_quality, thing="pipe", grid_x=x+w, grid_y=y, direction=EAST}
+	end
+	local function horizontal_filled(x1, y, w)
+		for x = x1, x1+w do
+			que_entity{name=pipe, quality=pipe_quality, thing="pipe", grid_x=x, grid_y=y}
+		end
+	end
+	local function vertical_filled(x, y1, h)
+		for y = y1, y1 + h do
+			que_entity{name=pipe, quality=pipe_quality, thing="pipe", grid_x=x, grid_y=y}
+		end
+	end
+	local function cap_vertical(x, y, skip_up, skip_down)
+		que_entity{name=pipe, quality=pipe_quality, thing="pipe", grid_x=x, grid_y=y}
+
+		if not ground_pipe then return end
+		if not skip_up then
+			que_entity{name=ground_pipe, quality=pipe_quality, thing="pipe", grid_x=x, grid_y=y-1, direction=SOUTH}
+		end
+		if not skip_down then
+			que_entity{name=ground_pipe, quality=pipe_quality, thing="pipe", grid_x=x, grid_y=y+1, direction=NORTH}
+		end
+	end
+	local function joiner_vertical(x, y, h, belt_y)
+		if h <= span then return end
+		local quotient, remainder = math.divmod(h, span)
+		function make_points(step_size)
+			local t = {}
+			for i = 1, quotient do
+				t[#t+1] = y+i*step_size-1
+			end
+			return t
+		end
+		local stepping = make_points(ceil(h / (quotient+1)))
+		local overlaps = false
+		for _, py in ipairs(stepping) do
+			if py == belt_y or (py+1) == belt_y then
+				overlaps = true
+				break
+			end
+		end
+		if overlaps then
+			quotient = quotient+1
+			stepping = make_points(ceil(h / (quotient+1)))
+		end
+		
+		for _, py in ipairs(stepping) do
+			que_entity{
+				name=ground_pipe,
+				quality=pipe_quality,
+				thing="pipe",
+				grid_x=x,
+				grid_y = py,
+				direction=SOUTH,
+			}
+			que_entity{
+				name=ground_pipe,
+				quality=pipe_quality,
+				thing="pipe",
+				grid_x=x,
+				grid_y = py+1,
+				direction=NORTH,
+			}
+		end
+		
+	end
+	
+	local function process_specification(spec)
+		for _, p in ipairs(spec) do
+			local structure = p.structure
+			local x1, w, y1, h = p.x, p.w, p.y, p.h
+			if structure == "horizontal" then
+				if not ground_pipe then
+					horizontal_filled(x1, y1, w)
+					goto continue_pipe
+				end
+	
+				local quotient, remainder = math.divmod(w, span)
+				for j = 1, quotient do
+					local x = x1 + (j-1)*span
+					horizontal_underground(x, y1, step)
+				end
+				local x = x1 + quotient * span
+				if remainder >= 2 then
+					horizontal_underground(x, y1, remainder)
+				else
+					horizontal_filled(x, y1, remainder)
+				end
+			elseif structure == "vertical" then
+				vertical_filled(x, y1, h)
+			elseif structure == "cap_vertical" then
+				cap_vertical(x1, y1, p.skip_up, p.skip_down)
+			elseif structure == "joiner_vertical" then
+				joiner_vertical(x1, y1, h, p.belt_y)
+			end
+			::continue_pipe::
+		end
+	end
+	environment.process_specification = process_specification
+	
+	return environment
 end
 
 return common

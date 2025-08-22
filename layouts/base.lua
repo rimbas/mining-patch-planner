@@ -44,6 +44,13 @@ layout.restrictions.lane_filling_info_available = false
 layout.restrictions.belt_merging_available = false
 layout.restrictions.belt_planner_available = false
 
+---@diagnostic disable-next-line: missing-fields
+layout.belt_merging_strategies = {}
+layout.belt_merging_strategies.back_merging = true
+layout.belt_merging_strategies.side_merging_front = true
+layout.belt_merging_strategies.side_merging_back = true
+layout.belts_and_power_inline = false
+
 --- Called from script.on_load
 --- ONLY FOR SETMETATABLE USE
 ---@param self Layout

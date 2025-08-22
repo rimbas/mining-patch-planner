@@ -7,6 +7,7 @@ Date: 2025-08-18
     - Improved belt lane throughput and usage overlay.
     - Added layout rotation keybind. (R and Shift+R by default)
     - Added dropdown select for qualities when there are more than 10.
+    - Now attempts add extra power poles to connect power between lanes when gaps are too big.
   Optimizations:
     - Added performance scaling mod setting. (work done per tick)
     - Improved work done per tick.

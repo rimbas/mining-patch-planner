@@ -1,5 +1,6 @@
 local table_insert = table.insert
 local min, max = math.min, math.max
+local floor, ceil = math.floor, math.ceil
 
 -- broke: implement power pole connection calculation yourself
 -- woke: place ghosts to make factorio calculate the connections
@@ -60,6 +61,16 @@ end
 function pole_grid_mt:pole_reaches(p1, p2, struct)
 	local x, y = p1.grid_x - p2.grid_x, p1.grid_y - p2.grid_y
 	return (x * x + y * y) ^ 0.5 <= (struct.wire)
+end
+
+---@param p1 GridPole
+---@param p2 GridPole
+---@return integer
+---@return integer
+function pole_grid_mt:get_pole_midpoint(p1, p2)
+	local x1, y1 = p1.grid_x, p1.grid_y
+	local x2, y2 = p2.grid_x, p2.grid_y
+	return floor(x1+(x2-x1)/2), floor(y1+(y2-y1)/2)
 end
 
 ---@param P PoleStruct

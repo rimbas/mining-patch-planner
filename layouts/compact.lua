@@ -32,6 +32,7 @@ layout.restrictions.module_available = true
 layout.restrictions.pipe_available = true
 layout.restrictions.belt_merging_available = true
 layout.restrictions.belt_planner_available = true
+layout.belts_and_power_inline = true
 
 ---@param self CompactLayout
 ---@param state CompactState
@@ -69,13 +70,14 @@ function layout:_placement_attempt(state, attempt)
 				tile = tile,
 				line = row_index,
 				column = column_index,
-				direction = row_index % 2 == 1 and "south" or "north",
+				direction = row_index % 2 == 1 and SOUTH or NORTH,
 			}
 			if tile.forbidden then
 				-- no op
 			elseif tile.neighbors_outer > 0 and heuristic(tile) then
 				miners[#miners+1] = miner
 				common.add_heuristic_values(heuristic_values, M, tile)
+				bx, by = max(bx, x + size - 1), max(by, y + size - 1)
 			elseif tile.neighbors_outer > 0 then
 				postponed[#postponed+1] = miner
 			end
@@ -322,20 +324,6 @@ function layout:_apply_belt_merge_strategy(state, source, target, direction)
 		target.merge_slave = true
 		target.merged_throughput2 = target_t2 + source_t1
 		target.merged_throughput1 = target_t1 + source_t2
-	-- elseif direction == SOUTH and source_total <= 1 - target_t1 then
-	-- 	source.merge_target = target
-	-- 	source.merge_direction = direction
-	-- 	source.is_output = false
-	-- 	source.merge_strategy = "side-merge"
-	-- 	target.merge_strategy = "target"
-	-- 	target.merged_throughput1 = target_t1 + source_total
-	-- elseif direction == NORTH and source_total <= 1 - target_t2 then
-	-- 	source.merge_target = target
-	-- 	source.merge_direction = direction
-	-- 	source.is_output = false
-	-- 	source.merge_strategy = "side-merge"
-	-- 	target.merge_strategy = "target"
-	-- 	target.merged_throughput2 = target_t2 + source_total
 	end
 end
 
@@ -383,7 +371,23 @@ function layout:prepare_belt_layout(state)
 	end
 
 	state.builder_belts = builder_belts
+	
+	common.commit_built_tiles_to_grid(G, builder_belts, "belt")
 
+	if (
+		state.pole_choice ~= "none"
+		and state.pole_choice ~= "zero_gap"
+		and M.size * 2 + 1 > P.wire
+		and M.size < (P.wire - 1) * 2
+	) then
+		return "prepare_power_pole_joiners"
+	end
+
+	return "expensive_deconstruct"
+end
+
+function layout:prepare_power_pole_joiners(state)
+	simple.prepare_power_pole_joiners(self, state)
 	return "expensive_deconstruct"
 end
 

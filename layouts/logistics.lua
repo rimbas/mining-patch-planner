@@ -29,7 +29,7 @@ function layout:prepare_belt_layout(state)
 		local function iterate_lane(lane)
 			if not lane then return end
 			for _, drill in ipairs(lane) do
-				local output_pos = output_rotated[defines.direction[drill.direction]]
+				local output_pos = output_rotated[drill.direction]
 				x_collection[drill.x + output_pos.x] = true
 			end
 		end
@@ -47,7 +47,7 @@ function layout:prepare_belt_layout(state)
 			G:build_thing_simple(x, y, "belt")
 		end
 	end
-
+	
 	return "expensive_deconstruct"
 end
 

@@ -40,6 +40,8 @@
 ---@field validate fun(self, state: State): boolean
 ---@field initialize fun(self, state: State)
 ---@field tick fun(self, state: State): TickResult
+---@field belt_merging_strategies BeltMergingStrategies
+---@field belts_and_power_inline boolean
 
 ---@alias TickResult string | boolean | nil
 
@@ -75,6 +77,11 @@
 ---@field lane_filling_info_available boolean
 ---@field belt_merging_available boolean
 ---@field belt_planner_available boolean
+
+---@class BeltMergingStrategies
+---@field back_merging boolean
+---@field side_merging_front boolean
+---@field side_merging_back boolean
 
 ---@class DeconstructSpecification
 ---@field x number

@@ -193,12 +193,13 @@ end
 ---@field rotation_bump defines.direction How much to pre-rotate mining drill to have a north facing drill
 ---@field out_x integer Resource drop position x
 ---@field out_y integer Resource drop position y
----@field extent_negative number 
+---@field extent_negative number
 ---@field extent_positive number
 ---@field supports_fluids boolean
 ---@field oversized boolean Is mining drill oversized
 ---@field pipe_left table<defines.direction, number> Y height on left side
 ---@field pipe_right table<defines.direction, number> Y height on right side
+---@field pipe_back table<defines.direction, number[]>
 ---@field output_rotated table<defines.direction, MapPosition> Rotated output positions in reference to (0, 0) origin
 ---@field power_source_tooltip (string|table)?
 ---@field wrong_parity number Does miner have a wrong parity between size and area
@@ -333,6 +334,20 @@ function mpp_util.miner_struct(mining_drill_name, for_blueprint)
 					[SOUTH] = miner.size - pos-1,
 					[WEST] = miner.size - pos-1,
 				}
+			elseif conn.direction == SOUTH and miner.pipe_back == nil then
+				local pos = conn.positions[1].x + floor(miner.size/2)
+				miner.pipe_back = {
+					[NORTH] = {pos},
+					[EAST] = {pos},
+					[SOUTH] = {miner.size - pos-1},
+					[WEST] = {miner.size - pos-1},
+				}
+			elseif conn.direction == SOUTH then
+				local pos = conn.positions[1].x + floor(miner.size/2)
+				table.insert(miner.pipe_back[NORTH], pos)
+				table.insert(miner.pipe_back[EAST], pos)
+				table.insert(miner.pipe_back[SOUTH], miner.size - pos-1)
+				table.insert(miner.pipe_back[WEST], miner.size - pos-1)
 			end
 		end
 

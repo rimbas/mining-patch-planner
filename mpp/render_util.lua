@@ -303,15 +303,23 @@ function render_util.draw_drill_struct(player_data, event)
 	if drill.supports_fluids then
 		-- pipe connections
 		renderer.draw_line{
-			width=4, color = {0, .7, 1},
+			width=4, color = {0, .7, 1}, -- cyan - left
 			from={fx1-.3, y+drill.pipe_left[0]-.5},
 			to={fx1-.3, y+drill.pipe_left[0]+.5},
 		}
 		renderer.draw_line{
-			width=4, color = {.7, .7, 0},
+			width=4, color = {.7, .7, 0}, -- yellow - right
 			from={fx1+drill.size+.3, y+drill.pipe_right[0]-.5},
 			to={fx1+drill.size+.3, y+drill.pipe_right[0]+.5},
 		}
+		
+		for _, back_x in ipairs(drill.pipe_back[0]) do
+			renderer.draw_line{
+				width=4, color = {.9, .5, 0}, -- yellow - right
+				from={x+back_x-.5, fy1+drill.size+.3},
+				to={x+back_x+.5, fy1+drill.size+.3},
+			}
+		end
 	end
 
 	renderer.draw_text{
@@ -404,6 +412,39 @@ function render_util.draw_pole_layout_simple(player_data, event)
 	for i = 1, 10 do
 		draw_lane(fx1, fy1+(i-1)*3, i)
 	end
+end
+
+function render_util.draw_raw_drill_struct(player_data, event)
+	local direction = defines.direction[player_data.direction_choice]
+	
+	local renderer = render_util.renderer(event)
+	
+	local struct = mpp_util.miner_struct(player_data.choices.miner_choice, false)
+	local proto = prototypes.entity[player_data.choices.miner_choice]
+	
+	local gx, gy = event.area.left_top.x, event.area.left_top.y
+	gx, gy = ceil(gx), ceil(gy)
+	
+	if struct.size % 2 == 1 then
+		gx, gy = gx - .5, gy - .5
+	end
+	
+	renderer.draw_circle{
+		x = gx, y = gy,
+		r = .1, filled= true,
+		color = {0, 0, 0}
+	}
+	
+	local collision = proto.collision_box
+	renderer.draw_rectangle{
+		x = gx + (collision.left_top.x),
+		y = gy + (collision.left_top.y),
+		w = (collision.right_bottom.x - collision.left_top.x),
+		h = (collision.right_bottom.y - collision.left_top.y),
+		color = {.8, .8, .8},
+		width = 1,
+	}
+	
 end
 
 ---Preview the pole coverage
@@ -1377,8 +1418,6 @@ function render_util.draw_belt_specification(player_data, event)
 			end
 		end
 	end
-	
-	local breakpoint = true
 end
 
 ---Preview the pole coverage
@@ -1433,22 +1472,19 @@ function render_util.draw_pole_joiner(player_data, event)
 			}
 		end
 		
-		local max_deviation = gap - wire
-		local step_cap = max_deviation ^ 2
+		local step_cap = 9
 		local l_step, l_x, l_y, l_d, l_m = 0, 0, 0, 1, 1
 		while l_step < step_cap do
-			while 2 * l_x * l_d < l_m do
-				check_pos(l_x, l_y, l_step)
-				l_x, l_step = l_x + l_d, l_step + 1
-			end
-			while 2 * l_y * l_d < l_m do
+			while 2 * l_y * l_d < l_m and l_step < step_cap do
 				check_pos(l_x, l_y, l_step)
 				l_y, l_step = l_y + l_d, l_step + 1
 			end
+			while 2 * l_x * l_d < l_m and l_step < step_cap do
+				check_pos(l_x, l_y, l_step)
+				l_x, l_step = l_x + l_d, l_step + 1
+			end
 			l_d, l_m = -1 * l_d, l_m + 1
 		end
-		
-		
 		
 	end
 	
