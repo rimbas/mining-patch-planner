@@ -2,6 +2,7 @@ local mpp_util = require("mpp.mpp_util")
 local common   = require("layouts.common")
 local renderer = require("mpp.render_util")
 local drawing  = require("mpp.drawing")
+local pole_grid_mt = require("mpp.pole_grid_mt")
 
 local floor, ceil = math.floor, math.ceil
 local min, max, mina, maxa = math.min, math.max, math.mina, math.maxa
@@ -214,39 +215,54 @@ function layout:_get_pipe_layout_specification(state)
 	return pipe_layout
 end
 
-
 ---@param self SparseLayout
 ---@param state SimpleState
 function layout:prepare_pole_layout(state)
-	local c = state.coords
-	local m = state.miner
-	local G = state.grid
-	local P = state.pole
-	local attempt = state.best_attempt
-
+	local C, M, G, P, A = state.coords, state.miner, state.grid, state.pole, state.best_attempt
+	
 	local pole_struct = mpp_util.pole_struct(state.pole_choice, state.pole_quality_choice)
 	local supply_area = pole_struct.supply_width
 	local wire_distance = pole_struct.wire
-
+	
+	local power_grid = pole_grid_mt.new()
+	state.power_grid = power_grid
+	
+	local miner_lanes = state.miner_lanes
+	local y_provider = self:_mining_drill_lane_y_provider(state, A)
+	
 	local builder_power_poles = {}
 	state.builder_power_poles = builder_power_poles
-
-	local pole_step = min(floor(wire_distance), supply_area + 2)
+	
+	local area_reaches_both = M.area - M.size < floor(P.supply_area_distance) * 2
+	local pole_start = M.outer_span
+	local pole_step = min(floor(wire_distance), supply_area + M.size - 1)
 	state.pole_step = pole_step
-
-	local miner_lane_width = (state.miner_max_column-1) * m.area + state.miner_max_column
-	local pole_start = m.outer_span
-
+	
 	local function place_pole_lane(y, iy, skip_light)
 		local pole_lane = {}
 		local ix = 1
-		for x = attempt.sx + pole_start, c.tw+m.size, pole_step do
+		for x = A.sx + pole_start, C.tw+M.size, pole_step do
 			local built = false
-			if G:needs_power(x, y, P) then
+			local has_consumers = G:needs_power(x, y, P)
+			if has_consumers then
 				built = true
 				G:build_thing_simple(x, y, "pole")
 			end
-			local pole = {x=x, y=y, ix=ix, iy=iy, built=built}
+			
+			---@type GridPole
+			local pole = {
+				grid_x = x, grid_y = y,
+				ix = ix, iy = iy,
+				has_consumers = has_consumers,
+				backtracked = false,
+				built = has_consumers or built,
+				connections = {},
+				no_light = skip_light,
+			}
+			--power_poles_grid:set_pole(ix, iy, pole)
+
+			power_grid:add_pole(pole)
+			
 			pole_lane[ix] = pole
 			ix = ix + 1
 		end
@@ -264,8 +280,8 @@ function layout:prepare_pole_layout(state)
 					name=state.pole_choice,
 					quality=state.pole_quality_choice,
 					thing="pole",
-					grid_x = backtrack_pole.x,
-					grid_y = backtrack_pole.y,
+					grid_x = backtrack_pole.grid_x,
+					grid_y = backtrack_pole.grid_y,
 					no_light = skip_light or no_light,
 				}
 				G:build_thing_simple(backtrack_pole.grid_x, backtrack_pole.grid_y, "pole")
@@ -274,32 +290,33 @@ function layout:prepare_pole_layout(state)
 
 		return pole_lane
 	end
-
-	local initial_y = attempt.sy + m.outer_span - 1
-	local iy, between_lane = 1, 0
-	local y_max, y_step = initial_y + c.th + m.area + 1, m.area * 2
-	for y = initial_y, y_max, y_step do
-
-		if y + y_step > y_max then -- last pole lane
-			local backstep = m.outer_span * 2 - 1
-			if state.miner_lanes[between_lane+1] then
-				backstep = floor(m.size/2)
+	
+	local power_row_index = 1
+	for i = 1, state.miner_lane_count do
+		-- local lane = miner_lanes[i]
+		local even, odd = i % 2 == 0, i % 2 == 1
+		local y = y_provider(i) - M.size
+		
+		if i == 1 then
+			place_pole_lane(y, power_row_index)
+			power_row_index = power_row_index + 1
+		elseif i == state.miner_lane_count and even then
+			place_pole_lane(y+M.size+1, power_row_index)
+		elseif area_reaches_both and even then
+			place_pole_lane(y + M.size + M.outer_span, power_row_index)
+			-- place_pole_lane(y, power_row_index)
+			power_row_index = power_row_index + 1
+		elseif not area_reaches_both then
+			if even then
+				place_pole_lane(y+M.size+1, power_row_index)
+			else
+				place_pole_lane(y, power_row_index)
 			end
-			place_pole_lane(y - backstep)
-		elseif (m.outer_span * 2 + 2) > supply_area then -- single pole can't supply two lanes
-			place_pole_lane(y, iy)
-			if y ~= initial_y then
-				iy = iy + 1
-				place_pole_lane(y - m.outer_span * 2 + 1, iy, true)
-			end
-		else
-			local backstep = y == initial_y and 0 or floor(m.size/2)
-			place_pole_lane(y - backstep)
+			power_row_index = power_row_index + 1
 		end
-		iy = iy + 1
-		between_lane = between_lane + 2
+		
 	end
-
+		
 	return "prepare_belt_layout"
 end
 
@@ -386,8 +403,7 @@ end
 ---@param state SimpleState
 ---@return CallbackState
 function layout:prepare_belt_layout(state)
-	local G = state.grid
-	local m = state.miner
+	local G, M, P = state.grid, state.miner, state.pole
 
 	local belts = self:_process_mining_drill_lanes(state)
 	for _, belt in ipairs(belts) do
@@ -433,7 +449,16 @@ function layout:prepare_belt_layout(state)
 	end
 	
 	state.builder_belts = builder_belts
-
+	
+	if (
+		state.pole_choice ~= "none"
+		and state.pole_choice ~= "zero_gap"
+		and M.size * 2 + 1 >= floor(P.wire)
+		and M.size < (P.wire - 1) * 2
+		and state.power_grid:get_y_gap() < P.wire * 2
+	) then
+		return "prepare_power_pole_joiners"
+	end
 	return "prepare_lamp_layout"
 end
 

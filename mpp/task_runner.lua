@@ -35,9 +35,7 @@ function task_runner.mining_patch_task(state)
 			---@type PlayerData
 			local player_data = storage.players[state.player.index]
 			player_data.last_state = nil
-			-- TODO: fix rendering
-			--rendering.destroy(state._preview_rectangle)
-			if state._preview_rectangle.valid then
+			if state._preview_rectangle and state._preview_rectangle.valid then
 				state._preview_rectangle.destroy()
 			end
 			mpp_util.update_undo_button(player_data)
@@ -48,12 +46,10 @@ function task_runner.mining_patch_task(state)
 		local player = state.player
 		if state.blueprint then state.blueprint.clear() end
 		if state.blueprint_inventory then state.blueprint_inventory.destroy() end
-		-- TODO: fix rendering
-		--rendering.destroy(state._preview_rectangle)
-		if state._preview_rectangle.valid then
+		if state._preview_rectangle and state._preview_rectangle.valid then
 			state._preview_rectangle.destroy()
 		end
-
+		
 		---@type PlayerData
 		local player_data = storage.players[player.index]
 		state._previous_state = nil
@@ -79,9 +75,8 @@ function task_runner.mining_patch_task(state)
 			}
 		end
 
+		state.player.play_sound{path="utility/build_blueprint_large"}
 		table.remove(storage.tasks, 1)
-		-- TODO: sound
-		-- player.play_sound{path="utility/build_blueprint_medium"}
 		mpp_util.update_undo_button(player_data)
 	elseif tick_result ~= true then
 		state._callback = tick_result

@@ -244,4 +244,10 @@ function pole_grid_mt:ensure_connectivity(connectivity)
 	return connected
 end
 
+function pole_grid_mt:get_y_gap()
+	if self._max_y < 2 or self._max_x < 1 then return 1/0 end
+	local p1, p2 = self[1][1], self[2][1]
+	return p2.grid_y - p1.grid_y
+end
+
 return pole_grid_mt

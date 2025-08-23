@@ -1,13 +1,13 @@
 ---------------------------------------------------------------------------------------------------
 Version: 1.7.0
-Date: 2025-08-18
+Date: 2025-08-24
   Features:
+    - Added a belt merging option.
     - Added an option to give a belt planner after layout creation.
-    - Added belt merging option.
     - Improved belt lane throughput and usage overlay.
     - Added layout rotation keybind. (R and Shift+R by default)
     - Added dropdown select for qualities when there are more than 10.
-    - Now attempts add extra power poles to connect power between lanes when gaps are too big.
+    - Attempts add an extra power pole to connect power between lanes if its enough to bridge the gap.
   Optimizations:
     - Added performance scaling mod setting. (work done per tick)
     - Improved work done per tick.

@@ -239,14 +239,8 @@ local function cursor_stack_check(e)
 		cursor_stack.valid_for_read and
 		cursor_stack.name == "mining-patch-planner"
 	) then
-		-- TODO: remove pcall
 		gui.show_interface(player)
-		local success, err = pcall(gui.show_interface, player)
-		if success == false then
-			game.print(err)
-			player.gui.screen.mpp_settings_frame.destroy()
-		end
-		-- algorithm.on_gui_open(player_data)
+		algorithm.on_gui_open(player_data)
 	else
 		local duration = mpp_util.get_display_duration(e.player_index)
 		if e.tick < player_data.tick_expires then

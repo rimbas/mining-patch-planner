@@ -1410,13 +1410,12 @@ function layout:prepare_belt_layout(state)
 	
 	state.builder_belts = builder_belts
 
-	common.commit_built_tiles_to_grid(G, builder_belts, "belt")
-	
 	if (
 		state.pole_choice ~= "none"
 		and state.pole_choice ~= "zero_gap"
 		and M.size * 2 + 1 >= floor(P.wire)
 		and M.size < (P.wire - 1) * 2
+		and state.power_grid:get_y_gap() < P.wire * 2
 	) then
 		return "prepare_power_pole_joiners"
 	end
@@ -1431,6 +1430,8 @@ function layout:prepare_power_pole_joiners(state)
 	local builder_poles = state.builder_power_poles
 	local power_grid = state.power_grid
 	local max_x, max_y = power_grid._max_x, power_grid._max_y
+	
+	common.commit_built_tiles_to_grid(G, state.builder_belts, "belt")
 	
 	do
 		local last_row = power_grid[max_y] --[[@as table<number, GridPole>]]
@@ -1460,44 +1461,21 @@ function layout:prepare_power_pole_joiners(state)
 		)
 	end
 	
-	local function find_free_tile_ex(start_x, start_y, step_cap)
-		step_cap = step_cap or 9
-		local l_step, l_x, l_y, l_d, l_m = 0, 0, 0, 1, 1
-		while l_step < step_cap do
-			while 2 * l_y * l_d < l_m and l_step < step_cap do
-				local tile = G:get_tile(start_x + l_x, start_y+l_y)
-				if tile and tile.built_thing == nil then return tile end
-				l_y, l_step = l_y + l_d, l_step + 1
-			end
-			while 2 * l_x * l_d < l_m and l_step < step_cap do
-				local tile = G:get_tile(start_x + l_x, start_y+l_y)
-				if tile and tile.built_thing == nil then return tile end
-				l_x, l_step = l_x + l_d, l_step + 1
-			end
-			l_d, l_m = -1 * l_d, l_m + 1
-		end
-	end
-	
-	-- hella cursed
 	-- no, don't tell me to put it in an array and loop like a normal person
 	local function find_free_tile(start_x, start_y)
-		local tile
-		local function try_tile(x_shift, y_shift)
-			tile = G:get_tile(start_x + x_shift, start_y + y_shift)
-			return tile and tile.built_thing == nil
+		local function get_tile(x_shift, y_shift)
+			local tile = G:get_tile(start_x + x_shift, start_y + y_shift)
+			if tile and tile.built_thing == nil then return tile end
 		end
-		if     try_tile( 0,  0) then
-		elseif try_tile( 0,  1) then
-		elseif try_tile( 0, -1) then
-		elseif try_tile( 1,  0) then
-		elseif try_tile(-1,  0) then
-		elseif try_tile( 1,  1) then
-		elseif try_tile( 1, -1) then
-		elseif try_tile(-1,  1) then
-		elseif try_tile(-1, -1) then
-		else return nil
-		end
-		return tile
+		return get_tile( 0,  0)
+			or get_tile( 0,  1)
+			or get_tile( 0, -1)
+			or get_tile( 1,  0)
+			or get_tile(-1,  0)
+			or get_tile( 1,  1)
+			or get_tile( 1, -1)
+			or get_tile(-1,  1)
+			or get_tile(-1, -1)
 	end
 	
 	local function build_joiner(p1, p2, tile)
@@ -1626,17 +1604,31 @@ function layout:prepare_power_pole_joiners(state)
 	end
 	
 	local found_spots = {} -- keep track which unconnected power pole lanes we joined
+	
 	local current_row = power_grid[1]
+	for row_index = 2, max_y do
+		local next_row = power_grid[row_index]
+		
+		local p1, p2 = current_row[1], next_row[1]
+		
+		if power_grid:pole_reaches(p1, p2, P) then
+			found_spots[row_index-1] = true
+		end
+		
+		current_row = next_row
+	end
+	
+	current_row = power_grid[1]
 	for row_index = 2, max_y do
 		local next_row = power_grid[row_index]
 		local modified_row_index = row_index - 1
 		if found_spots[modified_row_index] then goto continue end
 		
 		-- CURSED SIDE EFFECT IN IF CHECK
-		if try_find_spot_at_end(current_row, next_row) then
+		if try_find_spot_at_start(current_row, next_row) then
 			found_spots[modified_row_index] = true
 			goto continue
-		elseif try_find_spot_at_start(current_row, next_row) then
+		elseif try_find_spot_at_end(current_row, next_row) then
 			found_spots[modified_row_index] = true
 			goto continue
 		-- elseif try_find_spot_last_resort(current_row, next_row, B[modified_row_index]) then

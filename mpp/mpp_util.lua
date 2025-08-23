@@ -434,7 +434,6 @@ function mpp_util.pole_struct(pole_name, quality_name)
 	end
 	local pole = mpp_util.entity_struct(pole_name, quality_name) --[[@as PoleStruct]]
 
-	-- TODO: fix for quality local radius = pole_proto.supply_area_distance --[[@as number]]
 	local radius = pole_proto.get_supply_area_distance(quality_name)
 	pole.supply_area_distance = radius
 	pole.supply_width = floor(radius * 2)

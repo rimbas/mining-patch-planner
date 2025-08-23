@@ -372,13 +372,12 @@ function layout:prepare_belt_layout(state)
 
 	state.builder_belts = builder_belts
 	
-	common.commit_built_tiles_to_grid(G, builder_belts, "belt")
-
 	if (
 		state.pole_choice ~= "none"
 		and state.pole_choice ~= "zero_gap"
-		and M.size * 2 + 1 > P.wire
+		and M.size * 2 + 1 >= floor(P.wire)
 		and M.size < (P.wire - 1) * 2
+		and state.power_grid:get_y_gap() < P.wire * 2
 	) then
 		return "prepare_power_pole_joiners"
 	end

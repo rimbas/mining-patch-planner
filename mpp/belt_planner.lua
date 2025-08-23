@@ -287,6 +287,8 @@ function belt_planner.layout(state)
 			or (op_direction == SOUTH and op_x > (belt_start_x - 1))
 		)
 		then
+			local 
+			local x_direction = op_x > (belt_start_x - count)
 			local y = op_direction == NORTH and belt_specification[1].y or belt_specification[count].y
 			for _, belt in ipairs(belt_specification) do
 				local i = belt.index
@@ -313,16 +315,6 @@ function belt_planner.layout(state)
 					y2 = op_y + y2_step,
 					belt_choice = belt_choice,
 				})
-				-- belt_planner.build_elbow(create_entity, {
-				-- 	start_direction = EAST,
-				-- 	end_direction = op_direction,
-				-- 	type = "elbow",
-				-- 	belt_choice = belt_choice,
-				-- 	x1 = belt_start_x+1,
-				-- 	y1 = op_y + y2_step,
-				-- 	x2 = op_x + x2_step2,
-				-- 	y2 = op_y,
-				-- })
 				belt_planner.build_line_vertical(create_entity, {
 					belt_choice = belt_choice,
 					direction = op_direction,

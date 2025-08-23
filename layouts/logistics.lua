@@ -1,3 +1,4 @@
+local simple = require("layouts.simple")
 local compact = require("layouts.compact")
 
 ---@class LogisticsLayout : CompactLayout
@@ -16,7 +17,7 @@ layout.restrictions.lane_filling_info_available = false
 ---@param self LogisticsLayout
 ---@param state SimpleState
 function layout:prepare_belt_layout(state)
-	local G, M = state.grid, state.miner
+	local G, M, P = state.grid, state.miner, state.pole
 	local belts = state.belts
 	local output_rotated = M.output_rotated
 	local logistics_choice, quality_choice = state.logistics_choice, state.logistics_quality_choice
@@ -48,6 +49,21 @@ function layout:prepare_belt_layout(state)
 		end
 	end
 	
+	if (
+		state.pole_choice ~= "none"
+		and state.pole_choice ~= "zero_gap"
+		and M.size * 2 + 1 >= math.floor(P.wire)
+		and M.size < (P.wire - 1) * 2
+		and state.power_grid:get_y_gap() < P.wire * 2
+	) then
+		return "prepare_power_pole_joiners"
+	end
+	
+	return "expensive_deconstruct"
+end
+
+function layout:prepare_power_pole_joiners(state)
+	simple.prepare_power_pole_joiners(self, state)
 	return "expensive_deconstruct"
 end
 

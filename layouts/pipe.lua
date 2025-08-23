@@ -84,6 +84,7 @@ function layout:prepare_pipe_layout(state)
 	local pipe_environment = common.create_pipe_building_environment(state)
 	local pipe_specification = List()
 	
+	local previous_y = nil
 	for i = 0, miner_lane_count, 2 do
 		local y = y_provider(i)
 		local lane1, lane2 = miner_lanes[i], miner_lanes[i+1]
@@ -95,6 +96,9 @@ function layout:prepare_pipe_layout(state)
 				if not lane then return end
 				for _, drill in ipairs(lane) do
 					pipe_backs[drill.x + pipe_back[drill.direction][1]] = true
+					if pipe_back[drill.direction][2] then
+						pipe_backs[drill.x + pipe_back[drill.direction][2]] = true
+					end
 				end
 			end
 			iterate_lane(lane1)
@@ -135,12 +139,27 @@ function layout:prepare_pipe_layout(state)
 			skip_up = i == 0,
 			skip_down = i >= state.miner_lane_count - 1,
 		}
-		
+		if previous_y and span < y-previous_y-1 then
+			pipe_specification:push{
+				structure="joiner_vertical",
+				x=x_start-1,
+				y=previous_y+1,
+				h=y-previous_y,
+				belt_y=previous_y+M.size+1,
+			}
+			local a = 1
+		end
+		previous_y = y
 	end
 	
 	pipe_environment.process_specification(pipe_specification)
 	
 	return "prepare_pole_layout"
+end
+
+function layout:prepare_power_pole_joiners(state)
+	simple.prepare_power_pole_joiners(self, state)
+	return "expensive_deconstruct"
 end
 
 return layout

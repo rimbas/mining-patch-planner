@@ -331,8 +331,6 @@ function algorithm.on_player_selected_area(event)
 
 		if same then
 			for _, renderObject in ipairs(renderables) do
-				-- TODO: fix renderable
-				-- rendering.destroy(id)
 				renderObject.destroy()
 			end
 			state._previous_state = last_state
@@ -350,9 +348,7 @@ function algorithm.on_player_selected_area(event)
 	local validation_result, error = layout:validate(state)
 	if validation_result then
 		layout:initialize(state)
-		-- TODO: sound
-		-- state.player.play_sound{path="utility/blueprint_selection_ended"}
-
+		
 		-- "Progress" bar
 		local c = state.coords
 		state._preview_rectangle = rendering.draw_rectangle{
@@ -429,14 +425,9 @@ function algorithm.on_gui_close(player_data)
 			if renderObject.valid then
 				renderObject.time_to_live = ttl
 			end
-			-- if rendering.is_valid(id) then
-			-- 	rendering.set_time_to_live(id, ttl)
-			-- end
 		end
 	else
 		for _, renderObject in ipairs(last_state._render_objects) do
-			-- TODO: fix render object
-			-- rendering.destroy(id)
 			if renderObject.valid then
 				renderObject.destroy()
 			end
@@ -465,16 +456,11 @@ function algorithm.cleanup_last_state(player_data)
 			if renderObject.valid then
 				renderObject.destroy()
 			end
-			-- if rendering.is_valid(id) then
-			-- 	rendering.destroy(id)
-			-- end
 		end
 		state._render_objects = List()
 	end
 
-	-- TODO: fix rendering
-	--rendering.destroy(state._preview_rectangle)
-	if state._preview_rectangle.valid then
+	if state._preview_rectangle and state._preview_rectangle.valid then
 		state._preview_rectangle.destroy()
 	end
 	mpp_util.update_undo_button(player_data)
