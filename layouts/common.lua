@@ -463,8 +463,9 @@ end
 ---Draws a belt lane overlay
 ---@param state State
 ---@param belt BeltSpecification
-function common.draw_belt_stats(state, belt, belt_speed, speed1, speed2)
+function common.draw_belt_stats(state, belt, belt_speed, speed1, speed2, stagger)
 	if not belt.has_drills then return end
+	stagger = stagger or 0
 	local r = state._render_objects
 	local c, ttl, player = state.coords, 0, {state.player}
 	local x1, y1, x2, y2 = belt.x_start, belt.y, belt.x2, belt.y
@@ -472,6 +473,7 @@ function common.draw_belt_stats(state, belt, belt_speed, speed1, speed2)
 		return mpp_util.revert(c.gx, c.gy, state.direction_choice, x, y, c.tw, c.th)
 	end
 	local c1, c2, c3, c4 = {.9, .9, .9}, {0, 0, 0}, {1, .2, 0}, {.4, .4, .4}
+	x1 = x1 + stagger
 	
 	local ratio1 = speed1
 	local ratio2 = speed2
@@ -1002,10 +1004,15 @@ function common.display_lane_filling(state)
 	if not state.display_lane_filling_choice or not state.belts then return end
 
 	local belt_speed = state.belt.speed
+	local belts = state.belts
 	local throughput_capped1, throughput_capped2 = 0, 0
 	local throughput_total1, throughput_total2 = 0, 0
-	--local ore_hardness = prototypes.entity[state.found_resources
-	for i, belt in pairs(state.belts) do
+	local do_stagger, y_stagger = false, 0
+	if state.coords.is_vertical and #belts > 1 and belts[2].y - belts[1].y < 6 then
+		do_stagger, y_stagger = true, .4
+	end
+
+	for i, belt in pairs(belts) do
 		---@cast belt BeltSpecification
 		if belt.merge_direction or not belt.lane1 and not belt.lane2 then goto continue end
 
@@ -1017,18 +1024,24 @@ function common.display_lane_filling(state)
 		throughput_total2 = throughput_total2 + speed2
 
 		common.draw_belt_lane(state, belt)
-		common.draw_belt_stats(state, belt, belt_speed, speed1, speed2)
+		if do_stagger ~= true then
+			common.draw_belt_stats(state, belt, belt_speed, speed1, speed2, 0)
+		elseif i % 2 == 0 then
+			common.draw_belt_stats(state, belt, belt_speed, speed1, speed2, -y_stagger)
+		else
+			common.draw_belt_stats(state, belt, belt_speed, speed1, speed2, y_stagger)
+		end
 		::continue::
 	end
-
-	if #state.belts > 1 then
+	
+	if #belts > 1 then
 		local x = state.best_attempt.sx + 2
-		local y = state.belts[1].y
+		local y = belts[1].y
 		if state.direction_choice == "east" then
-			y = state.belts[state.belt_count].y + 6
+			y = belts[state.belt_count].y + 6
 		elseif state.coords.is_vertical then
-			y = y + (state.belts[state.belt_count].y - y) / 2 + 3
-			x = x - 4
+			y = y + (belts[state.belt_count].y - y) / 2 + 3
+			x = x - 6
 		end
 
 		common.draw_belt_total(
