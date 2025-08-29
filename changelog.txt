@@ -1,8 +1,10 @@
 ---------------------------------------------------------------------------------------------------
 Version: 1.7.1
-Date: 2025-08-25
+Date: 2025-08-29
   Features:
     - Improved belt throughput overlay for Super Compact layout.
+  Translation:
+    - Updated Russian translation. (Thanks to Astorin)
 ---------------------------------------------------------------------------------------------------
 Version: 1.7.0
 Date: 2025-08-24
