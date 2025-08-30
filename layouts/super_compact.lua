@@ -375,13 +375,13 @@ function layout:prepare_pole_layout(state)
 	for i, belt in ipairs(state.belts) do
 		local y = belt.y
 		local index_x = 1
-		local x_start = belt.x_start + (-1 + belt.index % 2) * 3
-		for x = x_start - 3, belt.x_end, size * 2 do
-			local miner1 = G:get_tile(x, y-1) --[[@as GridTile]]
-			local miner2 = G:get_tile(x, y+1) --[[@as GridTile]]
-			local miner3 = G:get_tile(x+1, y) --[[@as GridTile]]
+		local x_start = belt.x_start + (belt.index % 2) * 3
+		for x = x_start, belt.x_end, size * 2 do
+			local miner1 = G:get_tile(x, y-1)
+			local miner2 = G:get_tile(x, y+1)
+			local miner3 = G:get_tile(x+1, y)
 			
-			local built = miner1.built_thing or miner2.built_thing or miner3.built_thing
+			local built = (miner1 and miner1.built_thing) or (miner2 and miner2.built_thing) or (miner3 and miner3.built_thing)
 			
 			if built then
 				if x == belt.x_start then
