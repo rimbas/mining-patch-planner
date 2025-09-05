@@ -448,8 +448,10 @@ end
 ---@field postponed MinerPlacement[]
 ---@field heuristic_score number
 ---@field lane_layout LaneInfo[]
----@field bx number Lower right mining drill bound
----@field by number Lower right mining drill bound
+---@field bx number Upper left mining drill bound
+---@field by number Upper left mining drill bound
+---@field b2x number Lower right mining drill bound
+---@field b2y number Lower right mining drill bound
 ---@field price number Performance cost of the operation
 
 ---@class LaneInfo
@@ -489,7 +491,8 @@ function layout:_placement_attempt(state, attempt)
 	local miners, postponed = {}, {}
 	local heuristic_values = common.init_heuristic_values()
 	local lane_layout = {}
-	local bx, by = shift_x, shift_y
+	local bx, by = state.coords.extent_x2 + shift_x, state.coords.extent_y2 + shift_x
+	local b2x, b2y = state.coords.extent_x1 + shift_y, state.coords.extent_y1 + shift_y
 
 	local heuristic = self:_get_miner_placement_heuristic(state)
 
@@ -519,7 +522,8 @@ function layout:_placement_attempt(state, attempt)
 			elseif tile.neighbors_outer > 0 and heuristic(tile) then
 				miners[#miners+1] = miner
 				common.add_heuristic_values(heuristic_values, M, tile)
-				bx, by = max(bx, x + size - 1), max(by, y + size - 1)
+				bx, by = min(bx, x-1), min(by, y-1)
+				b2x, b2y = max(b2x, x + size - 1), max(b2y, y + size - 1)
 			elseif tile.neighbors_outer > 0 then
 				postponed[#postponed+1] = miner
 			end
@@ -539,6 +543,8 @@ function layout:_placement_attempt(state, attempt)
 		sy = shift_y,
 		bx = bx,
 		by = by,
+		b2x = b2x,
+		b2y = b2y,
 		miners = miners,
 		postponed = postponed,
 		lane_layout = lane_layout,
@@ -682,7 +688,8 @@ function layout:layout_attempts(state)
 	end
 	
 	if state.attempt_index > #state.attempts then
-		table_sort(saved_attempts, function(a, b) return a.heuristic_score < b.heuristic_score end)
+		-- table_sort(saved_attempts, function(a, b) return a.heuristic_score < b.heuristic_score end) -- we minimizing a value
+		table_sort(saved_attempts, function(a, b) return a.heuristic_score > b.heuristic_score end) -- maximize a value
 		
 		local attempt = saved_attempts[1]
 				

@@ -765,6 +765,24 @@ function render_util.draw_centricity(player_data, event)
 	
 	local attempt = state.best_attempt
 	
+	-- patch bounds
+	renderer.draw_rectangle{
+		x = C.ix1,
+		y = C.iy1,
+		w = C.tw,
+		h = C.th,
+		filled = false,
+		width = 3,
+		color = {0, 0, 0},
+	}
+	renderer.draw_circle{
+		x = C.ix1 + C.w / 2,
+		y = C.iy1 + C.h / 2,
+		r = 0.2,
+		c = {0, 0, 0},
+		width = 3,
+	}
+	
 	renderer.draw_text{
 		x = C.gx,
 		y = C.gy - 4,
@@ -777,36 +795,44 @@ function render_util.draw_centricity(player_data, event)
 	}
 	
 	renderer.draw_circle{
-		x = C.ix1 + attempt.sx,
-		y = C.iy1 + attempt.sy,
+		x = C.ix1 + attempt.bx,
+		y = C.iy1 + attempt.by,
 		r = 0.5,
 		c = {1, 1, 1},
-		filled = true,
 	}
-	
-	renderer.draw_circle{
-		x = C.ix1 + C.w / 2,
-		y = C.iy1 + C.h / 2,
-		r = 0.5,
+	renderer.draw_text{
+		x = C.ix1 + attempt.bx,
+		y = C.iy1 + attempt.by,
+		alignment = "center", vertical_alignment="middle",
+		text = "bx,by",
 		c = {1, 1, 1},
+		scale = 0.65,
+	}
+	renderer.draw_circle{ -- yellow
+		x = C.ix1 + (attempt.b2x),
+		y = C.iy1 + (attempt.b2y),
+		c = {1, 1, 0},
+		r = 0.5,
 		width = 3,
+	}
+	renderer.draw_text{
+		x = C.ix1 + (attempt.b2x),
+		y = C.iy1 + (attempt.b2y),
+		alignment = "center", vertical_alignment="middle",
+		text = "b2x,b2y",
+		c = {1, 1, 0},
+		scale = 0.65,
 	}
 	
 	renderer.draw_circle{ -- orange
-		x = C.ix1 + attempt.sx + (attempt.bx - attempt.sx - 1) / 2,
-		y = C.iy1 + attempt.sy + (attempt.by - attempt.sy - 1) / 2,
+		x = C.ix1 + attempt.bx + (attempt.b2x - attempt.bx) / 2,
+		y = C.iy1 + attempt.by + (attempt.b2y - attempt.by) / 2,
 		c = {1, 0.5, 0},
 		r = 0.35,
 		width = 3,
 	}
 	
-	renderer.draw_circle{ -- yellow
-		x = C.ix1 + attempt.sx + (attempt.bx - attempt.sx - 1),
-		y = C.iy1 + attempt.sy + (attempt.by - attempt.sy - 1),
-		c = {1, 1, 0},
-		r = 0.5,
-		width = 3,
-	}
+	
 end
 
 

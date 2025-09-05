@@ -55,7 +55,8 @@ function layout:_placement_attempt(state, attempt)
 	local heuristic_values = common.init_heuristic_values()
 	local lane_layout = {}
 	local shift_x, shift_y = attempt[1], attempt[2]
-	local bx, by = shift_x + size - 1, shift_y + size - 1
+	local bx, by = state.coords.extent_x2 + shift_x, state.coords.extent_y2 + shift_x
+	local b2x, b2y = state.coords.extent_x1 + shift_y, state.coords.extent_y1 + shift_y
 	
 	--@param tile GridTile
 	--local function heuristic(tile) return tile.neighbor_count > 2 end
@@ -90,7 +91,8 @@ function layout:_placement_attempt(state, attempt)
 				elseif tile.neighbors_outer > 0 and heuristic(tile) then
 					table_insert(miners, miner)
 					common.add_heuristic_values(heuristic_values, M, tile)
-					bx, by = max(bx, x + size - 1), max(by, y + size - 1)
+					bx, by = min(bx, x-1), min(by, y-1)
+					b2x, b2y = max(b2x, x + size - 1), max(b2y, y + size - 1)
 				elseif tile.neighbors_outer > 0 then
 					postponed[#postponed+1] = miner
 				end
@@ -115,6 +117,8 @@ function layout:_placement_attempt(state, attempt)
 		sy = shift_y,
 		bx = bx,
 		by = by,
+		b2x = b2x,
+		b2y = b2y,
 		miners = miners,
 		postponed = postponed,
 		lane_layout = lane_layout,

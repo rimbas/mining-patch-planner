@@ -39,18 +39,16 @@ end
 ---@param miner MinerStruct
 ---@param coords Coords
 function common.simple_layout_heuristic(heuristic, miner, coords)
-	local lane_mult = 1 + ceil(heuristic.lane_count / 2) * 0.05
-	-- local unconsumed = 1 + log(max(1, heuristic.unconsumed), 10)
-	local consumerism = 1 / log(heuristic.outer_neighbor_sum + 1, 10)
-	local centricity = 1 + (heuristic.centricity  * 0.5)
+	local lane_mult = 1 / (1 + ceil(heuristic.lane_count / 2))
+	local centricity = 1 / (1 + log(1 + heuristic.centricity, 10))
+	local outer_density = 1 / (1 + log(heuristic.outer_density + 1, 10))
+	local inner_density = 1 + log(heuristic.inner_density + 1, 10)
 	local value = 1
-		-- (heuristic.inner_density + heuristic.empty_space / heuristic.drill_count)
-		* heuristic.inner_sum_deviation
-		* heuristic.outer_neighbor_sum
-		* consumerism
+		* outer_density
+		* inner_density
 		* centricity
 		* lane_mult
-		-- * unconsumed
+		* (0.5 ^ heuristic.penalty)
 	return value
 end
 
@@ -58,20 +56,40 @@ end
 ---@param miner MinerStruct
 ---@param coords Coords
 function common.overfill_layout_heuristic(heuristic, miner, coords)
-	local lane_mult = 1 + ceil(heuristic.lane_count / 2) * 0.05
-	-- local unconsumed = 1 + log(max(1, heuristic.unconsumed), 10)
-	local empty_space = heuristic.empty_space / heuristic.drill_count
-	local consumerism = 1 / log(heuristic.outer_neighbor_sum + 1, 10)
-	local centricity = 1 + (heuristic.centricity * 0.5)
+	local lane_mult = 1 / (1 + ceil(heuristic.lane_count / 2))
+	local centricity = 1 / (1 + log(1 + heuristic.centricity, 10))
+	local outer_density = 1 + log(heuristic.outer_density + 1, 10)
+	-- local inner_density = 1 / (1 + log(heuristic.inner_density + 1, 10))
 	local value = 1
-		* heuristic.outer_density
-		* heuristic.resource_sum_deviation
+		* outer_density
 		* centricity
-		* consumerism
-		-- * empty_space
 		* lane_mult
-		-- * unconsumed
+		* heuristic.resource_sum_deviation
+		* (0.5 ^ heuristic.penalty)
 	return value
+end
+
+---@param attempt PlacementAttempt
+function common.heuristic_penalties(attempt)
+	local only_postponed = true
+	local no_first_column = true
+	local no_first_row = true
+	for _, miner in pairs(attempt.miners) do
+		only_postponed = only_postponed and miner.postponed
+		if no_first_column then
+			no_first_column = miner.column == 1
+		end
+		if no_first_row then
+			no_first_row = miner.line == 1
+		end
+		if only_postponed then
+			only_postponed = miner.postponed == true
+		end
+		if not (only_postponed or no_first_column or no_first_row) then
+			break
+		end
+	end
+	return (only_postponed and 1 or 0) + (no_first_column and 1 or 0) + (no_first_row and 1 or 0)
 end
 
 ---@class HeuristicsBlock
@@ -94,6 +112,7 @@ end
 ---@field resource_sum_deviation number
 ---@field outer_sum_deviation number
 ---@field inner_sum_deviation number
+---@field penalty number
 
 ---@return HeuristicsBlock
 function common.init_heuristic_values()
@@ -112,6 +131,7 @@ function common.init_heuristic_values()
 		outer_density = 1,
 		centricity = 0,
 		unconsumed = 0,
+		penalty = 0,
 	}
 end
 
@@ -143,11 +163,11 @@ function common.finalize_heuristic_values(attempt, block, coords)
 	
 	local function centricity(m1, m2, size)
 		local center = size / 2
-		local drill = m1+(m2-m1-1)/2
-		return center - drill
+		local drill_middle = m1+(m2-m1)/2
+		return center - drill_middle
 	end
-	local x = centricity(attempt.sx, attempt.bx, coords.w)
-	local y = centricity(attempt.sy, attempt.by, coords.h)
+	local x = centricity(attempt.bx, attempt.b2x, coords.w)
+	local y = centricity(attempt.by, attempt.b2y, coords.h)
 	block.centricity = (x * x + y * y) ^ 0.5
 
 	local resource_sum_deviation, resource_sum_avg = 0, block.resource_sum / biggest / count
@@ -162,6 +182,7 @@ function common.finalize_heuristic_values(attempt, block, coords)
 	block.resource_sum_deviation = (resource_sum_deviation / count) ^ 0.5
 	block.outer_sum_deviation = (outer_sum_deviation / count) ^ 0.5
 	block.inner_sum_deviation = (inner_sum_deviation / count) ^ 0.5
+	block.penalty = common.heuristic_penalties(attempt)
 end
 
 ---Utility to fill in postponed miners on unconsumed resources
@@ -174,7 +195,6 @@ function common.process_postponed(state, attempt, miners, postponed)
 	local price = 0
 	local grid = state.grid
 	local M = state.miner
-	local bx, by = attempt.bx, attempt.by
 
 	local ext_negative, ext_positive = M.extent_negative, M.extent_positive
 	local area, size = M.area, M.size
@@ -186,7 +206,6 @@ function common.process_postponed(state, attempt, miners, postponed)
 	for _, miner in ipairs(miners) do
 		-- grid:consume(miner.x+ext_negative, miner.y+ext_negative, area)
 		grid:consume_separable_horizontal(miner.x+ext_negative, miner.y+ext_negative, area, consume_cache)
-		bx, by = max(bx, miner.x + size - 1), max(by, miner.y + size - 1)
 		price = price + area
 	end
 
@@ -196,7 +215,6 @@ function common.process_postponed(state, attempt, miners, postponed)
 	
 	for _, miner in ipairs(postponed) do
 		miner.unconsumed = grid:get_unconsumed(miner.x+ext_negative, miner.y+ext_negative, area)
-		-- bx, by = max(bx, miner.x + size -1), max(by, miner.y + size -1)
 		price = price + area
 	end
 
@@ -221,7 +239,6 @@ function common.process_postponed(state, attempt, miners, postponed)
 			price = price + area_sq
 			miners[#miners+1] = miner
 			miner.postponed = true
-			-- bx, by = max(bx, miner.x + size - 1), max(by, miner.y + size - 1)
 		end
 	end
 	local unconsumed_sum = 0

@@ -257,7 +257,8 @@ function layout:_placement_attempt(state, attempt)
 	local size, area = M.size, M.area
 	local entities, num_ents = state.bp_mining_drills, #state.bp_mining_drills
 	local sx, sy, countx, county = attempt.sx, attempt.sy, attempt.cx-1, attempt.cy-1
-	local bx, by = sx, sy
+	local bx, by = state.coords.extent_x2 + sx, state.coords.extent_y2 + sx
+	local b2x, b2y = state.coords.extent_x1 + sy, state.coords.extent_y1 + sy
 	local bpw, bph = bp.w, bp.h
 	local heuristic = simple._get_miner_placement_heuristic(self --[[@as SimpleLayout]], state)
 	local heuristic_values = common.init_heuristic_values()
@@ -316,7 +317,8 @@ function layout:_placement_attempt(state, attempt)
 				elseif heuristic(tile) then
 					miners[#miners+1] = struct
 					common.add_heuristic_values(heuristic_values, M, tile)
-					bx, by = max(bx, x + size - 1), max(by, y + size - 1)
+					bx, by = min(bx, x-1), min(by, y-1)
+					b2x, b2y = max(b2x, x + size - 1), max(b2y, y + size - 1)
 				else
 					postponed[#postponed+1] = struct
 				end
@@ -335,6 +337,8 @@ function layout:_placement_attempt(state, attempt)
 		cy = attempt.cy,
 		bx = bx,
 		by = by,
+		b2x = b2x,
+		b2y = b2y,
 		miners = miners,
 		postponed = postponed,
 		lane_layout = {},

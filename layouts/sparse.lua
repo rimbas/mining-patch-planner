@@ -81,6 +81,8 @@ function layout:_placement_attempt(state, attempt)
 		sy=shift_y,
 		bx = 1,
 		by = 1,
+		b2x = 1,
+		b2y = 1,
 		miners=miners,
 		postponed = {},
 		lane_layout=lane_layout,
