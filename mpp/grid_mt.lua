@@ -42,6 +42,7 @@ grid_mt.__index = grid_mt
 ---| "belt"
 ---| "inserter"
 ---| "container"
+---| "assembler"
 ---| "lamp"
 ---| "other"
 
