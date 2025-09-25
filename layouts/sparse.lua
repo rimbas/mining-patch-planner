@@ -220,6 +220,12 @@ end
 ---@param self SparseLayout
 ---@param state SimpleState
 function layout:prepare_pole_layout(state)
+	local next_step ="prepare_belt_layout"
+	
+	if state.pole_choice == "none" then
+		return next_step
+	end
+	
 	local C, M, G, P, A = state.coords, state.miner, state.grid, state.pole, state.best_attempt
 	
 	local pole_struct = mpp_util.pole_struct(state.pole_choice, state.pole_quality_choice)
@@ -319,7 +325,7 @@ function layout:prepare_pole_layout(state)
 		
 	end
 		
-	return "prepare_belt_layout"
+	return next_step
 end
 
 ---Determine and set merge strategies

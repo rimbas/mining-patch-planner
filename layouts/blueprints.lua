@@ -45,9 +45,9 @@ local layout = table.deepcopy(base)
 ---@field drill_output_locations BpDrillOutputLocation
 ---@field entity_input_locations table<number, table<number, true>> Inserter pickup spots
 ---@field collected_beacons List<BpPlacementEnt>
----@field collected_containers List<BpPlacementEnt>
----@field collected_inserters List<BpPlacementEnt>
----@field collected_assemblers List<BpPlacementEnt>
+---@field collected_containers List<BpPlacementEnt> Entities that can contain items (containers/assemblers)
+---@field collected_inserters List<BpPlacementEnt> Entities that transfer items (inserters/loaders)
+---@field collected_recyclers List<BpPlacementEnt> Entities that have output (like recyclers)
 ---@field collected_pipes List<BpPlacementEnt>
 ---@field collected_power List<BpPlacementEnt>
 ---@field collected_belts List<BpPlacementEnt>
@@ -150,7 +150,7 @@ function layout:start(state)
 	state.collected_belts = List()
 	state.collected_inserters = List()
 	state.collected_containers = List()
-	state.collected_assemblers = List()
+	state.collected_recyclers = List()
 	state.collected_pipes = List()
 	state.collected_other = List()
 
@@ -356,8 +356,6 @@ function layout:_placement_attempt(state, attempt)
 	return result
 end
 
-
-
 ---@param self BlueprintLayout
 ---@param state BlueprintState
 function layout:_get_deconstruction_objects(state)
@@ -393,7 +391,7 @@ function layout:collect_entities(state)
 	local collected_belts = state.collected_belts
 	local collected_other = state.collected_other
 	local collected_containers = state.collected_containers
-	local collected_assemblers = state.collected_assemblers
+	local collected_recyclers = state.collected_recyclers
 	local collected_pipes = state.collected_pipes
 
 	local s_ix = attempt.s_ix or 0
@@ -457,7 +455,7 @@ function layout:collect_entities(state)
 				elseif ent_category == "pipe" then
 					collected_pipes:push(base_collected)
 				elseif ent_category == "assembler" then
-					collected_assemblers:push(base_collected)
+					collected_recyclers:push(base_collected)
 				else
 					collected_other:push(base_collected)
 				end
@@ -1246,16 +1244,16 @@ function layout:prepare_belt_layout_finalize(state)
 		}
 	end
 
-	return "prepare_assemblers"
+	return "prepare_recyclers"
 end
 
 ---@param self BlueprintLayout
 ---@param state BlueprintState
-function layout:prepare_assemblers(state)
+function layout:prepare_recyclers(state)
 	local G = state.grid
 	local builder_all = state.builder_all
 
-	for _, assembler in ipairs(state.collected_assemblers) do
+	for _, assembler in ipairs(state.collected_recyclers) do
 		local name = assembler.name
 		local struct = mpp_util.entity_struct(name)
 		G:build_thing(assembler.x, assembler.y, "assembler", struct.w-1, struct.h-1)
