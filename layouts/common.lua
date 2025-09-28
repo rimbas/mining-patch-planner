@@ -15,7 +15,7 @@ local EAST, NORTH, SOUTH, WEST = mpp_util.directions()
 ---@return HeuristicMinerPlacement
 function common.simple_miner_placement(miner)
 	local size, area = miner.size, miner.area
-	local neighbor_cap = (size / 2) ^ 2
+	local neighbor_cap = ceil((size / 2) ^ 2)
 
 	return function(tile)
 		return tile.neighbors_inner > neighbor_cap
@@ -40,7 +40,7 @@ end
 ---@param coords Coords
 function common.simple_layout_heuristic(heuristic, miner, coords)
 	local lane_mult = 1 / (1 + ceil(heuristic.lane_count / 2))
-	local centricity = 1 / (1 + log(1 + heuristic.centricity, 10))
+	local centricity = 1 / (1 + log(1 + heuristic.centricity, 20))
 	local outer_density = 1 / (1 + log(heuristic.outer_density + 1, 10))
 	local inner_density = 1 + log(heuristic.inner_density + 1, 10)
 	local value = 1
@@ -48,7 +48,7 @@ function common.simple_layout_heuristic(heuristic, miner, coords)
 		* inner_density
 		* centricity
 		* lane_mult
-		* (0.5 ^ heuristic.penalty)
+		* (0.75 ^ heuristic.penalty)
 	return value
 end
 
@@ -57,7 +57,7 @@ end
 ---@param coords Coords
 function common.overfill_layout_heuristic(heuristic, miner, coords)
 	local lane_mult = 1 / (1 + ceil(heuristic.lane_count / 2))
-	local centricity = 1 / (1 + log(1 + heuristic.centricity, 10))
+	local centricity = 1 / (1 + log(1 + heuristic.centricity, 20))
 	local outer_density = 1 + log(heuristic.outer_density + 1, 10)
 	-- local inner_density = 1 / (1 + log(heuristic.inner_density + 1, 10))
 	local value = 1
@@ -65,7 +65,7 @@ function common.overfill_layout_heuristic(heuristic, miner, coords)
 		* centricity
 		* lane_mult
 		* heuristic.resource_sum_deviation
-		* (0.5 ^ heuristic.penalty)
+		* (0.75 ^ heuristic.penalty)
 	return value
 end
 
@@ -77,19 +77,29 @@ function common.heuristic_penalties(attempt)
 	for _, miner in pairs(attempt.miners) do
 		only_postponed = only_postponed and miner.postponed
 		if no_first_column then
-			no_first_column = miner.column == 1
+			no_first_column = miner.column ~= 1
 		end
 		if no_first_row then
-			no_first_row = miner.line == 1
+			no_first_row = miner.line ~= 1
 		end
 		if only_postponed then
-			only_postponed = miner.postponed == true
+			only_postponed = miner.postponed ~= true
 		end
 		if not (only_postponed or no_first_column or no_first_row) then
 			break
 		end
 	end
-	return (only_postponed and 1 or 0) + (no_first_column and 1 or 0) + (no_first_row and 1 or 0)
+	local penalty = 0
+	if only_postponed then
+		penalty = penalty + 1
+	end
+	if no_first_column then
+		penalty = penalty + 1
+	end
+	if no_first_row then
+		penalty = penalty + 1
+	end
+	return penalty
 end
 
 ---@class HeuristicsBlock

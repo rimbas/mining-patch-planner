@@ -621,7 +621,7 @@ end
 ---@param self SimpleLayout
 ---@param state SimpleState
 ---@return CallbackState
-function layout:callback_post_attempts(state)
+function layout:get_post_attempts_callback(state)
 	return "prepare_miner_layout"
 end
 
@@ -711,7 +711,7 @@ function layout:layout_attempts(state)
 			state.saved_attempts = nil
 		end
 		
-		return self:callback_post_attempts(state)
+		return self:get_post_attempts_callback(state)
 	end
 
 	return true
@@ -719,12 +719,17 @@ end
 
 ---@param self SimpleLayout
 ---@param state SimpleState
----@return CallbackState
+---@return CallbackState, LocalisedString
 function layout:layout_attempts_fallback(state)
 	local attempt_index = state.attempt_index or 2
 	local attempt_count = #state.saved_attempts
 	local attempt = state.saved_attempts[attempt_index]
 	local attempts_done = 0
+	
+	if attempt_index > attempt_count then
+		state.player.print{"mpp.msg_err_unable_to_create_a_layout"}
+		return false
+	end
 	
 	local budget, cost = 12345 * state.performance_scaling, 0
 	while cost < budget and attempt_index <= attempt_count do
@@ -736,7 +741,7 @@ function layout:layout_attempts_fallback(state)
 		
 		if attempt.heuristics.unconsumed == 0 then
 			state.best_attempt = attempt
-			return self:callback_post_attempts(state)
+			return self:get_post_attempts_callback(state)
 		end
 		
 		attempt_index = attempt_index + 1
@@ -760,7 +765,7 @@ function layout:layout_attempts_fallback(state)
 		state.best_attempt = attempt
 		state.best_attempt_score = attempt.heuristic_score
 		
-		return self:callback_post_attempts(state)
+		return self:get_post_attempts_callback(state)
 	end
 	
 	return true

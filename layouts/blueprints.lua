@@ -238,7 +238,7 @@ layout.layout_attempts_fallback = simple.layout_attempts_fallback
 ---@param self SimpleLayout
 ---@param state SimpleState
 ---@return CallbackState
-function layout:callback_post_attempts(state)
+function layout:get_post_attempts_callback(state)
 	return "collect_entities"
 end
 
