@@ -27,9 +27,8 @@ end
 ---@return HeuristicMinerPlacement
 function common.overfill_miner_placement(miner)
 	local size, area = miner.size, miner.area
-	local neighbor_cap = (size/ 2) ^ 2 - 1
-	local leech = (area * 0.5) ^ 2 - 1
-
+	local leech = (area ^ 2) * 0.20
+	
 	return function(tile)
 		return tile.neighbors_inner > 0 or tile.neighbors_outer > leech
 	end
@@ -56,14 +55,13 @@ end
 ---@param miner MinerStruct
 ---@param coords Coords
 function common.overfill_layout_heuristic(heuristic, miner, coords)
-	local lane_mult = 1 / (1 + ceil(heuristic.lane_count / 2))
 	local centricity = 1 / (1 + log(1 + heuristic.centricity, 20))
 	local outer_density = 1 + log(heuristic.outer_density + 1, 10)
-	-- local inner_density = 1 / (1 + log(heuristic.inner_density + 1, 10))
+	local drills = 1 + log(heuristic.drill_count ^ 0.5, 2)
 	local value = 1
+		* drills
 		* outer_density
 		* centricity
-		* lane_mult
 		* heuristic.resource_sum_deviation
 		* (0.75 ^ heuristic.penalty)
 	return value
@@ -1028,7 +1026,7 @@ end
 
 ---@param state SimpleState
 function common.display_lane_filling(state)
-	if not state.display_lane_filling_choice or not state.belts then return end
+	if not state.display_lane_filling_choice or not state.belts or not state.belt then return end
 
 	local belt_speed = state.belt.speed
 	local belts = state.belts
