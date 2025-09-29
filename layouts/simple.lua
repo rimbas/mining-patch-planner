@@ -1901,6 +1901,7 @@ function layout:placement_landfill(state)
 	
 	local fill_tiles, tile_progress = state.fill_tiles, state.fill_tile_progress or 1
 	local landfill = state.is_space and state.space_landfill_choice or "landfill"
+	local landfill_tile = prototypes.tile[landfill]
 
 	local conv = coord_convert[state.direction_choice]
 	local gx, gy = state.coords.ix1 - 1, state.coords.iy1 - 1
@@ -1923,6 +1924,8 @@ function layout:placement_landfill(state)
 
 	--for _, fill in ipairs(fill_tiles) do
 
+	local _ply, _force = state.player, state.player.force
+	
 	local progress = tile_progress + 64
 	for i = tile_progress, #fill_tiles do
 		if i > progress then
@@ -1943,15 +1946,17 @@ function layout:placement_landfill(state)
 			
 			if not cover_tile then
 				goto skip_fill
+			elseif state.is_space then
+				cover_tile = landfill_tile
 			end
 				
 			local tile_ghost = surface.create_entity{
 				raise_built=true,
 				name="tile-ghost",
-				player=state.player,
-				force=state.player.force,
+				player=_ply,
+				force=_force,
 				position=fill.position --[[@as MapPosition]],
-				inner_name=fill.prototype.default_cover_tile.name,
+				inner_name=cover_tile.name,
 			}
 
 			if tile_ghost then

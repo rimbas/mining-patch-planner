@@ -308,6 +308,10 @@ script.on_event(defines.events.on_built_entity, function(event)
 	local coords = spec.coords
 	
 	do
+		if ent.surface ~= spec.surface then
+			return
+		end
+		
 		local mid_x, mid_y = coords.gx + coords.w / 2, coords.gy + coords.h / 2
 		if math.abs(mid_x - gx) > 100 or math.abs(mid_y - gy) > 100 then
 			game.get_player(event.player_index).print({"mpp.msg_belt_planner_err_too_far"})
