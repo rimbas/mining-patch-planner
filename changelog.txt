@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.7.6
+Date: 2025-09-30
+  Bugfixes:
+    - Added a migration to remove stale planning tasks that get run after infinite loop fix.
+---------------------------------------------------------------------------------------------------
 Version: 1.7.5
 Date: 2025-09-30
   Bugfixes:

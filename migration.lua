@@ -70,6 +70,12 @@ script.on_configuration_changed(function(config_changed_data)
 		conf.initialize_storage()
 	end
 	
+	if version < 010706 then
+		if storage.tasks and #storage.tasks > 1 then
+			storage.tasks = {}
+		end
+	end
+	
 	if config_changed_data.mod_changes["mining-patch-planner"] and version < current_version then
 		storage.tasks = storage.tasks or {}
 		conf.initialize_deconstruction_filter()

@@ -291,12 +291,13 @@ function layout:process_grid(state)
 	local i = state.resource_iter or 1
 	while i <= num_resources and cost < budget do
 		local ent = resources[i] --[[@as LuaEntity]]
-		local amount = ent.amount
-		local x, y, tx, ty, tile
+		local x, y, tx, ty, tile, amount
 		i = i + 1
 		if ent == nil or not ent.valid then
 			goto skip_resource
 		end
+		
+		amount = ent.amount
 		x, y = ent.position.x - gx - .5, ent.position.y - gy - .5
 		tx, ty = conv(x, y, c.w, c.h)
 		tx, ty = floor(tx + 1), floor(ty + 1)
