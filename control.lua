@@ -291,8 +291,10 @@ script.on_event(defines.events.on_built_entity, function(event)
 	local gx, gy = position.x, position.y
 	local world_direction = ent.direction
 	local player = game.get_player(event.player_index) --[[@as LuaPlayer]]
+	local surface = ent.surface
 	
 	ent.destroy()
+	
 	if tags.mpp_belt_planner ~= "main" then return end
 	
 	local belt_planner_stack = storage.players[event.player_index].belt_planner_stack
@@ -308,7 +310,7 @@ script.on_event(defines.events.on_built_entity, function(event)
 	local coords = spec.coords
 	
 	do
-		if ent.surface ~= spec.surface then
+		if surface ~= spec.surface then
 			return
 		end
 		
