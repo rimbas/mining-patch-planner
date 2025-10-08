@@ -366,9 +366,10 @@ end
 ---@return CallbackState
 function layout:prepare_pole_layout(state)
 	local next_step ="prepare_belt_layout"
-	if state.pole_choice == "none" then return next_step end
 	local G = state.grid
 	local size = state.miner.size
+	local pole_choice = state.pole_choice
+	local pole_quality = state.pole_quality_choice
 	
 	---@type List<PowerPoleGhostSpecification>
 	local builder_power_poles = List()
@@ -391,15 +392,18 @@ function layout:prepare_pole_layout(state)
 				if x == belt.x_start then
 					belt_start_adjust = min(belt_start_adjust, -1)
 				end
-				builder_power_poles:push{
-					name=state.pole_choice,
-					quality=state.pole_quality_choice,
-					thing = "pole",
-					grid_x = x,
-					grid_y = y,
-					no_light = true,
-					ix = index_x, iy = i,
-				}
+				
+				if pole_choice ~= "none" then
+					builder_power_poles:push{
+						name=pole_choice,
+						quality=pole_quality,
+						thing = "pole",
+						grid_x = x,
+						grid_y = y,
+						no_light = true,
+						ix = index_x, iy = i,
+					}
+				end
 				G:build_thing_simple(x, y, "pole")
 			end
 			
