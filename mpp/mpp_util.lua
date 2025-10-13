@@ -185,6 +185,7 @@ end
 ---@field resource_categories table<string, boolean>
 ---@field radius float Mining area reach
 ---@field area number Full coverage span of the miner
+---@field real_area number Tooltip display area
 ---@field area_sq number Squared area
 ---@field outer_span number Lenght between physical size and end of radius
 ---@field module_inventory_size number?
@@ -235,19 +236,22 @@ function mpp_util.miner_struct(mining_drill_name, for_blueprint)
 	miner.size_sq = miner.size ^ 2
 	miner.symmetric = miner.size % 2 == 1
 	miner.parity = miner.size % 2 - 1
+	miner.wrong_parity = 0
 	miner.radius = miner_proto.mining_drill_radius
 	miner.area = ceil(miner.radius * 2)
-	miner.area_sq = miner.area ^ 2
-	miner.wrong_parity = 0
-	miner.outer_span = floor((miner.area - miner.size) / 2)
+	miner.real_area = miner.area
 	if miner.parity == 0 and miner.area % 2 == 0 then
-		miner.outer_span = floor((miner.area - miner.size + 1) / 2)
-		miner.wrong_parity = 1
+		miner.radius = miner.radius - 0.5
+		miner.area = ceil(miner.radius * 2)
+		-- miner.wrong_parity = 1
+		-- miner.outer_span = floor((miner.area - miner.size) / 2)
 	end
+	miner.area_sq = miner.area ^ 2
+	miner.outer_span = floor((miner.area - miner.size) / 2)
 	miner.resource_categories = miner_proto.resource_categories
 	miner.name = miner_proto.name
 	miner.module_inventory_size = miner_proto.module_inventory_size or 0
-	miner.extent_negative = floor(miner.size * 0.5) - floor(miner_proto.mining_drill_radius) + miner.parity
+	miner.extent_negative = -miner.outer_span
 	miner.extent_positive = miner.extent_negative + miner.area - 1
 	miner.middle = floor(miner.size / 2) + miner.parity
 
@@ -319,7 +323,7 @@ function mpp_util.miner_struct(mining_drill_name, for_blueprint)
 		for _, conn in pairs(connections) do
 			---@cast conn PipeConnectionDefinition
 			if conn.direction == WEST and miner.pipe_left == nil then
-				local pos = conn.positions[1].y + floor(miner.size/2)
+				local pos = floor(conn.positions[1].y) + floor(miner.size/2)
 				miner.pipe_left = {
 					[NORTH] = pos,
 					[EAST] = pos,
@@ -327,7 +331,7 @@ function mpp_util.miner_struct(mining_drill_name, for_blueprint)
 					[WEST] = miner.size - pos-1,
 				}
 			elseif conn.direction == EAST and miner.pipe_right == nil then
-				local pos = conn.positions[1].y + floor(miner.size/2)
+				local pos = floor(conn.positions[1].y) + floor(miner.size/2)
 				miner.pipe_right = {
 					[NORTH] = pos,
 					[EAST] = pos,
@@ -335,7 +339,7 @@ function mpp_util.miner_struct(mining_drill_name, for_blueprint)
 					[WEST] = miner.size - pos-1,
 				}
 			elseif conn.direction == SOUTH and miner.pipe_back == nil then
-				local pos = conn.positions[1].x + floor(miner.size/2)
+				local pos = floor(conn.positions[1].x) + floor(miner.size/2)
 				miner.pipe_back = {
 					[NORTH] = {pos},
 					[EAST] = {pos},

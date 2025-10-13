@@ -26,11 +26,11 @@ end
 ---@param miner MinerStruct
 ---@return HeuristicMinerPlacement
 function common.overfill_miner_placement(miner)
-	local size, area = miner.size, miner.area
-	local leech = (area ^ 2) * 0.20
+	local leech = miner.area_sq * 0.20
+	local leech2 = miner.size_sq
 	
 	return function(tile)
-		return tile.neighbors_inner > 0 or tile.neighbors_outer > leech
+		return tile.neighbors_inner > 0 or tile.neighbors_outer > leech or tile.neighbors_outer > leech2
 	end
 end
 
@@ -1251,6 +1251,25 @@ function common.create_pipe_building_environment(state)
 		
 	end
 	
+	local function cap_vertical_high(x, y, skip_up, skip_down, lane1, lane2)
+		if not ground_pipe then return end
+		if not skip_up then
+			que_entity{name=ground_pipe, quality=pipe_quality, thing="pipe", grid_x=x, grid_y=y-2, direction=SOUTH}
+		end
+		if lane1 or not skip_up then
+			que_entity{name=pipe, quality=pipe_quality, thing="pipe", grid_x=x, grid_y=y-1}
+		end
+		if lane1 and lane2 then
+			que_entity{name=pipe, quality=pipe_quality, thing="pipe", grid_x=x, grid_y=y}
+		end
+		if lane2 or not skip_down then
+			que_entity{name=pipe, quality=pipe_quality, thing="pipe", grid_x=x, grid_y=y+1}
+		end
+		if not skip_down then
+			que_entity{name=ground_pipe, quality=pipe_quality, thing="pipe", grid_x=x, grid_y=y+2, direction=NORTH}
+		end
+	end
+	
 	local function process_specification(spec)
 		for _, p in ipairs(spec) do
 			local structure = p.structure
@@ -1278,6 +1297,8 @@ function common.create_pipe_building_environment(state)
 				cap_vertical(x1, y1, p.skip_up, p.skip_down)
 			elseif structure == "joiner_vertical" then
 				joiner_vertical(x1, y1, h, p.belt_y)
+			elseif structure == "cap_vertical_high" then
+				cap_vertical_high(x1, y1, p.skip_up, p.skip_down, p.lane1, p.lane2)
 			end
 			::continue_pipe::
 		end

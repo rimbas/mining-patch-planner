@@ -609,7 +609,7 @@ local function update_miner_selection(player_data)
 		local tooltip = List{
 			"", mpp_util.entity_name_with_quality(miner_proto.localised_name, player_choices.miner_quality_choice), "\n",
 			"[img=mpp_tooltip_category_size] ", {"description.tile-size"}, (": %ix%i\n"):format(miner.size, miner.size),
-			"[img=mpp_tooltip_category_mining_area] ", {"description.mining-area"}, (": %ix%i"):format(miner.area, miner.area),
+			"[img=mpp_tooltip_category_mining_area] ", {"description.mining-area"}, (": %ix%i"):format(miner.real_area, miner.real_area),
 		}
 		tooltip
 			:conditional_append(miner.power_source_tooltip ~= nil, "\n", miner.power_source_tooltip)

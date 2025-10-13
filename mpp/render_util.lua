@@ -313,12 +313,14 @@ function render_util.draw_drill_struct(player_data, event)
 			to={fx1+drill.size+.3, y+drill.pipe_right[0]+.5},
 		}
 		
-		for _, back_x in ipairs(drill.pipe_back[0]) do
-			renderer.draw_line{
-				width=4, color = {.9, .5, 0}, -- yellow - right
-				from={x+back_x-.5, fy1+drill.size+.3},
-				to={x+back_x+.5, fy1+drill.size+.3},
-			}
+		if drill.pipe_back then
+			for _, back_x in ipairs(drill.pipe_back[0]) do
+				renderer.draw_line{
+					width=4, color = {.9, .5, 0}, -- yellow - right
+					from={x+back_x-.5, fy1+drill.size+.3},
+					to={x+back_x+.5, fy1+drill.size+.3},
+				}
+			end
 		end
 	end
 

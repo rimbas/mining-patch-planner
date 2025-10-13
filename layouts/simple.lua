@@ -884,6 +884,11 @@ function layout:_get_pipe_layout_specification(state)
 
 	local M = state.miner
 	local attempt = state.best_attempt
+	
+	local front_connections = true
+	if M.pipe_left and M.pipe_left[NORTH] == 0 then
+		front_connections = false
+	end
 
 	for _, pre_lane in pairs(state.miner_lanes) do
 		if not pre_lane[1] then goto continue_lanes end
@@ -895,16 +900,26 @@ function layout:_get_pipe_layout_specification(state)
 		-- start and length are in miner count
 		local gaps = {}
 		local current_start, current_length = nil, 0
+		local skipped_initial = false
 		for i = 1, state.miner_max_column do
 			local miner = lane[i]
-			if miner and current_start then
+			if not miner and not front_connections and not skipped_initial then
+				-- no op
+			elseif miner and current_start then
 				gaps[#gaps+1] = {start=current_start, length=current_length}
 				current_start, current_length = nil, 0
+			elseif not front_connections and not skipped_initial and #gaps == 0 then
+				skipped_initial = true
 			elseif not miner and not current_start then
 				current_start, current_length = i, 1
+				skipped_initial = true
 			else
 				current_length = current_length + 1
 			end
+		end
+		
+		if not front_connections and not lane[state.miner_max_column] then
+			gaps[#gaps+1] = {start=current_start, length=current_length}
 		end
 
 		for i, gap in ipairs(gaps) do
@@ -923,26 +938,56 @@ function layout:_get_pipe_layout_specification(state)
 		::continue_lanes::
 	end
 
-	for i = 1, state.miner_lane_count do
-		local lane = attempt.lane_layout[i]
-		pipe_layout[#pipe_layout+1] = {
-			structure="cap_vertical",
-			x=attempt.sx-1,
-			y=lane.y + M.pipe_left[lane.row_index%2*SOUTH],
-			skip_up=i == 1,
-			skip_down=i == state.miner_lane_count,
-		}
-		if i > 1 then
-			local prev_lane = attempt.lane_layout[i-1]
-			local y1 = prev_lane.y+M.pipe_left[prev_lane.row_index%2*SOUTH]+1
-			local y2 = lane.y+M.pipe_left[lane.row_index%2*SOUTH]-1
+	if front_connections then
+		for i = 1, state.miner_lane_count do
+			local lane = attempt.lane_layout[i]
 			pipe_layout[#pipe_layout+1] = {
-				structure="joiner_vertical",
+				structure="cap_vertical",
 				x=attempt.sx-1,
-				y=y1,
-				h=y2-y1+1,
-				belt_y=prev_lane.y+M.size,
+				y=lane.y + M.pipe_left[lane.row_index%2*SOUTH],
+				skip_up=i == 1,
+				skip_down=i == state.miner_lane_count,
 			}
+			if i > 1 then
+				local prev_lane = attempt.lane_layout[i-1]
+				local y1 = prev_lane.y+M.pipe_left[prev_lane.row_index%2*SOUTH]+1
+				local y2 = lane.y+M.pipe_left[lane.row_index%2*SOUTH]-1
+				pipe_layout[#pipe_layout+1] = {
+					structure="joiner_vertical",
+					x=attempt.sx-1,
+					y=y1,
+					h=y2-y1+1,
+					belt_y=prev_lane.y+M.size,
+				}
+			end
+		end
+	else
+		local x = attempt.sx + state.miner_max_column * M.size
+		for i = 1, state.miner_lane_count, 2 do
+			local lane1 = attempt.lane_layout[i]
+			local lane2 = attempt.lane_layout[i+1]
+			pipe_layout[#pipe_layout+1] = {
+				structure="cap_vertical_high",
+				x=x,
+				y=lane1.y + M.size - 1 + M.pipe_left[lane1.row_index%2*SOUTH],
+				skip_up=i == 1,
+				skip_down=i == state.miner_lane_count,
+				lane1 = lane1 ~= nil,
+				lane2 = lane2 ~= nil,
+				
+			}
+			if i > 1 then
+				local prev_lane = attempt.lane_layout[i-1]
+				local y1 = prev_lane.y+M.pipe_left[prev_lane.row_index%2*SOUTH]+1
+				local y2 = lane1.y+M.pipe_left[lane1.row_index%2*SOUTH]-1
+				pipe_layout[#pipe_layout+1] = {
+					structure="joiner_vertical",
+					x=x,
+					y=y1,
+					h=y2-y1+1,
+					belt_y=prev_lane.y+M.size,
+				}
+			end
 		end
 	end
 
@@ -969,120 +1014,10 @@ function layout:prepare_pipe_layout(state)
 
 	state.pipe_layout_specification = self:_get_pipe_layout_specification(state)
 
-	local function que_entity(t)
-		builder_pipes[#builder_pipes+1] = t
-		G:build_thing_simple(t.grid_x, t.grid_y, "pipe")
-	end
-	local pipe = state.pipe_choice
-	local pipe_quality = state.pipe_quality_choice
+	local pipe_environment = common.create_pipe_building_environment(state)
+	local pipe_specification = state.pipe_layout_specification
 
-	local ground_pipe, ground_proto = mpp_util.find_underground_pipe(pipe)
-	---@cast ground_pipe string
-
-	local step, span
-	if ground_proto then
-		step = ground_proto.max_underground_distance
-		span = step + 1
-	end
-
-	local function horizontal_underground(x, y, w)
-		que_entity{name=ground_pipe, quality=pipe_quality, thing="pipe", grid_x=x, grid_y=y, direction=WEST}
-		que_entity{name=ground_pipe, quality=pipe_quality, thing="pipe", grid_x=x+w, grid_y=y, direction=EAST}
-	end
-	local function horizontal_filled(x1, y, w)
-		for x = x1, x1+w do
-			que_entity{name=pipe, quality=pipe_quality, thing="pipe", grid_x=x, grid_y=y}
-		end
-	end
-	local function vertical_filled(x, y1, h)
-		for y = y1, y1 + h do
-			que_entity{name=pipe, quality=pipe_quality, thing="pipe", grid_x=x, grid_y=y}
-		end
-	end
-	local function cap_vertical(x, y, skip_up, skip_down)
-		que_entity{name=pipe, quality=pipe_quality, thing="pipe", grid_x=x, grid_y=y}
-
-		if not ground_pipe then return end
-		if not skip_up then
-			que_entity{name=ground_pipe, quality=pipe_quality, thing="pipe", grid_x=x, grid_y=y-1, direction=SOUTH}
-		end
-		if not skip_down then
-			que_entity{name=ground_pipe, quality=pipe_quality, thing="pipe", grid_x=x, grid_y=y+1, direction=NORTH}
-		end
-	end
-	local function joiner_vertical(x, y, h, belt_y)
-		if h <= span then return end
-		local quotient, remainder = math.divmod(h, span)
-		function make_points(step_size)
-			local t = {}
-			for i = 1, quotient do
-				t[#t+1] = y+i*step_size-1
-			end
-			return t
-		end
-		local stepping = make_points(ceil(h / (quotient+1)))
-		local overlaps = false
-		for _, py in ipairs(stepping) do
-			if py == belt_y or (py+1) == belt_y then
-				overlaps = true
-				break
-			end
-		end
-		if overlaps then
-			quotient = quotient+1
-			stepping = make_points(ceil(h / (quotient+1)))
-		end
-		
-		for _, py in ipairs(stepping) do
-			que_entity{
-				name=ground_pipe,
-				quality=pipe_quality,
-				thing="pipe",
-				grid_x=x,
-				grid_y = py,
-				direction=SOUTH,
-			}
-			que_entity{
-				name=ground_pipe,
-				quality=pipe_quality,
-				thing="pipe",
-				grid_x=x,
-				grid_y = py+1,
-				direction=NORTH,
-			}
-		end
-		
-	end
-
-	for i, p in ipairs(state.pipe_layout_specification) do
-		local structure = p.structure
-		local x1, w, y1, h = p.x, p.w, p.y, p.h
-		if structure == "horizontal" then
-			if not ground_pipe then
-				horizontal_filled(x1, y1, w)
-				goto continue_pipe
-			end
-
-			local quotient, remainder = math.divmod(w, span)
-			for j = 1, quotient do
-				local x = x1 + (j-1)*span
-				horizontal_underground(x, y1, step)
-			end
-			local x = x1 + quotient * span
-			if remainder >= 2 then
-				horizontal_underground(x, y1, remainder)
-			else
-				horizontal_filled(x, y1, remainder)
-			end
-		elseif structure == "vertical" then
-			vertical_filled(x, y1, h)
-		elseif structure == "cap_vertical" then
-			cap_vertical(x1, y1, p.skip_up, p.skip_down)
-		elseif structure == "joiner_vertical" then
-			joiner_vertical(x1, y1, h, p.belt_y)
-		end
-		::continue_pipe::
-	end
+	pipe_environment.process_specification(pipe_specification)
 
 	return next_step
 end
