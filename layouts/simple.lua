@@ -1426,23 +1426,71 @@ function layout:prepare_power_pole_joiners(state)
 			or get_tile(-1, -1)
 	end
 	
-	local function build_joiner(p1, p2, tile)
+	---@param p1 GridPole
+	---@param p2 GridPole
+	---@param tile GridTile
+	local function get_spot_viability(p1, p2, tile)
+		local p1_tile = G:get_tile(p1.grid_x, p1.grid_y)
+		local p2_tile = G:get_tile(p2.grid_x, p2.grid_y)
+
+		if p1.built and p2.built then
+			return 2
+		elseif (tile and tile.built_thing == nil)
+			and (p1_tile and p1_tile.built_thing == nil)
+			and (p2_tile and p2_tile.built_thing == nil)
+		then
+			return 1
+		end
+		return 0
+	end
+	
+	---@param p1 GridPole
+	---@param p2 GridPole
+	---@param tile GridTile
+	local function try_build_joiner(p1, p2, tile)
 		if not p1.built then
-			p1.built = true
-			build_pole(p1.grid_x, p1.grid_y)
+			local p_tile = G:get_tile(p1.grid_x, p1.grid_y)
+			if p_tile and not p_tile.built_thing then
+				p1.built = true
+				build_pole(p1.grid_x, p1.grid_y)
+			else
+				p_tile = G:get_tile(p1.grid_x, p1.grid_y+1)
+				if p_tile and not p_tile.built_thing then
+					p1.built = true
+					build_pole(p1.grid_x, p1.grid_y+1)
+				end
+			end
 		end
 		if not p2.built then
-			p2.built = true
-			build_pole(p2.grid_x, p2.grid_y)
+			local p_tile = G:get_tile(p2.grid_x, p2.grid_y)
+			if p_tile and not p_tile.built_thing then
+				p2.built = true
+				build_pole(p2.grid_x, p2.grid_y)
+			else
+				p_tile = G:get_tile(p2.grid_x, p2.grid_y-1)
+				if p_tile and not p_tile.built_thing then
+					p2.built = true
+					build_pole(p2.grid_x, p2.grid_y-1)
+				end
+			end
 		end
 		build_pole(tile.x, tile.y)
 	end
 	
+	---@class PoleSpotStruct
+	---@field row_index number
+	---@field sort number
+	---@field p1 GridPole
+	---@field p2 GridPole
+	---@field tile GridTile
+	
+	---@param row_index number
 	---@param row1 table<number, GridPole>
 	---@param row2 table<number, GridPole>
-	---@return boolean
-	local function try_find_spot_at_start(row1, row2)
+	---@return PoleSpotStruct?
+	local function try_find_spot_at_start(row_index, row1, row2)
 		local current_pole = row1[1]
+		local next_pole
 		for col = 2, max_x do
 			local pole = row1[col]
 			if pole.built then
@@ -1452,35 +1500,47 @@ function layout:prepare_power_pole_joiners(state)
 		end
 		
 		if current_pole then -- try first built pole
-			local next_pole = row2[current_pole.ix]
+			next_pole = row2[current_pole.ix]
 			local mx, my = power_grid:get_pole_midpoint(current_pole, next_pole)
 			
-			local tile = find_free_tile(mx, my, 9)
+			local tile = find_free_tile(mx, my)
 			if tile then
-				build_joiner(current_pole, next_pole, tile)
-				return true
+				return {
+					sort = get_spot_viability(current_pole, next_pole, tile),
+					row_index = row_index,
+					p1 = current_pole,
+					p2 = next_pole,
+					tile = tile,
+					
+				}
 			end
 		end
 		
 		if current_pole.ix > 1 then -- try previous
 			local index = current_pole.ix - 1
-			current_pole = row1[index]
 			next_pole = row2[index]
+			current_pole = row1[index]
 			local mx, my = power_grid:get_pole_midpoint(current_pole, next_pole)
-			local tile = find_free_tile(mx, my, 9)
+			local tile = find_free_tile(mx, my)
 			if tile then
-				build_joiner(current_pole, next_pole, tile)
-				return true
+				return {
+					sort = get_spot_viability(current_pole, next_pole, tile),
+					row_index = row_index,
+					p1 = current_pole,
+					p2 = next_pole,
+					tile = tile,
+				}
 			end
 		end
-		return false
 	end
 	
+	---@param row_index number
 	---@param row1 table<number, GridPole>
 	---@param row2 table<number, GridPole>
-	---@return boolean
-	local function try_find_spot_at_end(row1, row2)
+	---@return PoleSpotStruct?
+	local function try_find_spot_at_end(row_index, row1, row2)
 		local current_pole = row1[max_x]
+		local next_pole
 		for col = max_x - 1, 1, -1 do
 			local pole = row1[col]
 			if pole.built then
@@ -1490,13 +1550,18 @@ function layout:prepare_power_pole_joiners(state)
 		end
 		
 		if current_pole then -- try first built pole
-			local next_pole = row2[current_pole.ix]
+			next_pole = row2[current_pole.ix]
 			local mx, my = power_grid:get_pole_midpoint(current_pole, next_pole)
 			
 			local tile = find_free_tile(mx, my)
 			if tile then
-				build_joiner(current_pole, next_pole, tile)
-				return true
+				return {
+					sort = get_spot_viability(current_pole, next_pole, tile),
+					row_index = row_index,
+					p1 = current_pole,
+					p2 = next_pole,
+					tile = tile,
+				}
 			end
 		end
 		
@@ -1507,19 +1572,24 @@ function layout:prepare_power_pole_joiners(state)
 			local mx, my = power_grid:get_pole_midpoint(current_pole, next_pole)
 			local tile = find_free_tile(mx, my)
 			if tile then
-				build_joiner(current_pole, next_pole, tile)
-				return true
+				return {
+					sort = get_spot_viability(current_pole, next_pole, tile),
+					row_index = row_index,
+					p1 = current_pole,
+					p2 = next_pole,
+					tile = tile,
+				}
 			end
 		end
-		return false
 	end
 	
+	---@param row_index number
 	---@param row1 table<number, GridPole>
 	---@param row2 table<number, GridPole>
 	---@param belt BaseBeltSpecification
-	---@return boolean
-	local function try_find_spot_last_resort(row1, row2, belt)
-		if not belt then return false end
+	---@return PoleSpotStruct?
+	local function try_find_spot_last_resort(row_index, row1, row2, belt)
+		if not belt then return end
 		local p1, p2 = row1[max_x], row2[max_x]
 		
 		local tile = find_free_tile(belt.x_end+1, belt.y)
@@ -1529,8 +1599,13 @@ function layout:prepare_power_pole_joiners(state)
 				power_grid:pole_reaches(p1, joiner, P)
 				and power_grid:pole_reaches(p2, joiner, P)
 			) then
-				build_joiner(p1, p2, tile)
-				return true
+				return {
+					sort = get_spot_viability(p1, p2, tile) - 1,
+					row_index = row_index,
+					p1 = p1,
+					p2 = p2,
+					tile = tile,
+				}
 			end
 		end
 		
@@ -1543,12 +1618,15 @@ function layout:prepare_power_pole_joiners(state)
 				power_grid:pole_reaches(p1, joiner, P)
 				and power_grid:pole_reaches(p2, joiner, P)
 			) then
-				build_joiner(p1, p2, tile)
-				return true
+				return {
+					sort = get_spot_viability(p1, p2, tile) - 1,
+					row_index = row_index,
+					p1 = p1,
+					p2 = p2,
+					tile = tile,
+				}
 			end
 		end
-		
-		return false
 	end
 	
 	local found_spots = {} -- keep track which unconnected power pole lanes we joined
@@ -1570,52 +1648,23 @@ function layout:prepare_power_pole_joiners(state)
 	for row_index = 2, max_y do
 		local next_row = power_grid[row_index]
 		local modified_row_index = row_index - 1
+		local spot, spots
 		if found_spots[modified_row_index] then goto continue end
 		
-		-- CURSED SIDE EFFECT IN IF CHECK
-		if try_find_spot_at_start(current_row, next_row) then
-			found_spots[modified_row_index] = true
-			goto continue
-		elseif try_find_spot_at_end(current_row, next_row) then
-			found_spots[modified_row_index] = true
-			goto continue
-		-- elseif try_find_spot_last_resort(current_row, next_row, B[modified_row_index]) then
-		-- 	found_spots[row_index] = true
-		-- 	goto continue
-		end
+		spots = List{}
+		spots:push(try_find_spot_at_end(modified_row_index, next_row, current_row))
+		spots:push(try_find_spot_at_end(modified_row_index, current_row, next_row))
+		spots:push(try_find_spot_at_start(modified_row_index, current_row, next_row))
+		spots:push(try_find_spot_at_start(modified_row_index, next_row, current_row))
+		spots:push(try_find_spot_last_resort(modified_row_index, current_row, next_row, B[modified_row_index]))
+		spots:push(try_find_spot_last_resort(modified_row_index, next_row, current_row, B[modified_row_index]))
+		table.sort(spots, function(a, b) return a.sort > b.sort end)
 		
-		::continue::
-		current_row = next_row
-	end
-	
-	current_row = power_grid[max_y]
-	for row_index = max_y - 1, 1, -1 do
-		local next_row = power_grid[row_index]
-		if found_spots[row_index] then goto continue end
+		spot = spots[1] --[[@as PoleSpotStruct?]]
 		
-		-- CURSED SIDE EFFECT IN IF CHECK
-		if try_find_spot_at_start(current_row, next_row) then
-			found_spots[row_index] = true
-			goto continue
-		elseif try_find_spot_at_end(current_row, next_row) then
-			found_spots[row_index] = true
-			goto continue
-		-- elseif try_find_spot_last_resort(current_row, next_row, B[row_index]) then
-		-- 	found_spots[row_index] = true
-		-- 	goto continue
-		end
-		
-		::continue::
-		current_row = next_row
-	end
-	
-	current_row = power_grid[max_y]
-	for row_index = max_y - 1, 1, -1 do
-		local next_row = power_grid[row_index]
-		if found_spots[row_index]  then goto continue end
-		
-		if try_find_spot_last_resort(current_row, next_row, B[row_index]) then
-			found_spots[row_index] = true
+		if spot then
+			try_build_joiner(spot.p1, spot.p2, spot.tile)
+			found_spots[spot.row_index] = true
 		end
 		
 		::continue::

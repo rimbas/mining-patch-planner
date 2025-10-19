@@ -746,6 +746,21 @@ function mpp_util.calculate_pole_coverage_interleaved(state, miner_count, lane_c
 		end
 		cov.pattern = pattern
 		cov.drill_output_positions = drill_output_positions
+		
+		--[[ debug visualisation
+			local converter = mpp_util.reverter_delegate(state.coords, state.direction_choice)
+			for x, _ in pairs(drill_output_positions) do
+				for _, belt in pairs(state.belts) do
+					rendering.draw_circle{
+						surface = state.surface,
+						target = {converter(x+.5, belt.y+.5)},
+						filled = false,
+						color = {1, 1, 1},
+						radius = 0.4, width = 6,
+					}
+				end
+			end
+		-- ]]
 	end
 
 	cov.pole_start = pole_start

@@ -113,13 +113,14 @@ end
 ---@param state CompactState
 function layout:prepare_pole_layout(state)
 	local M, C, P, G = state.miner, state.coords, state.pole, state.grid
-	local coverage = mpp_util.calculate_pole_coverage_interleaved(state, state.miner_max_column, state.miner_lane_count)
 	local power_grid = pole_grid_mt.new()
 	state.power_grid = power_grid
 	
 	local belts = self:_process_mining_drill_lanes(state)
 	state.belts = belts
 	state.belt_count = #belts
+	
+	local coverage = mpp_util.calculate_pole_coverage_interleaved(state, state.miner_max_column, state.miner_lane_count)
 	
 	---@type List<PowerPoleGhostSpecification>
 	local builder_power_poles = List()
@@ -154,7 +155,7 @@ function layout:prepare_pole_layout(state)
 		
 		if state.lamp_choice == false then
 			-- no op
-		elseif pole.no_light ~= true and not drill_output_positions[sx+pole.grid_x+1] then
+		elseif pole.no_light ~= true and not drill_output_positions[pole.grid_x+1] then
 			lamps:push{
 				name="small-lamp",
 				thing="lamp",
@@ -162,7 +163,7 @@ function layout:prepare_pole_layout(state)
 				grid_y=pole.grid_y,
 			}
 			G:build_thing_simple(pole.grid_x+1, pole.grid_y, "lamp")
-		elseif pole.no_light ~= true and not drill_output_positions[sx+pole.grid_x-1] then
+		elseif pole.no_light ~= true and not drill_output_positions[pole.grid_x-1] then
 			lamps:push{
 				name="small-lamp",
 				thing="lamp",

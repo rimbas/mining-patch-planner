@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.7.9
+Date: 2025-10-19
+  Bugfixes:
+    - Fixed lamps being placed in the way of mining drill outputs.
+    - Fixed fallback power poles being placed on belts.
+---------------------------------------------------------------------------------------------------
 Version: 1.7.8
 Date: 2025-10-13
   Bugfixes:
