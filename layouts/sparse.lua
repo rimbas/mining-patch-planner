@@ -81,6 +81,8 @@ function layout:_placement_attempt(state, attempt)
 		sy=shift_y,
 		bx = 1,
 		by = 1,
+		b2x = 1,
+		b2y = 1,
 		miners=miners,
 		postponed = {},
 		lane_layout=lane_layout,
@@ -146,11 +148,16 @@ end
 ---@param state SimpleState
 ---@return PlacementSpecification[]
 function layout:_get_pipe_layout_specification(state)
-	local pipe_layout = {}
+	local pipe_layout = List()
 	
 	local M = state.miner
 	local attempt = state.best_attempt
 	local gutter = M.outer_span
+	
+	local front_connections = true
+	if M.pipe_left and M.pipe_left[NORTH] == 0 then
+		front_connections = false
+	end
 
 	for _, pre_lane in pairs(state.miner_lanes) do
 		if not pre_lane[1] then goto continue_lanes end
@@ -159,25 +166,31 @@ function layout:_get_pipe_layout_specification(state)
 		---@type MinerPlacement[]
 		local lane = table.mapkey(pre_lane, function(t) return t.column end) -- make array with intentional gaps between miners
 
+		local skipped_initial = false
 		local current_start, current_length = nil, 0
 		for i = 1, state.miner_max_column do
 			local miner = lane[i]
-			if miner and current_start then
+			if not miner and not front_connections and not skipped_initial then
+				-- no op
+			elseif miner and current_start then
 				local start_shift = 0
 				if current_start == 1 then start_shift = gutter * 2 end
-				pipe_layout[#pipe_layout+1] = {
+				pipe_layout:push{
 					structure="horizontal",
 					x=sx + start_shift + (current_start-1) * M.area - gutter * 2 + 1,
 					y=y + M.pipe_left[pre_lane[1].line%2*SOUTH] ,
 					w=current_length * M.area+gutter * 2 - 1 - start_shift,
 				}
 				current_start, current_length = nil, 0
+			elseif not front_connections and not skipped_initial then
+				skipped_initial = true
 			elseif not miner and not current_start then
 				current_start, current_length = i, 1
+				skipped_initial = true
 			elseif current_start then
 				current_length = current_length + 1
 			elseif i > 1 then
-				pipe_layout[#pipe_layout+1] = {
+				pipe_layout:push{
 					structure="horizontal",
 					x=sx+(i-1)*M.area-gutter*2+1,
 					y=y+ M.pipe_left[pre_lane[1].line%2*SOUTH],
@@ -185,15 +198,31 @@ function layout:_get_pipe_layout_specification(state)
 				}
 			end
 		end
+		
+		if not front_connections and not lane[state.miner_max_column] then
+			local start_shift = 0
+			if current_start == 1 then start_shift = gutter * 2 end
+			pipe_layout:push{
+				structure="horizontal",
+				x=sx + start_shift + (current_start-1) * M.area - gutter * 2 + 1,
+				y=y + M.pipe_left[pre_lane[1].line%2*SOUTH] ,
+				w=current_length * M.area - 1 - start_shift,
+			}
+		end
 
 		::continue_lanes::
 	end
 
+	local cap_x = attempt.sx + M.outer_span - 1 - M.wrong_parity
+	if not front_connections then
+		cap_x = attempt.sx + (state.miner_max_column - 1) * M.area + M.size + 1
+	end
+	
 	for i = 1, state.miner_lane_count do
 		local lane = attempt.lane_layout[i]
 		pipe_layout[#pipe_layout+1] = {
 			structure="cap_vertical",
-			x=attempt.sx + M.outer_span - 1 - M.wrong_parity,
+			x=cap_x,
 			y=lane.y+M.pipe_left[lane.row_index%2*SOUTH],
 			skip_up=i == 1,
 			skip_down=i == state.miner_lane_count,
@@ -204,7 +233,7 @@ function layout:_get_pipe_layout_specification(state)
 			local y2 = lane.y+M.pipe_left[lane.row_index%2*SOUTH]-1
 			pipe_layout[#pipe_layout+1] = {
 				structure="joiner_vertical",
-				x=attempt.sx + M.outer_span - 1 - M.wrong_parity,
+				x=cap_x,
 				y=y1,
 				h=y2-y1+1,
 				belt_y=prev_lane.y+M.size,
@@ -218,6 +247,8 @@ end
 ---@param self SparseLayout
 ---@param state SimpleState
 function layout:prepare_pole_layout(state)
+	local next_step ="prepare_belt_layout"
+	
 	local C, M, G, P, A = state.coords, state.miner, state.grid, state.pole, state.best_attempt
 	
 	local pole_struct = mpp_util.pole_struct(state.pole_choice, state.pole_quality_choice)
@@ -317,7 +348,7 @@ function layout:prepare_pole_layout(state)
 		
 	end
 		
-	return "prepare_belt_layout"
+	return next_step
 end
 
 ---Determine and set merge strategies
@@ -407,6 +438,7 @@ function layout:prepare_belt_layout(state)
 
 	local belts = self:_process_mining_drill_lanes(state)
 	for _, belt in ipairs(belts) do
+		belt.x_start = belt.x_start - M.extent_negative
 		belt.y = belt.y + 1
 	end
 	state.belts = belts

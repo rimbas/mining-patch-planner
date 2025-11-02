@@ -44,14 +44,16 @@ local layout = table.deepcopy(base)
 ---@field entity_output_locations table<number, table<number, true>> Mining drill output locations
 ---@field drill_output_locations BpDrillOutputLocation
 ---@field entity_input_locations table<number, table<number, true>> Inserter pickup spots
----@field collected_beacons BpPlacementEnt[]
----@field collected_containers BpPlacementEnt[]
----@field collected_inserters BpPlacementEnt[]
----@field collected_power BpPlacementEnt[]
----@field collected_belts BpPlacementEnt[]
----@field collected_other BpPlacementEnt[]
+---@field collected_beacons List<BpPlacementEnt>
+---@field collected_containers List<BpPlacementEnt> Entities that can contain items (containers/assemblers)
+---@field collected_inserters List<BpPlacementEnt> Entities that transfer items (inserters/loaders)
+---@field collected_recyclers List<BpPlacementEnt> Entities that have output (like recyclers)
+---@field collected_pipes List<BpPlacementEnt>
+---@field collected_power List<BpPlacementEnt>
+---@field collected_belts List<BpPlacementEnt>
+---@field collected_other List<BpPlacementEnt>
 ---
----@field builder_all GhostSpecification[]
+---@field builder_all List<GhostSpecification>
 ---@field builder_index number Progress index of creating entities
 
 --- Coordinate space for the attempt
@@ -143,14 +145,16 @@ function layout:start(state)
 	state.entity_output_locations = {}
 	state.drill_output_locations = {}
 	state.entity_input_locations = {}
-	state.collected_beacons = {}
-	state.collected_power = {}
-	state.collected_belts = {}
-	state.collected_inserters = {}
-	state.collected_containers = {}
-	state.collected_other = {}
+	state.collected_beacons = List()
+	state.collected_power = List()
+	state.collected_belts = List()
+	state.collected_inserters = List()
+	state.collected_containers = List()
+	state.collected_recyclers = List()
+	state.collected_pipes = List()
+	state.collected_other = List()
 
-	state.builder_all = {}
+	state.builder_all = List()
 
 	return "deconstruct_previous_ghosts"
 end
@@ -234,7 +238,7 @@ layout.layout_attempts_fallback = simple.layout_attempts_fallback
 ---@param self SimpleLayout
 ---@param state SimpleState
 ---@return CallbackState
-function layout:callback_post_attempts(state)
+function layout:get_post_attempts_callback(state)
 	return "collect_entities"
 end
 
@@ -257,7 +261,8 @@ function layout:_placement_attempt(state, attempt)
 	local size, area = M.size, M.area
 	local entities, num_ents = state.bp_mining_drills, #state.bp_mining_drills
 	local sx, sy, countx, county = attempt.sx, attempt.sy, attempt.cx-1, attempt.cy-1
-	local bx, by = sx, sy
+	local bx, by = state.coords.extent_x2 + sx, state.coords.extent_y2 + sx
+	local b2x, b2y = state.coords.extent_x1 + sy, state.coords.extent_y1 + sy
 	local bpw, bph = bp.w, bp.h
 	local heuristic = simple._get_miner_placement_heuristic(self --[[@as SimpleLayout]], state)
 	local heuristic_values = common.init_heuristic_values()
@@ -316,7 +321,8 @@ function layout:_placement_attempt(state, attempt)
 				elseif heuristic(tile) then
 					miners[#miners+1] = struct
 					common.add_heuristic_values(heuristic_values, M, tile)
-					bx, by = max(bx, x + size - 1), max(by, y + size - 1)
+					bx, by = min(bx, x-1), min(by, y-1)
+					b2x, b2y = max(b2x, x + size - 1), max(b2y, y + size - 1)
 				else
 					postponed[#postponed+1] = struct
 				end
@@ -335,6 +341,8 @@ function layout:_placement_attempt(state, attempt)
 		cy = attempt.cy,
 		bx = bx,
 		by = by,
+		b2x = b2x,
+		b2y = b2y,
 		miners = miners,
 		postponed = postponed,
 		lane_layout = {},
@@ -347,8 +355,6 @@ function layout:_placement_attempt(state, attempt)
 
 	return result
 end
-
-
 
 ---@param self BlueprintLayout
 ---@param state BlueprintState
@@ -385,6 +391,8 @@ function layout:collect_entities(state)
 	local collected_belts = state.collected_belts
 	local collected_other = state.collected_other
 	local collected_containers = state.collected_containers
+	local collected_recyclers = state.collected_recyclers
+	local collected_pipes = state.collected_pipes
 
 	local s_ix = attempt.s_ix or 0
 	local s_iy = attempt.s_iy or 0
@@ -435,17 +443,21 @@ function layout:collect_entities(state)
 				}
 
 				if ent_category == "beacon" then
-					collected_beacons[#collected_beacons+1] = base_collected
+					collected_beacons:push(base_collected)
 				elseif ent_category == "inserter" then
-					collected_inserters[#collected_inserters+1] = base_collected
+					collected_inserters:push(base_collected)
 				elseif ent_category == "pole" then
-					collected_power[#collected_power+1] = base_collected
+					collected_power:push(base_collected)
 				elseif ent_category == "belt" then
-					collected_belts[#collected_belts+1] = base_collected
+					collected_belts:push(base_collected)
 				elseif ent_category == "container" then
-					collected_containers[#collected_containers+1] = base_collected
+					collected_containers:push(base_collected)
+				elseif ent_category == "pipe" then
+					collected_pipes:push(base_collected)
+				elseif ent_category == "assembler" then
+					collected_recyclers:push(base_collected)
 				else
-					collected_other[#collected_other+1] = base_collected
+					collected_other:push(base_collected)
 				end
 
 				progress = progress + 1
@@ -567,7 +579,7 @@ function layout:prepare_beacon_layout(state)
 
 		grid:build_thing(x, y, "beacon", struct.w-1, struct.h-1)
 
-		builder_all[#builder_all+1] = {
+		builder_all:push{
 			thing = "beacon",
 			name = struct.name,
 			quality = beacon.quality,
@@ -616,7 +628,7 @@ function layout:prepare_container_layout(state)
 
 		G:build_thing(container.x, container.y, "container", struct.w-1, struct.h-1)
 
-		builder_all[#builder_all+1] = {
+		builder_all:push{
 			thing = "container",
 			name = name,
 			quality = container.quality,
@@ -727,7 +739,7 @@ function layout:prepare_inserter_layout(state)
 		append_transfer_location(input_locations, in_x, in_y)
 		--debug_draw:draw_circle{radius=0.2, x=in_x, y=in_y, color={1, 0, 1}}
 
-		builder_all[#builder_all+1] = {
+		builder_all:push{
 			thing = "inserter",
 			name = struct.name,
 			quality = inserter.quality,
@@ -774,7 +786,7 @@ function layout:prepare_electricity(state)
 
 		grid:build_thing(x, y, "pole", struct.w-1, struct.h-1)
 
-		builder_all[#builder_all+1] = {
+		builder_all:push{
 			thing = "pole",
 			name = struct.name,
 			quality = power_pole.quality,
@@ -1213,7 +1225,7 @@ function layout:prepare_belt_layout_finalize(state)
 	for piece in pairs(state.all_belts) do
 		local bp_ent = piece.ent
 		G:build_thing(piece.x, piece.y, "belt", piece.w-1, piece.h-1)
-		builder_all[#builder_all+1] = {
+		builder_all:push{
 			thing="belt",
 			name = bp_ent.name,
 			quality = bp_ent.quality,
@@ -1232,6 +1244,63 @@ function layout:prepare_belt_layout_finalize(state)
 		}
 	end
 
+	return "prepare_recyclers"
+end
+
+---@param self BlueprintLayout
+---@param state BlueprintState
+function layout:prepare_recyclers(state)
+	local G = state.grid
+	local builder_all = state.builder_all
+
+	for _, assembler in ipairs(state.collected_recyclers) do
+		local name = assembler.name
+		local struct = mpp_util.entity_struct(name)
+		G:build_thing(assembler.x, assembler.y, "assembler", struct.w-1, struct.h-1)
+		local ent = assembler.ent
+
+		builder_all:push{
+			thing = "assembler",
+			name = name,
+			quality = assembler.quality,
+			grid_x = assembler.origin_x,
+			grid_y = assembler.origin_y,
+			extent_w = struct.extent_w,
+			extent_h = struct.extent_h,
+			direction = assembler.direction,
+			items = assembler.ent.items,
+			recipe = ent.recipe,
+			recipe_quality = ent.recipe_quality,
+			control_behavior = ent.control_behavior,
+		}
+	end
+	
+	return "prepare_pipes"
+end
+
+---@param self BlueprintLayout
+---@param state BlueprintState
+function layout:prepare_pipes(state)
+	local G = state.grid
+	local builder_all = state.builder_all
+
+	for _, pipe in ipairs(state.collected_pipes) do
+		local name = pipe.name
+		local struct = mpp_util.entity_struct(name)
+		G:build_thing(pipe.x, pipe.y, "pipe", struct.w-1, struct.h-1)
+
+		builder_all:push{
+			thing = "pipe",
+			name = name,
+			quality = pipe.quality,
+			grid_x = pipe.origin_x,
+			grid_y = pipe.origin_y,
+			extent_w = struct.extent_w,
+			extent_h = struct.extent_h,
+			direction = pipe.direction,
+		}
+	end
+	
 	return "prepare_other"
 end
 
@@ -1246,7 +1315,7 @@ function layout:prepare_other(state)
 		local struct = mpp_util.entity_struct(name)
 		G:build_thing(other.x, other.y, "other", struct.w-1, struct.h-1)
 
-		builder_all[#builder_all+1] = {
+		builder_all:push{
 			thing = "other",
 			name = name,
 			quality = other.quality,
@@ -1305,8 +1374,6 @@ function layout:placement_all(state)
 	local builder_all = state.builder_all
 	local builder_index = state.builder_index or 1
 
-	local is_space = state.is_space
-
 	local progress = builder_index + ceil(100 * state.performance_scaling)
 	for i = builder_index, #builder_all do
 	--for _, thing in pairs(builder_all) do
@@ -1335,15 +1402,16 @@ layout.placement_landfill = simple.placement_landfill
 ---@param state BlueprintState
 function layout:finish(state)
 	
-	common.display_lane_filling(state)
+	if state.belt and state.belts then
+		common.display_lane_filling(state)
+	end
 	
 	if state.belt_planner_choice then
 		belt_planner.clear_belt_planner_stack(storage.players[state.player.index])
-		common.give_belt_blueprint( state)
+		common.give_belt_blueprint(state)
 	end
 	
 	return false
 end
 
 return layout
-

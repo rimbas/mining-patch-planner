@@ -63,8 +63,8 @@ compatibility.is_space = function(surface_identification)
 	return false
 end
 
----@type string
-local space_collision_mask_name = nil
+---@type LuaCollisionLayerPrototype
+local space_collision_layer = prototypes.collision_layer["space_tile"]
 
 ---@type table<string, boolean>
 local memoize_space_buildable = {}
@@ -73,24 +73,12 @@ function compatibility.is_buildable_in_space(name)
 	local buildable_status = memoize_space_buildable[name]
 	if buildable_status ~= nil then
 		return buildable_status
-	end
-
-	-- if something goes wrong, give up, allow to build
-	if space_collision_mask_name == nil then
-		local scaffold_tile = game.tile_prototypes["se-space-platform-scaffold"]
-		if not scaffold_tile then
-			memoize_space_buildable[name] = true
-			return true
-		end
-		space_collision_mask_name = next(scaffold_tile.collision_mask)
-		if space_collision_mask_name == nil then
-			memoize_space_buildable[name] = true
-			return true
-		end
+	elseif space_collision_layer == nil then
+		return true
 	end
 
 	local entity_proto = prototypes.entity[name]
-	local allowed = not entity_proto.collision_mask[space_collision_mask_name]
+	local allowed = not entity_proto.collision_mask.layers[space_collision_layer.name]
 
 	memoize_space_buildable[name] = allowed
 

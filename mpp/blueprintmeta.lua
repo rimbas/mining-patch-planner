@@ -155,6 +155,7 @@ function bp_meta:get_entity_categories()
 		["loader"] = "inserter",
 		["loader-1x1"] = "inserter",
 		["electric-pole"] = "pole",
+		["assembling-machine"] = "assembler",
 	}
 
 	---@type table<string, GridBuilding>

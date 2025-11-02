@@ -55,7 +55,8 @@ function layout:_placement_attempt(state, attempt)
 	local heuristic_values = common.init_heuristic_values()
 	local lane_layout = {}
 	local shift_x, shift_y = attempt[1], attempt[2]
-	local bx, by = shift_x + size - 1, shift_y + size - 1
+	local bx, by = state.coords.extent_x2 + shift_x, state.coords.extent_y2 + shift_x
+	local b2x, b2y = state.coords.extent_x1 + shift_y, state.coords.extent_y1 + shift_y
 	
 	--@param tile GridTile
 	--local function heuristic(tile) return tile.neighbor_count > 2 end
@@ -90,7 +91,8 @@ function layout:_placement_attempt(state, attempt)
 				elseif tile.neighbors_outer > 0 and heuristic(tile) then
 					table_insert(miners, miner)
 					common.add_heuristic_values(heuristic_values, M, tile)
-					bx, by = max(bx, x + size - 1), max(by, y + size - 1)
+					bx, by = min(bx, x-1), min(by, y-1)
+					b2x, b2y = max(b2x, x + size - 1), max(b2y, y + size - 1)
 				elseif tile.neighbors_outer > 0 then
 					postponed[#postponed+1] = miner
 				end
@@ -115,6 +117,8 @@ function layout:_placement_attempt(state, attempt)
 		sy = shift_y,
 		bx = bx,
 		by = by,
+		b2x = b2x,
+		b2y = b2y,
 		miners = miners,
 		postponed = postponed,
 		lane_layout = lane_layout,
@@ -362,9 +366,10 @@ end
 ---@return CallbackState
 function layout:prepare_pole_layout(state)
 	local next_step ="prepare_belt_layout"
-	if state.pole_choice == "none" then return next_step end
 	local G = state.grid
 	local size = state.miner.size
+	local pole_choice = state.pole_choice
+	local pole_quality = state.pole_quality_choice
 	
 	---@type List<PowerPoleGhostSpecification>
 	local builder_power_poles = List()
@@ -375,27 +380,30 @@ function layout:prepare_pole_layout(state)
 	for i, belt in ipairs(state.belts) do
 		local y = belt.y
 		local index_x = 1
-		local x_start = belt.x_start + (-1 + belt.index % 2) * 3
-		for x = x_start - 3, belt.x_end, size * 2 do
-			local miner1 = G:get_tile(x, y-1) --[[@as GridTile]]
-			local miner2 = G:get_tile(x, y+1) --[[@as GridTile]]
-			local miner3 = G:get_tile(x+1, y) --[[@as GridTile]]
+		local x_start = belt.x_start + (belt.index % 2) * 3
+		for x = x_start, belt.x_end, size * 2 do
+			local miner1 = G:get_tile(x, y-1)
+			local miner2 = G:get_tile(x, y+1)
+			local miner3 = G:get_tile(x+1, y)
 			
-			local built = miner1.built_thing or miner2.built_thing or miner3.built_thing
+			local built = (miner1 and miner1.built_thing) or (miner2 and miner2.built_thing) or (miner3 and miner3.built_thing)
 			
 			if built then
 				if x == belt.x_start then
 					belt_start_adjust = min(belt_start_adjust, -1)
 				end
-				builder_power_poles:push{
-					name=state.pole_choice,
-					quality=state.pole_quality_choice,
-					thing = "pole",
-					grid_x = x,
-					grid_y = y,
-					no_light = true,
-					ix = index_x, iy = i,
-				}
+				
+				if pole_choice ~= "none" then
+					builder_power_poles:push{
+						name=pole_choice,
+						quality=pole_quality,
+						thing = "pole",
+						grid_x = x,
+						grid_y = y,
+						no_light = true,
+						ix = index_x, iy = i,
+					}
+				end
 				G:build_thing_simple(x, y, "pole")
 			end
 			

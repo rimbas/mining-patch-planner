@@ -609,7 +609,7 @@ local function update_miner_selection(player_data)
 		local tooltip = List{
 			"", mpp_util.entity_name_with_quality(miner_proto.localised_name, player_choices.miner_quality_choice), "\n",
 			"[img=mpp_tooltip_category_size] ", {"description.tile-size"}, (": %ix%i\n"):format(miner.size, miner.size),
-			"[img=mpp_tooltip_category_mining_area] ", {"description.mining-area"}, (": %ix%i"):format(miner.area, miner.area),
+			"[img=mpp_tooltip_category_mining_area] ", {"description.mining-area"}, (": %ix%i"):format(miner.real_area, miner.real_area),
 		}
 		tooltip
 			:conditional_append(miner.power_source_tooltip ~= nil, "\n", miner.power_source_tooltip)
@@ -804,6 +804,7 @@ local function update_space_belt_selection(player)
 			order=belt.order,
 			filterable=true,
 			disabled=is_restricted,
+			sort={belt_struct.speed},
 		}
 		if belt.name == choices.space_belt_choice then existing_choice_is_valid = true end
 
@@ -825,6 +826,11 @@ local function update_space_belt_selection(player)
 			order="",
 		}
 	end
+	
+	table.sort(values, function(a, b)
+		local a1, a2, b1, b2 = a.sort[1], a.order, b.sort[1], b.order
+		return (a1 == b1 and a2 < b2) or a1 < b1
+	end)
 
 	local table_root = player_data.gui.tables["space_belt"]
 	create_setting_selector(player_data, table_root, "mpp_action", "space_belt", values,
@@ -1124,7 +1130,7 @@ local function update_misc_selection(player)
 
 	if compatibility.is_space(player.surface_index) and layout.restrictions.landfill_omit_available then
 		local existing_choice = choices.space_landfill_choice
-		if not prototypes.entity[existing_choice] then
+		if not prototypes.tile[existing_choice] then
 			existing_choice = "se-space-platform-scaffold"
 			choices.space_landfill_choice = existing_choice
 		end
@@ -1666,7 +1672,10 @@ local function on_gui_elem_changed(event)
 		local old_choice = player_data.choices[action.."_choice"]
 		local old_quality_choice = player_data.choices[action.."_choice"]
 		local elem_value = element.elem_value
-		if elem_value then
+		if type(elem_value) == "string" then
+			element.children[1].visible = false
+			player_data.choices[action.."_choice"] = elem_value or "none"
+		elseif elem_value then
 			local choice = elem_value.name
 			local quality_choice = element.elem_value.quality
 			element.children[1].visible = false

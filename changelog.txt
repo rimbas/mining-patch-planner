@@ -1,8 +1,60 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.7.10
+Date: 2025-11-02
+  Bugfixes:
+    - Fixed crash in Sparse layout.
+---------------------------------------------------------------------------------------------------
+Version: 1.7.9
+Date: 2025-10-19
+  Bugfixes:
+    - Fixed lamps being placed in the way of mining drill outputs.
+    - Fixed fallback power poles being placed on belts.
+---------------------------------------------------------------------------------------------------
+Version: 1.7.8
+Date: 2025-10-13
+  Bugfixes:
+    - Compatibility fixes for Exotic Space Industries.
+---------------------------------------------------------------------------------------------------
+Version: 1.7.7
+Date: 2025-10-08
+  Bugfixes:
+    - Fixed a crash in Super Compact layout when using No Power Poles option.
+---------------------------------------------------------------------------------------------------
+Version: 1.7.6
+Date: 2025-09-30
+  Translation:
+    - Updated Polish translation. (Thanks to GPDiwka)
+  Bugfixes:
+    - Added a migration to remove stale planning tasks that get run after infinite loop fix.
+---------------------------------------------------------------------------------------------------
+Version: 1.7.5
+Date: 2025-09-30
+  Bugfixes:
+    - Fixed crash regression when using the belt planner.
+---------------------------------------------------------------------------------------------------
+Version: 1.7.4
+Date: 2025-09-30
+  Bugfixes:
+    - Space Exploration compatibility fixes.
+---------------------------------------------------------------------------------------------------
+Version: 1.7.3
+Date: 2025-09-28
+  Bugfixes:
+    - Fixed infinite loop when restrictions make it impossible to place any mining drills.
+    - Fixed crash in Sparse layout when using "No power pole" option.
+    - Fixed wrong heuristic logic.
+---------------------------------------------------------------------------------------------------
+Version: 1.7.2
+Date: 2025-08-30
+  Bugfixes:
+    - Fixed edge case crash due to patch shape in Super Compact layout.
+---------------------------------------------------------------------------------------------------
 Version: 1.7.1
-Date: 2025-08-25
+Date: 2025-08-29
   Features:
     - Improved belt throughput overlay for Super Compact layout.
+  Translation:
+    - Updated Russian translation. (Thanks to Astorin)
 ---------------------------------------------------------------------------------------------------
 Version: 1.7.0
 Date: 2025-08-24
