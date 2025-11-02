@@ -434,6 +434,7 @@ function mpp_util.pole_struct(pole_name, quality_name)
 			supply_width = 7,
 			radius = 3.5,
 			wire = 9,
+			supply_area_distance = 3.5,
 		}
 	end
 	local pole = mpp_util.entity_struct(pole_name, quality_name) --[[@as PoleStruct]]
