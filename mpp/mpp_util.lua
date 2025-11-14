@@ -655,9 +655,10 @@ end
 ---@param miner_count number
 ---@param lane_count number
 ---@return PoleSpacingStruct
-function mpp_util.calculate_pole_coverage_interleaved(state, miner_count, lane_count)
+function mpp_util.calculate_pole_coverage_interleaved(state, miner_count, lane_count, x_shift)
 	local m = mpp_util.miner_struct(state.miner_choice)
 	local p = mpp_util.pole_struct(state.pole_choice, state.pole_quality_choice)
+	x_shift = x_shift or 0
 	
 	---@type PoleSpacingStruct
 	local cov = {
@@ -699,6 +700,22 @@ function mpp_util.calculate_pole_coverage_interleaved(state, miner_count, lane_c
 		-- elseif covered_miners % 2 == 0 then
 		-- 	pole_start = m.size * 2 - 1
 		end
+		
+		local output_north = m.output_rotated[NORTH]
+		local output_south = m.output_rotated[SOUTH]
+		local drill_output_positions = {}
+		for i = 1, miner_count do
+			local pos1 = x_shift + (i-1) * m.size+output_north[1]
+			local pos2 = x_shift + (i-1) * m.size+output_south[1]
+			drill_output_positions[pos1] = true
+			drill_output_positions[pos2] = true
+			if pos1 + 2 == pos2 then
+				drill_output_positions[pos1+1] = true
+			elseif pos2 + 2 == pos1 then
+				drill_output_positions[pos2+1] = true
+			end
+		end
+		cov.drill_output_positions = drill_output_positions
 	else
 		local pattern = List()
 		
@@ -713,8 +730,8 @@ function mpp_util.calculate_pole_coverage_interleaved(state, miner_count, lane_c
 		local max_step = min(floor(p.radius * 2) + m.size - 1, floor(p.wire))
 		local drill_output_positions = {}
 		for i = 1, miner_count do
-			local pos1 = (i-1) * m.size+output_north[1]
-			local pos2 = (i-1) * m.size+output_south[1]
+			local pos1 = x_shift + (i-1) * m.size+output_north[1]
+			local pos2 = x_shift + (i-1) * m.size+output_south[1]
 			drill_output_positions[pos1] = true
 			drill_output_positions[pos2] = true
 			if pos1 + 2 == pos2 then
@@ -731,7 +748,7 @@ function mpp_util.calculate_pole_coverage_interleaved(state, miner_count, lane_c
 			previous_x = current_x
 			local found_position = false
 			for ix = min(total_span, current_x + max_step), min(current_x + 1, total_span), -1 do
-				if drill_output_positions[ix] == nil and ix < miner_count* m.size then
+				if drill_output_positions[x_shift + ix] == nil and ix < miner_count* m.size then
 					found_position, current_x = true, ix
 					break
 				end

@@ -1379,7 +1379,27 @@ function render_util.draw_belt_specification(player_data, event)
 	
 	local belts = state.belts
 	
+	local coverage = mpp_util.calculate_pole_coverage_interleaved(state, state.miner_max_column, state.miner_lane_count, state.best_attempt.sx)
+	
+	renderer.draw_text{
+		x = C.gx, y = C.gy,
+		alignment = "center", vertical_alignment = "middle",
+		text = "capable ".. tostring(coverage.capable_span),
+	}
+	
 	for _, belt in pairs(belts) do
+		do
+			local drill_output_positions = coverage.drill_output_positions
+			for x_pos, _ in pairs(drill_output_positions) do
+				renderer.draw_circle{x = C.gx + x_pos, y = C.gy + belt.y, r = 0.2, color = {1, 0, 0}}
+				renderer.draw_text{
+					x = C.gx + belt.x2, y = C.gy + belt.y + .15,
+					alignment = "center", vertical_alignment = "middle",
+					text = "x2", scale = 0.75,
+				}
+			end
+		end
+		
 		do -- Draws belt endpoints
 			-- Draws x1
 			renderer.draw_circle{x = C.gx + belt.x1, y = C.gy + belt.y}

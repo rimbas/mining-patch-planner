@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.7.11
+Date: 2025-11-14
+  Bugfixes:
+    - Fixed lamps overlapping belts or chests mining drill outputs.
+  Translation:
+    - Updated Russian translation. (Thanks to Astorin)
+---------------------------------------------------------------------------------------------------
 Version: 1.7.10
 Date: 2025-11-02
   Bugfixes:

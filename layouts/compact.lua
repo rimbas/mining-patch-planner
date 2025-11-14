@@ -120,7 +120,7 @@ function layout:prepare_pole_layout(state)
 	state.belts = belts
 	state.belt_count = #belts
 	
-	local coverage = mpp_util.calculate_pole_coverage_interleaved(state, state.miner_max_column, state.miner_lane_count)
+	local coverage = mpp_util.calculate_pole_coverage_interleaved(state, state.miner_max_column, state.miner_lane_count, state.best_attempt.sx)
 	
 	---@type List<PowerPoleGhostSpecification>
 	local builder_power_poles = List()
@@ -139,7 +139,6 @@ function layout:prepare_pole_layout(state)
 	
 	local connected = power_grid:ensure_connectivity(connectivity)
 	local drill_output_positions = coverage.drill_output_positions
-	local sx = state.best_attempt.sx - 1
 	
 	for _, pole in pairs(connected) do
 		builder_power_poles:push{
