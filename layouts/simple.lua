@@ -727,7 +727,24 @@ function layout:layout_attempts_fallback(state)
 	local attempt = state.saved_attempts[attempt_index]
 	local attempts_done = 0
 	
+	local saved_attempts = state.saved_attempts
 	if attempt_index > attempt_count then
+		if #state.saved_attempts > 0 then
+			table_sort(saved_attempts, function(a, b) return a.heuristics.unconsumed < b.heuristics.unconsumed end) -- maximize a value
+		end
+		
+		local first = saved_attempts[1]
+		if first.heuristics.unconsumed < #state.resources then
+			if __DebugAdapter ~= nil then
+				state.saved_attempts = nil
+			end
+			state.best_attempt_index = 1
+			state.best_attempt = first
+			state.best_attempt_score = first.heuristic_score
+			
+			return self:get_post_attempts_callback(state)
+		end
+		
 		state.player.print{"mpp.msg_err_unable_to_create_a_layout"}
 		return false
 	end
