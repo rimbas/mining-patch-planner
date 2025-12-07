@@ -723,9 +723,9 @@ function mpp_util.calculate_pole_coverage_interleaved(state, miner_count, lane_c
 		local output_south = m.output_rotated[SOUTH]
 		
 		local current_x = pole_start
-		if miner_count > 1 then
-			current_x = current_x + 1
-		end
+		-- if miner_count > 1 then
+		-- 	current_x = current_x + 1
+		-- end
 		local start_x = current_x
 		local max_step = min(floor(p.radius * 2) + m.size - 1, floor(p.wire))
 		local drill_output_positions = {}
@@ -753,7 +753,8 @@ function mpp_util.calculate_pole_coverage_interleaved(state, miner_count, lane_c
 					break
 				end
 			end
-			if not found_position or current_x - p.radius < previous_x + p.radius then
+			-- TODO: there might be redundant power poles on last mining drill
+			if not found_position or current_x then
 				break
 			else
 				pattern:push(current_x)
