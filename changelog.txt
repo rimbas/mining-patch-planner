@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
-Version: 1.7.13
+Version: 1.7.14
 Date: 2025-12-07
   Bugfixes:
     - Fixed Krastorio Medium Power Poles placement stopping early when using Big Mining Drills in Compact layout.

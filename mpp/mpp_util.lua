@@ -754,7 +754,7 @@ function mpp_util.calculate_pole_coverage_interleaved(state, miner_count, lane_c
 				end
 			end
 			-- TODO: there might be redundant power poles on last mining drill
-			if not found_position or current_x then
+			if not found_position then
 				break
 			else
 				pattern:push(current_x)
