@@ -996,6 +996,7 @@ function common.create_belt_building_environment(state)
 	---@param belt BaseBeltSpecification
 	local function make_sparse_side_merge_belt(belt)
 		make_side_merge_belt(belt)
+		local y = belt.y
 		
 		local lane2 = belt.lane2
 		if lane2 then

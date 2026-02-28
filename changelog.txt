@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.7.16
+Date: 2026-02-28
+  Bugfixes:
+    - Fixed a crash in Sparse layout.
+    - Fixed insufficient minimum required Factorio version. (bumped up to 2.0.45)
+    - Fixed sprite mipmap warnings.
+---------------------------------------------------------------------------------------------------
 Version: 1.7.15
 Date: 2026-01-11
   Features:
