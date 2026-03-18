@@ -665,7 +665,8 @@ function common.create_belt_building_environment(state)
 			thing = "belt", grid_x = x, grid_y = y,
 			direction = direction,
 		})
-		G:build_thing_simple(x, y, "belt")
+		-- do not do G:build_thing_simple(x, y, "belt") here
+		-- commit belts with common.commit_built_tiles_to_grid after planning
 	end
 	environment.create_belt = create_belt
 

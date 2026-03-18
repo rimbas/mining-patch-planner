@@ -1376,6 +1376,7 @@ function layout:prepare_belt_layout(state)
 	end
 	
 	state.builder_belts = builder_belts
+	common.commit_built_tiles_to_grid(G, builder_belts, "belt")
 
 	if (
 		self.do_power_pole_joiners
@@ -1398,8 +1399,6 @@ function layout:prepare_power_pole_joiners(state)
 	local builder_poles = state.builder_power_poles
 	local power_grid = state.power_grid
 	local max_x, max_y = power_grid._max_x, power_grid._max_y
-	
-	common.commit_built_tiles_to_grid(G, state.builder_belts, "belt")
 	
 	do
 		local last_row = power_grid[max_y] --[[@as table<number, GridPole>]]

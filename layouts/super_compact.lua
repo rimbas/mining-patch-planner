@@ -514,6 +514,7 @@ function layout:prepare_belt_layout(state)
 	end
 
 	state.builder_belts = builder_belts
+	common.commit_built_tiles_to_grid(state.grid, builder_belts, "belt")
 	
 	return "expensive_deconstruct"
 end

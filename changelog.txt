@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.7.18
+Date: 2026-03-18
+  Changes:
+    - Belt stacking option for overlay calculations moved out of advanced settings.
+  Bugfixes:
+    - Fixed belt placement regression in Compact layout.
+---------------------------------------------------------------------------------------------------
 Version: 1.7.17
 Date: 2026-03-17
   Bugfixes:

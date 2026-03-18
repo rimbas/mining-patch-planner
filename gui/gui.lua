@@ -1203,7 +1203,7 @@ local function update_misc_selection(player)
 		}
 	end
 	
-	if player_data.advanced and layout.restrictions.lane_filling_info_available then
+	if script.feature_flags.space_travel and layout.restrictions.lane_filling_info_available then
 		values:push{
 			value="use_stack_capacity_multiplier",
 			tooltip={"mpp.choice_use_stack_capacity_multiplier"},

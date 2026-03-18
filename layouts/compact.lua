@@ -377,6 +377,7 @@ function layout:prepare_belt_layout(state)
 	end
 
 	state.builder_belts = builder_belts
+	common.commit_built_tiles_to_grid(G, builder_belts, "belt")
 	
 	if (
 		self.do_power_pole_joiners
