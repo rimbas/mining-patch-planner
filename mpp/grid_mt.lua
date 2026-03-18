@@ -328,8 +328,9 @@ end
 ---Builder function
 ---@param cx number x coord
 ---@param cy number y coord
----@param size_w number
 ---@param thing GridBuilding Type of building
+---@param size_w number
+---@param size_h number
 function grid_mt:build_thing(cx, cy, thing, size_w, size_h)
 	size_h = size_h or size_w
 	for y = cy, cy + size_h do

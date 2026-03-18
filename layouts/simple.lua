@@ -1702,6 +1702,7 @@ function layout:prepare_lamp_layout(state)
 
 	if state.lamp_choice ~= true then return next_step end
 
+	local G = state.grid
 	local lamps = {}
 	state.builder_lamps = lamps
 
@@ -1710,12 +1711,21 @@ function layout:prepare_lamp_layout(state)
 
 	for _, pole in ipairs(state.builder_power_poles) do
 		---@cast pole PowerPoleGhostSpecification
-		if not pole.no_light then
+		local tile1 = G:get_tile(pole.grid_x+sx, pole.grid_y+sy)
+		local tile2 = G:get_tile(pole.grid_x-sx, pole.grid_y+sy)
+		if not pole.no_light and (tile1 and not tile1.built_thing) then
 			lamps[#lamps+1] = {
 				name="small-lamp",
 				thing="lamp",
-				grid_x=pole.grid_x+sx,
-				grid_y=pole.grid_y+sy,
+				grid_x=tile1.x,
+				grid_y=tile1.y,
+			}
+		elseif not pole.no_light and (tile2 and not tile2.built_thing) then
+			lamps[#lamps+1] = {
+				name="small-lamp",
+				thing="lamp",
+				grid_x=tile2.x,
+				grid_y=tile2.y,
 			}
 		end
 	end

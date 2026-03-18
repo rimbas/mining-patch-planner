@@ -665,6 +665,7 @@ function common.create_belt_building_environment(state)
 			thing = "belt", grid_x = x, grid_y = y,
 			direction = direction,
 		})
+		G:build_thing_simple(x, y, "belt")
 	end
 	environment.create_belt = create_belt
 
