@@ -615,7 +615,7 @@ function common.get_mining_drill_production_from_state(state)
 		elseif mod.category == "productivity" then
 			productivity = quality_clamp(productivity, level)
 		end
-		module_speed = module_speed + speed * state.miner.module_inventory_size
+		module_speed = module_speed + math.max(speed * state.miner.module_inventory_size, -0.8)
 		drill_productivity = drill_productivity + productivity * state.miner.module_inventory_size
 	end
 	local multiplier = drill_speed / resource_hardness * module_speed * drill_productivity
