@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.7.21
+Date: 2026-06-29
+  Features:
+    - Super Compact layout now uses mining drill mirroring to balance output on the belt.
+  Bugfixes:
+    - Clamp speed reduction from modules to -80%. (Thanks to maritz for the pull request)
+---------------------------------------------------------------------------------------------------
 Version: 1.7.20
 Date: 2026-06-23
   Features:

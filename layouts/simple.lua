@@ -429,6 +429,7 @@ end
 ---@field line number lane index
 ---@field column number column index
 ---@field direction? defines.direction
+---@field mirror? boolean
 
 ---@class MinerPlacement : MinerPlacementInit
 ---@field stagger number Super compact layout stagger index
@@ -710,7 +711,7 @@ function layout:layout_attempts(state)
 		state.best_attempt = attempt
 		state.best_attempt_score = attempt.heuristic_score
 		
-		if __DebugAdapter ~= nil then
+		if debugadapter ~= nil then
 			state.saved_attempts = nil
 		end
 		
@@ -737,7 +738,7 @@ function layout:layout_attempts_fallback(state)
 		
 		local first = saved_attempts[1]
 		if first.heuristics.unconsumed < #state.resources then
-			if __DebugAdapter ~= nil then
+			if debugadapter ~= nil then
 				state.saved_attempts = nil
 			end
 			state.best_attempt_index = 1
@@ -778,7 +779,7 @@ function layout:layout_attempts_fallback(state)
 	
 	if state.attempt_index > #state.attempts then
 		attempt = state.saved_attempts[1]
-		if __DebugAdapter ~= nil then
+		if debugadapter ~= nil then
 			state.saved_attempts = nil
 		end
 		state.best_attempt_index = 1
@@ -1247,7 +1248,7 @@ function layout:_process_mining_drill_lanes(state)
 			merged_throughput2 = 0,
 		}
 		
-		local throughput1, throughput2 = self:_calculate_belt_throughput(state, belt, EAST)
+		local throughput1, throughput2 = self:_calculate_belt_throughput(state, belt, WEST)
 		belt.throughput1, belt.throughput2 = throughput1, throughput2
 		belt.merged_throughput1, belt.merged_throughput2 = throughput1, throughput2
 		
@@ -1269,7 +1270,7 @@ function layout:_apply_belt_merge_strategy(state, source, target, direction)
 	local source_total = source_t1 + source_t2
 	local target_t1, target_t2 = target.merged_throughput1, target.merged_throughput2
 	local target_total = target_t1 + target_t2
-	local source_west1, source_west2 = self:_calculate_belt_throughput(state, source, WEST)
+	local source_west1, source_west2 = self:_calculate_belt_throughput(state, source, EAST)
 	
 	if (
 		source.has_drills ~= true

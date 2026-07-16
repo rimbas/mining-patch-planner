@@ -1006,6 +1006,7 @@ local function update_misc_selection(player)
 	local choices = player_data.choices
 	local layout = layouts[choices.layout_choice]
 	local values = List() --[[@as List<SettingValueEntry>]]
+	local drill_proto = prototypes.entity[choices.miner_choice]
 
 	values:push{
 		value="ore_filtering",
@@ -1049,7 +1050,8 @@ local function update_misc_selection(player)
 	if layout.restrictions.module_available then
 		---@type string|nil
 		local existing_choice = choices.module_choice
-		if not prototypes.item[existing_choice] then
+		local module_proto = prototypes.item[existing_choice]
+		if not module_proto then
 			existing_choice = nil
 			choices.module_choice = "none"
 		end
@@ -1059,18 +1061,30 @@ local function update_misc_selection(player)
 			choices.module_quality_choice = existing_quality_choice
 		end
 
+		local tooltip = {"", {"gui.module"}, "\n", {"mpp.label_right_click_to_clear"}} --[[@as List<LocalisedString>]]
 		local elem_value
 		if existing_choice then
-				elem_value = {
+			elem_value = {
 				name = existing_choice,
 				quality = existing_quality_choice,
 			}
+			local mult = drill_proto.module_inventory_size
+			-- tooltip = List{"", {"item-name."..elem_value.name}, "\n", {"mpp.label_right_click_to_clear"}}
+			tooltip = List{"", mpp_util.entity_name_with_quality(module_proto.localised_name, existing_quality_choice) --[[@as any]]}
+			tooltip:append("\n", {"mpp.label_right_click_to_clear"})
+			tooltip:append("\n[color=yellow]", {"description.module-slots"}, ":[/color] "..mult)
+			-- local module_effects = module_proto.get_module_effects(existing_quality_choice)
+			-- for effect, amount in pairs(module_effects) do
+			-- 	local plus = amount > 0 and "+" or ""
+			-- 	local percentage = amount * mult * 100
+			-- 	tooltip:append("\n[color=yellow]", {"description."..effect.."-bonus"}, ":[/color] "..plus..percentage.."%")
+			-- end
 		end
 		
 		values:push{
 			action="mpp_prototype",
 			value="module",
-			tooltip={"", {"gui.module"}, "\n", {"mpp.label_right_click_to_clear"}},
+			tooltip=tooltip --[[@as LocalisedString]],
 			icon=("mpp_no_module"),
 			elem_type="item-with-quality",
 			elem_filters={{filter="type", type="module"}},
@@ -1235,7 +1249,7 @@ end
 
 local function update_debugging_selection(player_data)
 
-	local is_debugging = not not __DebugAdapter
+	local is_debugging = not not debugadapter
 	player_data.gui.section["debugging"].visible = is_debugging
 	if not is_debugging then
 		return
@@ -1442,7 +1456,7 @@ local function on_gui_click(event)
 	if evt_ele_tags["mpp_advanced_settings"] then
 		abort_blueprint_mode(player)
 
-		if __DebugAdapter and event.alt then
+		if debugadapter and event.alt then
 			local setting = player.mod_settings["mpp-dump-heuristics-data"].value
 
 			player.mod_settings["mpp-dump-heuristics-data"] = {value = not setting}
@@ -1688,6 +1702,7 @@ local function on_gui_elem_changed(event)
 			player_data.choices[action.."_choice"] = "none"
 			player_data.choices[action.."_quality_choice"] = "normal"
 		end
+		update_selections(player)
 	end
 end
 

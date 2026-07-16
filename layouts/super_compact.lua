@@ -76,6 +76,7 @@ function layout:_placement_attempt(state, attempt)
 			local ix = 1
 			for x = 1 + shift_x + start_x, state.coords.tw + 2, size * 2 do
 				local tile = grid:get_tile(x, y) --[[@as GridTile]]
+				local mirror = (direction == EAST) and (ix % 2 == 0)
 				---@type MinerPlacementInit
 				local miner = {
 					x = x,
@@ -87,6 +88,7 @@ function layout:_placement_attempt(state, attempt)
 					stagger = row_start,
 					line = row_index,
 					column = ix,
+					mirror = mirror,
 				}
 				if tile.forbidden then
 					-- no op
@@ -138,26 +140,45 @@ end
 ---@param self Layout
 ---@param state State
 ---@param belt BaseBeltSpecification
----@param direction defines.direction.west | defines.direction.east | nil
+---@param direction defines.direction.west | defines.direction.east | nil direction of the belt
 ---@return number, number
 function layout:_calculate_belt_throughput(state, belt, direction)
 	local belt_speed = state.belt.speed
 	local multiplier = common.get_mining_drill_production_from_state(state)
 	local lane1, lane2 = belt.lane1, belt.lane2
 	
-	local dirs =  {[NORTH]=0, [EAST]=0, [SOUTH]=0, [WEST]=0}
+	local lane1_sum, lane2_sum = 0, 0
 	---@param lane MinerPlacement[]
 	local function sum_miner_directions(lane)
+		local sum1 = function() lane1_sum = lane1_sum + 1 end
+		local sum2 = function() lane2_sum = lane2_sum + 1 end
+		if direction == EAST then
+			sum1, sum2 = sum2, sum1
+		end
 		for _, drill in ipairs(lane or {}) do
-			dirs[drill.direction] = dirs[drill.direction] + 1
+			if drill.direction == NORTH then
+				sum1()
+			elseif drill.direction == SOUTH then
+				sum2()
+			elseif direction == EAST and  (drill.direction == EAST or drill.direction == WEST) and drill.mirror then
+				sum2()
+			elseif direction == EAST and  (drill.direction == EAST or drill.direction == WEST) then
+				sum1()
+			elseif (drill.direction == EAST or drill.direction == WEST) and drill.mirror then
+				sum1()
+			else
+				sum2()
+			end
 		end
 	end
 	sum_miner_directions(lane1)
 	sum_miner_directions(lane2)
 	if direction == WEST then
-		return (dirs[SOUTH]) * multiplier / belt_speed, (dirs[NORTH] + dirs[EAST]) * multiplier / belt_speed
+		-- return (dirs[SOUTH]) * multiplier / belt_speed, (dirs[NORTH] + dirs[EAST]) * multiplier / belt_speed
+		return lane2_sum * multiplier / belt_speed, lane1_sum * multiplier / belt_speed
 	else
-		return (dirs[SOUTH] + dirs[EAST]) * multiplier / belt_speed, (dirs[NORTH]) * multiplier / belt_speed
+		-- return (dirs[SOUTH] + dirs[EAST]) * multiplier / belt_speed, (dirs[NORTH]) * multiplier / belt_speed
+		return lane1_sum * multiplier / belt_speed, lane2_sum * multiplier / belt_speed
 	end
 end
 
@@ -538,6 +559,7 @@ function layout:placement_miners(state)
 			grid_x = miner.origin_x,
 			grid_y = miner.origin_y,
 			direction = mpp_util.clamped_rotation(miner.direction, M.rotation_bump),
+			mirror = miner.mirror,
 		}
 
 		if state.module_choice ~= "none" then

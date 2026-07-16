@@ -10,7 +10,7 @@ function task_runner.mining_patch_task(state)
 	---@type TickResult
 	local tick_result
 
-	if not __DebugAdapter then
+	if not debugadapter then
 		tick_result = layout:tick(state)
 	else
 		local success
@@ -22,13 +22,13 @@ function task_runner.mining_patch_task(state)
 	end
 
 	if last_callback == tick_result then
-		if __DebugAdapter then
+		if debugadapter then
 			table.remove(storage.tasks, 1)
 		else
 			error("Layout "..state.layout_choice.." step "..tostring(tick_result).." called itself again")
 		end
 	elseif tick_result == nil then
-		if __DebugAdapter then
+		if debugadapter then
 			game.print(("Callback for layout %s after call %s has no result"):format(state.layout_choice, state._callback))
 			table.remove(storage.tasks, 1)
 
@@ -54,7 +54,7 @@ function task_runner.mining_patch_task(state)
 		local player_data = storage.players[player.index]
 		state._previous_state = nil
 		player_data.tick_expires = math.huge
-		if __DebugAdapter then
+		if debugadapter then
 			player_data.last_state = state
 		else
 			player_data.last_state = {

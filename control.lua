@@ -29,7 +29,7 @@ function task_runner_handler(event)
 		local tasks = storage.immediate_tasks
 		storage.immediate_tasks = {}
 		for _, task in ipairs(tasks) do
-			if not __DebugAdapter then
+			if not debugadapter then
 				task_runner.belt_plan_task(task --[[@as BeltinatorState]])
 			else
 				local success
@@ -58,7 +58,7 @@ script.on_event(defines.events.on_player_selected_area, function(event)
 	if not player or event.item ~= "mining-patch-planner" then return end
 
 	if #event.entities == 0 then
-		if __DebugAdapter then
+		if debugadapter then
 			---@type PlayerData?
 			local player_data = storage.players[event.player_index]
 			if player_data == nil or player_data.last_state == nil then return end
@@ -139,7 +139,7 @@ script.on_event(defines.events.on_player_alt_selected_area, function(event)
 	if not cursor_stack or not cursor_stack.valid or not cursor_stack.valid_for_read then return end
 	if cursor_stack.name ~= "mining-patch-planner" then return end
 
-	if not __DebugAdapter then
+	if not debugadapter then
 		algorithm.on_player_alt_selected_area(event)
 	else
 		local success
@@ -152,7 +152,7 @@ end)
 
 script.on_event(defines.events.on_player_alt_reverse_selected_area, function(event)
 	---@cast event EventData.on_player_alt_reverse_selected_area
-	if not __DebugAdapter then return end
+	if not debugadapter then return end
 
 	local player = game.get_player(event.player_index)
 	if not player then return end
@@ -183,7 +183,7 @@ script.on_event(defines.events.on_player_alt_reverse_selected_area, function(eve
 end)
 
 script.on_event(defines.events.on_player_reverse_selected_area, function(event)
-	if not __DebugAdapter then return end
+	if not debugadapter then return end
 
 	local player = game.get_player(event.player_index)
 	if not player then return end

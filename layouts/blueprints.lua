@@ -1357,6 +1357,8 @@ function layout:placement_miners(state)
 			grid_y = miner.origin_y,
 			direction = miner.direction,
 			quality = miner.ent.quality,
+			mirror = miner.ent.mirror,
+			filter = miner.ent.filter,
 		}
 
 		if ghost and miner.ent.items then
