@@ -336,6 +336,7 @@ script.on_event(defines.events.on_built_entity, function(event)
 		player = player,
 		coords = spec.coords,
 		direction_choice = spec.direction_choice,
+		do_landfill = spec.do_landfill,
 		belt_x = tx,
 		belt_y = ty,
 		belt_specification = spec,

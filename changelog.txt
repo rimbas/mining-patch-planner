@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.7.22
+Date: 2026-10-19
+  Features:
+    - Belt planner now places landfill over water and foundation over lava. (respects "Omit landfill" option)
+---------------------------------------------------------------------------------------------------
 Version: 1.7.21
 Date: 2026-06-29
   Features:

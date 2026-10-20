@@ -12,6 +12,7 @@ local coord_convert, coord_revert = mpp_util.coord_convert, mpp_util.coord_rever
 ---@field belt_specification BeltPlannerSpecification
 ---@field belt_choice string
 ---@field belt_direction defines.direction
+---@field do_landfill? string
 ---@field player LuaPlayer
 ---@field surface LuaSurface
 ---@field coords Coords
@@ -142,7 +143,7 @@ function belt_planner.layout(state)
 	-- local belt_direction = mpp_util.clamped_rotation(((-defines.direction[state.direction_choice]) % ROTATION)-EAST, world_direction)
 	local belt_direction = world_direction
 	
-	local create_entity = builder.create_entity_builder(state, {do_deconstruction=true})
+	local create_entity = builder.create_entity_builder(state, {do_deconstruction=true, do_landfill=state.do_landfill})
 	
 	-- rendering.clear()
 

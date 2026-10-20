@@ -1118,6 +1118,7 @@ function common.give_belt_blueprint(state)
 		coords = state.coords,
 		direction_choice = state.direction_choice,
 		belt_choice = state.belt_choice,
+		do_landfill = state.is_space and state.space_landfill_choice or not state.landfill_choice and "landfill" or nil,
 		count = 0,
 		ungrouped = true,
 		_renderables = {},

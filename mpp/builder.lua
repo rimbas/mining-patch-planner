@@ -28,6 +28,7 @@ local quality_enabled = script.feature_flags.quality
 
 ---@class EntityBuilderOptions
 ---@field do_deconstruction boolean?
+---@field do_landfill string?
 
 --- Builder for a convenience function that automatically translates
 --- internal grid state for a surface.create_entity call
@@ -43,12 +44,16 @@ function builder.create_entity_builder(state, opts)
 	local gx, gy, tw, th = c.gx, c.gy, c.tw, c.th
 	local direction_conv = mpp_util.bp_direction[state.direction_choice]
 	local collected_ghosts = state._collected_ghosts
+	local ply = state.player
 	-- local is_space = state.is_space
 
 	local deconstruction_planner
 	if opts.do_deconstruction then
 		deconstruction_planner = storage.script_inventory[state.deconstruction_choice and 2 or 1]
 	end
+
+	local do_landfill = opts.do_landfill
+	local landfill = state.is_space and state.space_landfill_choice or "landfill"
 	
 	local _player = state.player
 	local _force = _player.force
@@ -113,6 +118,26 @@ function builder.create_entity_builder(state, opts)
 			-- }
 		end
 
+		if do_landfill then
+			local tile = surface.get_tile(position)
+			local tile_name = tile.name
+			if tile_name ~= "out-of-map" and tile_name ~= "se-space" then
+				
+				local tile_proto = tile.prototype.default_cover_tile
+				
+				if tile_proto then
+					surface.create_entity{
+						raise_built=true,
+						name="tile-ghost",
+						player=_player,
+						force=_force,
+						position=position --[[@as MapPosition]],
+						inner_name=tile_proto.name,
+					}
+				end
+			end
+		end
+		
 		local result = surface.create_entity(ghost)
 		if result then
 			if ghost.thing and grid then

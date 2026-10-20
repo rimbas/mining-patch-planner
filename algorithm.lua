@@ -43,6 +43,9 @@ require_layout("blueprints")
 ---@field belts BaseBeltSpecification[]
 ---@field belt_planner_belts BeltPlannerSpecification
 ---@field belt_choice string
+---@field is_space boolean
+---@field landfill_choice boolean
+---@field space_landfill_choice string
 ---@field _previous_state MinimumPreservedState?
 ---@field _collected_ghosts LuaEntity[]
 ---@field _preview_rectangle? LuaRenderObject LuaRendering.draw_rectangle
@@ -112,7 +115,7 @@ require_layout("blueprints")
 
 ---@param event EventData.on_player_selected_area
 ---@return State|nil
----@return LocalisedString error status
+---@return LocalisedString | nil error status
 local function create_state(event)
 	---@diagnostic disable-next-line: missing-fields
 	local state = {} --[[@as State]]
@@ -165,7 +168,7 @@ local function create_state(event)
 		state.miner_choice = state.cache.miner_name
 	end
 
-	return state
+	return state, nil
 end
 
 ---Filters resource entity list and returns patch coordinates and size
